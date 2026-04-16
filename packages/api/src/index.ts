@@ -5,6 +5,7 @@ import { Hono } from 'hono';
 import { auth } from './auth.js';
 import { bookmarksRoute } from './routes/bookmarks.js';
 import { foldersRoute } from './routes/folders.js';
+import { searchRoute } from './routes/search.js';
 import { trashRoute } from './routes/trash.js';
 
 const app = new Hono<{
@@ -42,6 +43,9 @@ app.route('/api/bookmarks', bookmarksRoute);
 
 // Trash routes
 app.route('/api/trash', trashRoute);
+
+// Search routes
+app.route('/api/search', searchRoute);
 
 app.get('/health', (c) => {
   return c.json({ status: 'ok' });
