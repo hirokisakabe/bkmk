@@ -82,7 +82,9 @@ bookmarksRoute.post('/', async (c) => {
     const [folder] = await db
       .select({ id: folders.id })
       .from(folders)
-      .where(and(eq(folders.userId, userId), eq(folders.path, folderPath), isNull(folders.deletedAt)))
+      .where(
+        and(eq(folders.userId, userId), eq(folders.path, folderPath), isNull(folders.deletedAt)),
+      )
       .limit(1);
 
     if (!folder) {
@@ -313,10 +315,7 @@ bookmarksRoute.delete('/:id', async (c) => {
     return c.json({ error: 'Bookmark not found' }, 404);
   }
 
-  await db
-    .update(bookmarks)
-    .set({ deletedAt: new Date() })
-    .where(eq(bookmarks.id, bookmarkId));
+  await db.update(bookmarks).set({ deletedAt: new Date() }).where(eq(bookmarks.id, bookmarkId));
 
   return c.json({ success: true });
 });
