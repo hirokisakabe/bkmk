@@ -1,0 +1,335 @@
+import { and, eq, isNotNull, isNull, or, sql } from 'drizzle-orm';
+import { Hono } from 'hono';
+
+import type { auth } from '../auth.js';
+import { db } from '../db/index.js';
+import { bookmarks, folders } from '../db/schema.js';
+
+type Env = {
+  Variables: {
+    user: typeof auth.$Infer.Session.user;
+    session: typeof auth.$Infer.Session.session;
+  };
+};
+
+function escapeLike(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+}
+
+function isUniqueViolation(err: unknown): boolean {
+  return err instanceof Error && 'code' in err && (err as { code: string }).code === '23505';
+}
+
+const trashRoute = new Hono<Env>();
+
+// GET /api/trash — ゴミ箱内のフォルダ+ブックマーク一覧
+trashRoute.get('/', async (c) => {
+  const userId = c.var.user.id;
+
+  const [deletedFolders, deletedBookmarks] = await Promise.all([
+    db
+      .select()
+      .from(folders)
+      .where(and(eq(folders.userId, userId), isNotNull(folders.deletedAt)))
+      .orderBy(folders.deletedAt),
+    db
+      .select()
+      .from(bookmarks)
+      .where(and(eq(bookmarks.userId, userId), isNotNull(bookmarks.deletedAt)))
+      .orderBy(bookmarks.deletedAt),
+  ]);
+
+  return c.json({ folders: deletedFolders, bookmarks: deletedBookmarks });
+});
+
+// POST /api/trash/:id/restore — アイテムを復元
+trashRoute.post('/:id/restore', async (c) => {
+  const userId = c.var.user.id;
+  const itemId = c.req.param('id');
+
+  // フォルダかブックマークかを検索
+  const [[folder], [bookmark]] = await Promise.all([
+    db
+      .select()
+      .from(folders)
+      .where(and(eq(folders.id, itemId), eq(folders.userId, userId), isNotNull(folders.deletedAt))),
+    db
+      .select()
+      .from(bookmarks)
+      .where(
+        and(eq(bookmarks.id, itemId), eq(bookmarks.userId, userId), isNotNull(bookmarks.deletedAt)),
+      ),
+  ]);
+
+  if (!folder && !bookmark) {
+    return c.json({ error: 'Item not found in trash' }, 404);
+  }
+
+  if (folder) {
+    // フォルダ復元: 配下のアイテムも一括復元
+    const escapedPath = escapeLike(folder.path);
+
+    // 復元先の親フォルダが存在するか確認
+    let restoreParentPath = folder.parentPath;
+    let restorePath = folder.path;
+
+    if (folder.parentPath !== null) {
+      const [parentFolder] = await db
+        .select({ id: folders.id })
+        .from(folders)
+        .where(
+          and(
+            eq(folders.userId, userId),
+            eq(folders.path, folder.parentPath),
+            isNull(folders.deletedAt),
+          ),
+        )
+        .limit(1);
+
+      if (!parentFolder) {
+        // 親フォルダが削除済みの場合はルートに復元
+        restoreParentPath = null;
+        restorePath = `/${folder.name}`;
+      }
+    }
+
+    // 同一親内の最大 position を取得
+    const maxPos = await db
+      .select({ max: sql<number>`coalesce(max(${folders.position}), -1)` })
+      .from(folders)
+      .where(
+        and(
+          eq(folders.userId, userId),
+          restoreParentPath === null
+            ? isNull(folders.parentPath)
+            : eq(folders.parentPath, restoreParentPath),
+          isNull(folders.deletedAt),
+        ),
+      );
+    const position = (maxPos[0]?.max ?? -1) + 1;
+
+    const oldPath = folder.path;
+
+    try {
+      await db.transaction(async (tx) => {
+        // 自身を復元（パスが変わる場合あり）
+        await tx
+          .update(folders)
+          .set({
+            deletedAt: null,
+            path: restorePath,
+            parentPath: restoreParentPath,
+            position,
+          })
+          .where(eq(folders.id, folder.id));
+
+        // 配下のフォルダを復元（パスも更新）
+        if (oldPath !== restorePath) {
+          await tx
+            .update(folders)
+            .set({
+              deletedAt: null,
+              path: sql`${restorePath} || substring(${folders.path} from ${oldPath.length + 1})`,
+              parentPath: sql`${restorePath} || substring(${folders.parentPath} from ${oldPath.length + 1})`,
+            })
+            .where(
+              and(
+                eq(folders.userId, userId),
+                isNotNull(folders.deletedAt),
+                sql`${folders.path} LIKE ${escapedPath + '/%'} ESCAPE '\\'`,
+              ),
+            );
+
+          // 配下のブックマークを復元（folderPath も更新）
+          await tx
+            .update(bookmarks)
+            .set({
+              deletedAt: null,
+              folderPath: sql`${restorePath} || substring(${bookmarks.folderPath} from ${oldPath.length + 1})`,
+            })
+            .where(
+              and(
+                eq(bookmarks.userId, userId),
+                isNotNull(bookmarks.deletedAt),
+                sql`${bookmarks.folderPath} LIKE ${escapedPath + '/%'} ESCAPE '\\'`,
+              ),
+            );
+
+          // 直下のブックマーク
+          await tx
+            .update(bookmarks)
+            .set({ deletedAt: null, folderPath: restorePath })
+            .where(
+              and(
+                eq(bookmarks.userId, userId),
+                isNotNull(bookmarks.deletedAt),
+                eq(bookmarks.folderPath, oldPath),
+              ),
+            );
+        } else {
+          // パスが変わらない場合はそのまま復元
+          await tx
+            .update(folders)
+            .set({ deletedAt: null })
+            .where(
+              and(
+                eq(folders.userId, userId),
+                isNotNull(folders.deletedAt),
+                sql`${folders.path} LIKE ${escapedPath + '/%'} ESCAPE '\\'`,
+              ),
+            );
+
+          await tx
+            .update(bookmarks)
+            .set({ deletedAt: null })
+            .where(
+              and(
+                eq(bookmarks.userId, userId),
+                isNotNull(bookmarks.deletedAt),
+                or(
+                  eq(bookmarks.folderPath, folder.path),
+                  sql`${bookmarks.folderPath} LIKE ${escapedPath + '/%'} ESCAPE '\\'`,
+                ),
+              ),
+            );
+        }
+      });
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        return c.json({ error: 'Folder already exists at the restore path' }, 409);
+      }
+      throw err;
+    }
+
+    return c.json({ success: true });
+  }
+
+  // ブックマーク復元
+  // 復元先フォルダが存在するか確認
+  let restoreFolderPath = bookmark!.folderPath;
+  if (restoreFolderPath !== null) {
+    const [targetFolder] = await db
+      .select({ id: folders.id })
+      .from(folders)
+      .where(
+        and(
+          eq(folders.userId, userId),
+          eq(folders.path, restoreFolderPath),
+          isNull(folders.deletedAt),
+        ),
+      )
+      .limit(1);
+
+    if (!targetFolder) {
+      // フォルダが削除済みの場合はルートに復元
+      restoreFolderPath = null;
+    }
+  }
+
+  // 同一フォルダ内の最大 position を取得
+  const maxPos = await db
+    .select({ max: sql<number>`coalesce(max(${bookmarks.position}), -1)` })
+    .from(bookmarks)
+    .where(
+      and(
+        eq(bookmarks.userId, userId),
+        restoreFolderPath === null
+          ? isNull(bookmarks.folderPath)
+          : eq(bookmarks.folderPath, restoreFolderPath),
+        isNull(bookmarks.deletedAt),
+      ),
+    );
+  const position = (maxPos[0]?.max ?? -1) + 1;
+
+  try {
+    await db
+      .update(bookmarks)
+      .set({ deletedAt: null, folderPath: restoreFolderPath, position })
+      .where(eq(bookmarks.id, bookmark!.id));
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      return c.json({ error: 'Bookmark with this URL already exists' }, 409);
+    }
+    throw err;
+  }
+
+  return c.json({ success: true });
+});
+
+// DELETE /api/trash/:id — アイテムを完全削除
+trashRoute.delete('/:id', async (c) => {
+  const userId = c.var.user.id;
+  const itemId = c.req.param('id');
+
+  // フォルダかブックマークかを検索
+  const [[folder], [bookmark]] = await Promise.all([
+    db
+      .select()
+      .from(folders)
+      .where(and(eq(folders.id, itemId), eq(folders.userId, userId), isNotNull(folders.deletedAt))),
+    db
+      .select()
+      .from(bookmarks)
+      .where(
+        and(eq(bookmarks.id, itemId), eq(bookmarks.userId, userId), isNotNull(bookmarks.deletedAt)),
+      ),
+  ]);
+
+  if (!folder && !bookmark) {
+    return c.json({ error: 'Item not found in trash' }, 404);
+  }
+
+  if (folder) {
+    const escapedPath = escapeLike(folder.path);
+
+    await db.transaction(async (tx) => {
+      // 配下のブックマークを完全削除
+      await tx
+        .delete(bookmarks)
+        .where(
+          and(
+            eq(bookmarks.userId, userId),
+            or(
+              eq(bookmarks.folderPath, folder.path),
+              sql`${bookmarks.folderPath} LIKE ${escapedPath + '/%'} ESCAPE '\\'`,
+            ),
+          ),
+        );
+
+      // 配下のフォルダを完全削除
+      await tx
+        .delete(folders)
+        .where(
+          and(
+            eq(folders.userId, userId),
+            sql`${folders.path} LIKE ${escapedPath + '/%'} ESCAPE '\\'`,
+          ),
+        );
+
+      // 自身を完全削除
+      await tx.delete(folders).where(eq(folders.id, folder.id));
+    });
+
+    return c.json({ success: true });
+  }
+
+  await db.delete(bookmarks).where(eq(bookmarks.id, bookmark!.id));
+  return c.json({ success: true });
+});
+
+// DELETE /api/trash — ゴミ箱を空にする（全アイテム完全削除）
+trashRoute.delete('/', async (c) => {
+  const userId = c.var.user.id;
+
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(bookmarks)
+      .where(and(eq(bookmarks.userId, userId), isNotNull(bookmarks.deletedAt)));
+
+    await tx.delete(folders).where(and(eq(folders.userId, userId), isNotNull(folders.deletedAt)));
+  });
+
+  return c.json({ success: true });
+});
+
+export { trashRoute };
