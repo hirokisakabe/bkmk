@@ -32,6 +32,22 @@ pnpm lint
 pnpm format:check
 ```
 
+## データベース
+
+環境変数 `DATABASE_URL` に Neon の接続文字列を設定してください。
+
+```bash
+export DATABASE_URL="postgresql://..."
+```
+
+マイグレーションファイルの生成・適用:
+
+```bash
+pnpm db:generate   # スキーマからマイグレーション SQL を生成
+pnpm db:migrate    # マイグレーションを実行
+pnpm db:studio     # Drizzle Studio を起動
+```
+
 ## Docker
 
 ```bash
