@@ -3,6 +3,7 @@ import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
 
 import { auth } from './auth.js';
+import { bookmarksRoute } from './routes/bookmarks.js';
 import { foldersRoute } from './routes/folders.js';
 
 const app = new Hono<{
@@ -34,6 +35,9 @@ app.use('/api/*', async (c, next) => {
 
 // Folder routes
 app.route('/api/folders', foldersRoute);
+
+// Bookmark routes
+app.route('/api/bookmarks', bookmarksRoute);
 
 app.get('/health', (c) => {
   return c.json({ status: 'ok' });
