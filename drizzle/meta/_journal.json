@@ -8,6 +8,13 @@
       "when": 1776334775225,
       "tag": "0000_sweet_karma",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1776339638639,
+      "tag": "0001_narrow_agent_zero",
+      "breakpoints": true
     }
   ]
 }
