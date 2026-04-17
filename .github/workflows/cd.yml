@@ -2,7 +2,7 @@ name: CD
 
 on:
   push:
-    branches: [main, feature/cd-cloud-run]
+    branches: [main]
 
 concurrency:
   group: cd-${{ github.ref }}
