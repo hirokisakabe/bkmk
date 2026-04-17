@@ -2,7 +2,7 @@ name: CD
 
 on:
   push:
-    branches: [main]
+    branches: [main, feature/cd-cloud-run]
 
 concurrency:
   group: cd-${{ github.ref }}
@@ -39,12 +39,10 @@ jobs:
         run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
 
       - name: Build Docker image
-        run: docker build -t ${{ env.IMAGE }}:${{ github.sha }} -t ${{ env.IMAGE }}:latest .
+        run: docker build -t ${{ env.IMAGE }}:${{ github.sha }} .
 
       - name: Push Docker image
-        run: |
-          docker push ${{ env.IMAGE }}:${{ github.sha }}
-          docker push ${{ env.IMAGE }}:latest
+        run: docker push ${{ env.IMAGE }}:${{ github.sha }}
 
       - name: Deploy to Cloud Run
         uses: google-github-actions/deploy-cloudrun@v2
@@ -56,9 +54,5 @@ jobs:
       - name: Health check
         run: |
           URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} --region ${{ env.REGION }} --format 'value(status.url)')
-          STATUS=$(curl -s -o /dev/null -w '%{http_code}' "${URL}/health")
-          if [ "$STATUS" != "200" ]; then
-            echo "Health check failed with status: $STATUS"
-            exit 1
-          fi
-          echo "Health check passed (HTTP $STATUS)"
+          curl --fail --silent --show-error --max-time 10 --retry 5 --retry-delay 3 "${URL}/health"
+          echo "Health check passed"
