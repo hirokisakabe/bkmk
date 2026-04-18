@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import { useBookmarks } from '../hooks/use-bookmarks';
 import type { Bookmark } from '../types';
+import { AddBookmarkForm } from './add-bookmark-form';
 
 export function BookmarkList({
   folderPath,
@@ -32,6 +33,8 @@ export function BookmarkList({
           </label>
         )}
       </div>
+
+      <AddBookmarkForm folderPath={folderPath} />
 
       {isLoading && (
         <div className="space-y-4">
