@@ -44,6 +44,20 @@ export const mockBookmarks: Bookmark[] = [
     createdAt: '2024-01-02T00:00:00.000Z',
     updatedAt: '2024-01-02T00:00:00.000Z',
   },
+  {
+    id: 'bk-3',
+    userId: 'test-user',
+    url: 'https://work.example.com',
+    title: 'Work Site',
+    description: null,
+    imageUrl: null,
+    faviconUrl: 'https://work.example.com/favicon.ico',
+    folderPath: '/work',
+    position: 0,
+    deletedAt: null,
+    createdAt: '2024-01-03T00:00:00.000Z',
+    updatedAt: '2024-01-03T00:00:00.000Z',
+  },
 ];
 
 const mockSearchResults: SearchResult[] = [
@@ -70,8 +84,25 @@ const mockTrashData = {
 
 export const handlers = [
   // Bookmarks
-  http.get('/api/bookmarks', () => {
-    return HttpResponse.json(mockBookmarks);
+  http.get('/api/bookmarks', ({ request }) => {
+    const url = new URL(request.url);
+    const folder = url.searchParams.get('folder');
+    const deep = url.searchParams.get('deep') === 'true';
+
+    if (!folder && deep) {
+      return HttpResponse.json(mockBookmarks);
+    }
+    if (!folder && !deep) {
+      return HttpResponse.json(mockBookmarks.filter((b) => b.folderPath === null));
+    }
+    if (folder && deep) {
+      return HttpResponse.json(
+        mockBookmarks.filter(
+          (b) => b.folderPath === folder || b.folderPath?.startsWith(folder + '/'),
+        ),
+      );
+    }
+    return HttpResponse.json(mockBookmarks.filter((b) => b.folderPath === folder));
   }),
 
   http.post('/api/bookmarks', async ({ request }) => {

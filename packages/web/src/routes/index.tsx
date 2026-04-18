@@ -16,6 +16,7 @@ import { useReorderFolder } from '../hooks/use-reorder-folder';
 import { Layout, SearchInput } from '../components/layout';
 import { SearchResults } from '../components/search-results';
 import { requireAuth } from '../lib/auth-guard';
+import { UNCATEGORIZED_FOLDER } from '../lib/constants';
 import { rootRoute } from './__root';
 
 interface IndexSearch {
@@ -95,7 +96,12 @@ function IndexPage() {
     });
   };
 
-  const folderName = folder ? folder.split('/').pop() || folder : 'すべて';
+  const folderName =
+    folder === UNCATEGORIZED_FOLDER
+      ? '未分類'
+      : folder
+        ? folder.split('/').pop() || folder
+        : 'すべて';
   const isSearching = !!q;
 
   return (
