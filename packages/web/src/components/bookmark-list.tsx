@@ -1,6 +1,17 @@
+import {
+  closestCenter,
+  DndContext,
+  type DragEndEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { useState } from 'react';
 
 import { useBookmarks } from '../hooks/use-bookmarks';
+import { useReorderBookmark } from '../hooks/use-reorder-bookmark';
 import type { Bookmark } from '../types';
 import { AddBookmarkForm } from './add-bookmark-form';
 
@@ -16,6 +27,31 @@ export function BookmarkList({
   onToggleDeep: (deep: boolean) => void;
 }) {
   const { data: bookmarks, isLoading } = useBookmarks(folderPath, deep);
+  const reorderBookmark = useReorderBookmark();
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 5 },
+    }),
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    if (reorderBookmark.isPending) return;
+
+    const { active, over } = event;
+    if (!over || active.id === over.id || !bookmarks) return;
+
+    const oldIndex = bookmarks.findIndex((b) => b.id === active.id);
+    const newIndex = bookmarks.findIndex((b) => b.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    reorderBookmark.mutate({
+      id: bookmarks[oldIndex].id,
+      position: bookmarks[newIndex].position,
+    });
+  };
+
+  const canReorder = !deep && bookmarks && bookmarks.length > 1;
 
   return (
     <div>
@@ -59,13 +95,57 @@ export function BookmarkList({
         </div>
       )}
 
-      {!isLoading && bookmarks && bookmarks.length > 0 && (
+      {!isLoading && bookmarks && bookmarks.length > 0 && canReorder && (
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext
+            items={bookmarks.map((b) => b.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="space-y-3">
+              {bookmarks.map((bookmark) => (
+                <SortableBookmarkCard key={bookmark.id} bookmark={bookmark} />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
+      )}
+
+      {!isLoading && bookmarks && bookmarks.length > 0 && !canReorder && (
         <div className="space-y-3">
           {bookmarks.map((bookmark) => (
             <BookmarkCard key={bookmark.id} bookmark={bookmark} />
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function SortableBookmarkCard({ bookmark }: { bookmark: Bookmark }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: bookmark.id,
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className={isDragging ? 'relative z-10 opacity-50' : ''}>
+      <div className="flex items-stretch">
+        <button
+          type="button"
+          className="flex w-6 shrink-0 cursor-grab items-center justify-center text-gray-300 hover:text-gray-500 active:cursor-grabbing"
+          {...attributes}
+          {...listeners}
+        >
+          <GripIcon />
+        </button>
+        <div className="min-w-0 flex-1">
+          <BookmarkCard bookmark={bookmark} />
+        </div>
+      </div>
     </div>
   );
 }
@@ -114,5 +194,18 @@ function BookmarkCard({ bookmark }: { bookmark: Bookmark }) {
         )}
       </div>
     </a>
+  );
+}
+
+function GripIcon() {
+  return (
+    <svg className="h-4 w-4" viewBox="0 0 16 16" fill="currentColor">
+      <circle cx="5" cy="3" r="1.5" />
+      <circle cx="11" cy="3" r="1.5" />
+      <circle cx="5" cy="8" r="1.5" />
+      <circle cx="11" cy="8" r="1.5" />
+      <circle cx="5" cy="13" r="1.5" />
+      <circle cx="11" cy="13" r="1.5" />
+    </svg>
   );
 }
