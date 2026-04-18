@@ -13,6 +13,6 @@ export async function requireAuth() {
 export async function requireGuest() {
   const session = await authClient.getSession();
   if (session.data) {
-    throw redirect({ to: '/', search: { folder: null, deep: false, q: null } });
+    throw redirect({ to: '/', search: { folder: null, q: null } });
   }
 }

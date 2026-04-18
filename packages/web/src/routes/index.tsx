@@ -9,7 +9,6 @@ import { rootRoute } from './__root';
 
 interface IndexSearch {
   folder: string | null;
-  deep: boolean;
   q: string | null;
 }
 
@@ -19,14 +18,13 @@ export const indexRoute = createRoute({
   beforeLoad: requireAuth,
   validateSearch: (search: Record<string, unknown>): IndexSearch => ({
     folder: typeof search.folder === 'string' ? search.folder : null,
-    deep: search.deep === 'true' || search.deep === true,
     q: typeof search.q === 'string' && search.q.trim().length > 0 ? search.q.trim() : null,
   }),
   component: IndexPage,
 });
 
 function IndexPage() {
-  const { folder, deep, q } = indexRoute.useSearch();
+  const { folder, q } = indexRoute.useSearch();
   const navigate = useNavigate();
 
   const handleSearch = (query: string) => {
@@ -34,7 +32,6 @@ function IndexPage() {
       to: '/',
       search: {
         folder: query ? null : folder,
-        deep: query ? false : deep,
         q: query || null,
       },
     });
@@ -52,7 +49,7 @@ function IndexPage() {
           onSelectFolder={(path) =>
             navigate({
               to: '/',
-              search: { folder: path, deep: false, q: null },
+              search: { folder: path, q: null },
             })
           }
         />
@@ -61,17 +58,7 @@ function IndexPage() {
       {isSearching ? (
         <SearchResults query={q} />
       ) : (
-        <BookmarkList
-          folderPath={folder}
-          folderName={folderName}
-          deep={deep}
-          onToggleDeep={(newDeep) =>
-            navigate({
-              to: '/',
-              search: { folder, deep: newDeep, q: null },
-            })
-          }
-        />
+        <BookmarkList folderPath={folder} folderName={folderName} />
       )}
     </Layout>
   );
