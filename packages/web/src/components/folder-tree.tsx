@@ -1,7 +1,18 @@
+import {
+  closestCenter,
+  DndContext,
+  type DragEndEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import { useState } from 'react';
 
 import { useFolders } from '../hooks/use-folders';
+import { useReorderFolder } from '../hooks/use-reorder-folder';
 import type { Folder } from '../types';
 import {
   CreateFolderDialog,
@@ -26,6 +37,29 @@ export function FolderTree({
 }) {
   const { data: folders, isLoading } = useFolders(null);
   const [dialogState, setDialogState] = useState<DialogState>(null);
+  const reorderFolder = useReorderFolder();
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 5 },
+    }),
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    if (reorderFolder.isPending) return;
+
+    const { active, over } = event;
+    if (!over || active.id === over.id || !folders) return;
+
+    const oldIndex = folders.findIndex((f) => f.id === active.id);
+    const newIndex = folders.findIndex((f) => f.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    reorderFolder.mutate({
+      id: folders[oldIndex].id,
+      position: folders[newIndex].position,
+    });
+  };
 
   const handleDeleteOrMove = (folder: Folder) => {
     if (
@@ -72,16 +106,17 @@ export function FolderTree({
         </div>
       )}
 
-      {folders?.map((folder) => (
-        <FolderTreeNode
-          key={folder.id}
-          folder={folder}
+      {folders && folders.length > 0 && (
+        <SortableFolderList
+          folders={folders}
           selectedFolder={selectedFolder}
           onSelectFolder={onSelectFolder}
           depth={0}
           onAction={setDialogState}
+          sensors={sensors}
+          onDragEnd={handleDragEnd}
         />
-      ))}
+      )}
 
       {dialogState?.type === 'create' && (
         <CreateFolderDialog
@@ -120,19 +155,66 @@ export function FolderTree({
   );
 }
 
-function FolderTreeNode({
+function SortableFolderList({
+  folders,
+  selectedFolder,
+  onSelectFolder,
+  depth,
+  onAction,
+  sensors,
+  onDragEnd,
+}: {
+  folders: Folder[];
+  selectedFolder: string | null;
+  onSelectFolder: (path: string | null) => void;
+  depth: number;
+  onAction: (state: DialogState) => void;
+  sensors: ReturnType<typeof useSensors>;
+  onDragEnd: (event: DragEndEvent) => void;
+}) {
+  return (
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+      <SortableContext items={folders.map((f) => f.id)} strategy={verticalListSortingStrategy}>
+        {folders.map((folder) => (
+          <SortableFolderTreeNode
+            key={folder.id}
+            folder={folder}
+            selectedFolder={selectedFolder}
+            onSelectFolder={onSelectFolder}
+            depth={depth}
+            onAction={onAction}
+            sensors={sensors}
+          />
+        ))}
+      </SortableContext>
+    </DndContext>
+  );
+}
+
+function SortableFolderTreeNode({
   folder,
   selectedFolder,
   onSelectFolder,
   depth,
   onAction,
+  sensors,
 }: {
   folder: Folder;
   selectedFolder: string | null;
   onSelectFolder: (path: string | null) => void;
   depth: number;
   onAction: (state: DialogState) => void;
+  sensors: ReturnType<typeof useSensors>;
 }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: folder.id,
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
   const isAncestorOfSelected =
     selectedFolder !== null &&
     selectedFolder !== folder.path &&
@@ -142,8 +224,26 @@ function FolderTreeNode({
   const isSelected = selectedFolder === folder.path;
   const hasChildren = children && children.length > 0;
 
+  const reorderFolder = useReorderFolder();
+
+  const handleChildDragEnd = (event: DragEndEvent) => {
+    if (reorderFolder.isPending) return;
+
+    const { active, over } = event;
+    if (!over || active.id === over.id || !children) return;
+
+    const oldIndex = children.findIndex((f) => f.id === active.id);
+    const newIndex = children.findIndex((f) => f.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    reorderFolder.mutate({
+      id: children[oldIndex].id,
+      position: children[newIndex].position,
+    });
+  };
+
   return (
-    <div>
+    <div ref={setNodeRef} style={style} className={isDragging ? 'relative z-10 opacity-50' : ''}>
       <ContextMenu.Root>
         <ContextMenu.Trigger asChild>
           <div
@@ -154,6 +254,15 @@ function FolderTreeNode({
             }`}
             style={{ paddingLeft: `${(depth + 1) * 12}px` }}
           >
+            <button
+              type="button"
+              className="flex h-6 w-4 shrink-0 cursor-grab items-center justify-center text-gray-300 hover:text-gray-500 active:cursor-grabbing"
+              {...attributes}
+              {...listeners}
+            >
+              <GripIcon />
+            </button>
+
             <button
               type="button"
               className="flex h-6 w-5 shrink-0 items-center justify-center text-gray-400"
@@ -172,7 +281,10 @@ function FolderTreeNode({
             <button
               type="button"
               className="flex-1 truncate py-1.5 text-left"
-              onClick={() => onSelectFolder(folder.path)}
+              onClick={() => {
+                onSelectFolder(folder.path);
+                if (!expanded) setExpanded(true);
+              }}
             >
               {folder.name}
             </button>
@@ -209,17 +321,17 @@ function FolderTreeNode({
         </ContextMenu.Portal>
       </ContextMenu.Root>
 
-      {expanded &&
-        children?.map((child) => (
-          <FolderTreeNode
-            key={child.id}
-            folder={child}
-            selectedFolder={selectedFolder}
-            onSelectFolder={onSelectFolder}
-            depth={depth + 1}
-            onAction={onAction}
-          />
-        ))}
+      {expanded && children && children.length > 0 && (
+        <SortableFolderList
+          folders={children}
+          selectedFolder={selectedFolder}
+          onSelectFolder={onSelectFolder}
+          depth={depth + 1}
+          onAction={onAction}
+          sensors={sensors}
+          onDragEnd={handleChildDragEnd}
+        />
+      )}
     </div>
   );
 }
@@ -245,6 +357,19 @@ function Spinner() {
         fill="currentColor"
         d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
       />
+    </svg>
+  );
+}
+
+function GripIcon() {
+  return (
+    <svg className="h-3 w-3" viewBox="0 0 16 16" fill="currentColor">
+      <circle cx="5" cy="3" r="1.5" />
+      <circle cx="11" cy="3" r="1.5" />
+      <circle cx="5" cy="8" r="1.5" />
+      <circle cx="11" cy="8" r="1.5" />
+      <circle cx="5" cy="13" r="1.5" />
+      <circle cx="11" cy="13" r="1.5" />
     </svg>
   );
 }
