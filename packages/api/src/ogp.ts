@@ -124,6 +124,74 @@ async function fetchYouTubeOembedMetadata(targetUrl: string): Promise<OgpMetadat
   }
 }
 
+export function isTweetUrl(targetUrl: string): boolean {
+  try {
+    const url = new URL(targetUrl);
+    const hostname = url.hostname.toLowerCase();
+    return (
+      (hostname === 'x.com' ||
+        hostname === 'www.x.com' ||
+        hostname === 'twitter.com' ||
+        hostname === 'www.twitter.com') &&
+      /^\/[^/]+\/status\/\d+/.test(url.pathname)
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * oEmbed レスポンスの html フィールドから blockquote 内のテキストを抽出する。
+ */
+function extractTweetText(html: string): string | null {
+  const blockquoteMatch = html.match(/<blockquote[^>]*>([\s\S]*?)<\/blockquote>/i);
+  if (!blockquoteMatch) return null;
+
+  const blockquoteContent = blockquoteMatch[1];
+  // <p> タグ内のテキストを抽出（リンクのテキストも含む）
+  const paragraphs: string[] = [];
+  const pRegex = /<p[^>]*>([\s\S]*?)<\/p>/gi;
+  let match;
+  while ((match = pRegex.exec(blockquoteContent)) !== null) {
+    // HTML タグを除去してテキストのみ取得
+    const text = match[1].replace(/<[^>]+>/g, '').trim();
+    if (text) {
+      paragraphs.push(text);
+    }
+  }
+
+  return paragraphs.length > 0 ? paragraphs.join('\n') : null;
+}
+
+async function fetchTweetOembedMetadata(targetUrl: string): Promise<OgpMetadata | null> {
+  try {
+    const oembedUrl = `https://publish.twitter.com/oembed?url=${encodeURIComponent(targetUrl)}`;
+    const response = await fetch(oembedUrl, {
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data = (await response.json()) as {
+      html?: string;
+      author_name?: string;
+    };
+
+    const description = data.html ? extractTweetText(data.html) : null;
+
+    return {
+      title: data.author_name ?? null,
+      description,
+      imageUrl: null,
+      faviconUrl: 'https://x.com/favicon.ico',
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchOgpMetadata(targetUrl: string): Promise<OgpMetadata> {
   const empty: OgpMetadata = { title: null, description: null, imageUrl: null, faviconUrl: null };
 
@@ -133,6 +201,13 @@ export async function fetchOgpMetadata(targetUrl: string): Promise<OgpMetadata> 
 
   if (isYouTubeUrl(targetUrl)) {
     const oembedResult = await fetchYouTubeOembedMetadata(targetUrl);
+    if (oembedResult) {
+      return oembedResult;
+    }
+  }
+
+  if (isTweetUrl(targetUrl)) {
+    const oembedResult = await fetchTweetOembedMetadata(targetUrl);
     if (oembedResult) {
       return oembedResult;
     }

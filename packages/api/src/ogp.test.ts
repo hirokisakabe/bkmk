@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { fetchOgpMetadata, isYouTubeUrl, validateFetchUrl } from './ogp.js';
+import { fetchOgpMetadata, isTweetUrl, isYouTubeUrl, validateFetchUrl } from './ogp.js';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -78,6 +78,40 @@ describe('isYouTubeUrl', () => {
 
   it('不正なURLはfalseを返す', () => {
     expect(isYouTubeUrl('not-a-url')).toBe(false);
+  });
+});
+
+describe('isTweetUrl', () => {
+  it('x.com のツイートURLを判定する', () => {
+    expect(isTweetUrl('https://x.com/user/status/1234567890')).toBe(true);
+  });
+
+  it('www.x.com のツイートURLを判定する', () => {
+    expect(isTweetUrl('https://www.x.com/user/status/1234567890')).toBe(true);
+  });
+
+  it('twitter.com のツイートURLを判定する', () => {
+    expect(isTweetUrl('https://twitter.com/user/status/1234567890')).toBe(true);
+  });
+
+  it('www.twitter.com のツイートURLを判定する', () => {
+    expect(isTweetUrl('https://www.twitter.com/user/status/1234567890')).toBe(true);
+  });
+
+  it('ツイート以外のx.com URLはfalseを返す', () => {
+    expect(isTweetUrl('https://x.com/user')).toBe(false);
+  });
+
+  it('ツイート以外のtwitter.com URLはfalseを返す', () => {
+    expect(isTweetUrl('https://twitter.com/settings')).toBe(false);
+  });
+
+  it('他のドメインはfalseを返す', () => {
+    expect(isTweetUrl('https://example.com/user/status/123')).toBe(false);
+  });
+
+  it('不正なURLはfalseを返す', () => {
+    expect(isTweetUrl('not-a-url')).toBe(false);
   });
 });
 
@@ -263,6 +297,101 @@ describe('fetchOgpMetadata', () => {
       description: null,
       imageUrl: null,
       faviconUrl: 'https://www.youtube.com/favicon.ico',
+    });
+  });
+
+  it('Twitter URLの場合はoEmbed APIからメタデータを取得する', async () => {
+    const oembedResponse = {
+      author_name: 'Test User',
+      html: '<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">これはテストツイートです</p>&mdash; Test User (@testuser) <a href="https://twitter.com/testuser/status/123">January 1, 2024</a></blockquote>',
+    };
+
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify(oembedResponse), {
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+
+    const result = await fetchOgpMetadata('https://x.com/testuser/status/123');
+    expect(result).toEqual({
+      title: 'Test User',
+      description: 'これはテストツイートです',
+      imageUrl: null,
+      faviconUrl: 'https://x.com/favicon.ico',
+    });
+  });
+
+  it('twitter.com URLの場合もoEmbed APIからメタデータを取得する', async () => {
+    const oembedResponse = {
+      author_name: 'Another User',
+      html: '<blockquote class="twitter-tweet"><p lang="en" dir="ltr">Hello world!</p>&mdash; Another User (@another) <a href="https://twitter.com/another/status/456">January 2, 2024</a></blockquote>',
+    };
+
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify(oembedResponse), {
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+
+    const result = await fetchOgpMetadata('https://twitter.com/another/status/456');
+    expect(result).toEqual({
+      title: 'Another User',
+      description: 'Hello world!',
+      imageUrl: null,
+      faviconUrl: 'https://x.com/favicon.ico',
+    });
+  });
+
+  it('Twitter oEmbed APIが失敗した場合は通常のOGP取得にフォールバックする', async () => {
+    const html = `
+      <html>
+        <head>
+          <meta property="og:title" content="Fallback Tweet" />
+          <meta property="og:description" content="Fallback Description" />
+        </head>
+        <body></body>
+      </html>
+    `;
+
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response('', { status: 404 }))
+      .mockResolvedValueOnce(
+        new Response(html, {
+          headers: { 'content-type': 'text/html' },
+        }),
+      );
+
+    const result = await fetchOgpMetadata('https://x.com/user/status/999');
+    expect(result).toEqual({
+      title: 'Fallback Tweet',
+      description: 'Fallback Description',
+      imageUrl: null,
+      faviconUrl: 'https://x.com/favicon.ico',
+    });
+  });
+
+  it('Twitter oEmbed APIがエラーの場合は通常のOGP取得にフォールバックする', async () => {
+    const html = `
+      <html>
+        <head><title>X</title></head>
+        <body></body>
+      </html>
+    `;
+
+    vi.spyOn(globalThis, 'fetch')
+      .mockRejectedValueOnce(new Error('Network error'))
+      .mockResolvedValueOnce(
+        new Response(html, {
+          headers: { 'content-type': 'text/html' },
+        }),
+      );
+
+    const result = await fetchOgpMetadata('https://x.com/user/status/999');
+    expect(result).toEqual({
+      title: 'X',
+      description: null,
+      imageUrl: null,
+      faviconUrl: 'https://x.com/favicon.ico',
     });
   });
 });
