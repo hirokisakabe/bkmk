@@ -8,13 +8,17 @@
   },
   "scripts": {
     "dev": "tsx src/index.ts",
-    "build": "tsc"
+    "build": "tsc",
+    "test": "vitest run"
   },
   "dependencies": {
-    "commander": "^13.1.0"
+    "@bkmk/api": "workspace:*",
+    "commander": "^13.1.0",
+    "hono": "^4.7.10"
   },
   "devDependencies": {
     "tsx": "^4.19.4",
-    "@types/node": "^22.15.18"
+    "@types/node": "^22.15.18",
+    "vitest": "^4.1.4"
   }
 }
