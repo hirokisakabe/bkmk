@@ -69,9 +69,11 @@ export function BookmarkList({
               key={i}
               className="animate-pulse overflow-hidden rounded-lg border border-gray-200"
             >
-              <div className="aspect-[1.91/1] bg-gray-200" />
+              <div className="aspect-[1.91/1] overflow-hidden bg-gray-200" />
               <div className="space-y-2 p-3">
-                <div className="h-4 w-3/4 rounded bg-gray-200" />
+                <div className="min-h-[2.5rem]">
+                  <div className="h-4 w-3/4 rounded bg-gray-200" />
+                </div>
                 <div className="h-3 w-full rounded bg-gray-200" />
               </div>
             </div>
@@ -164,7 +166,7 @@ function BookmarkCard({
         rel="noopener noreferrer"
         className="flex flex-1 flex-col"
       >
-        <div className="aspect-[1.91/1] w-full bg-gray-100">
+        <div className="aspect-[1.91/1] w-full overflow-hidden bg-gray-100">
           {showImage ? (
             <img
               src={bookmark.imageUrl!}
@@ -179,7 +181,7 @@ function BookmarkCard({
           )}
         </div>
         <div className="flex flex-1 flex-col p-3">
-          <div className="mb-1 flex items-center gap-1.5">
+          <div className="mb-1 flex min-h-[2.5rem] items-center gap-1.5">
             {bookmark.faviconUrl && (
               <img
                 src={bookmark.faviconUrl}
