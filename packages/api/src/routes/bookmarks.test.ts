@@ -76,8 +76,8 @@ describe('GET /api/bookmarks', () => {
 describe('POST /api/bookmarks', () => {
   it('ブックマークを作成する', async () => {
     // フォルダ確認不要（folderPath なし）
-    // maxPos クエリ
-    vi.mocked(db.select).mockReturnValue(mockQueryChain([{ max: -1 }]) as never);
+    // 既存アイテムの position シフト
+    vi.mocked(db.update).mockReturnValueOnce(mockQueryChain([]) as never);
     // insert
     vi.mocked(db.insert).mockReturnValue(mockQueryChain([mockBookmark]) as never);
 

@@ -108,10 +108,10 @@ const bookmarksRoute = new Hono<Env>()
         }
       }
 
-      // 同一フォルダ内の最大 position を取得
-      const maxPos = await db
-        .select({ max: sql<number>`coalesce(max(${bookmarks.position}), -1)` })
-        .from(bookmarks)
+      // 同一フォルダ内の既存アイテムの position を +1 シフト
+      await db
+        .update(bookmarks)
+        .set({ position: sql`${bookmarks.position} + 1` })
         .where(
           and(
             eq(bookmarks.userId, userId),
@@ -122,7 +122,7 @@ const bookmarksRoute = new Hono<Env>()
           ),
         );
 
-      const position = (maxPos[0]?.max ?? -1) + 1;
+      const position = 0;
 
       // OGP メタデータを取得
       const ogp = await fetchOgpMetadata(body.url);
