@@ -6,7 +6,12 @@ import type { Bookmark } from '../types';
 export function useDeleteBookmark() {
   const queryClient = useQueryClient();
 
-  return useMutation<void, Error, { id: string }>({
+  return useMutation<
+    void,
+    Error,
+    { id: string },
+    { previousQueries: [queryKey: unknown[], data: Bookmark[] | undefined][] }
+  >({
     mutationFn: async ({ id }) => {
       const res = await client.api.bookmarks[':id'].$delete({
         param: { id },
