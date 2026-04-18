@@ -11,7 +11,7 @@ export function useReorderBookmark() {
         param: { id },
         json: { position },
       });
-      if (!res.ok) throw new Error('Failed to reorder bookmark');
+      if (!res.ok) throw new Error('ブックマークの並び替えに失敗しました');
       return res.json();
     },
     onSuccess: () => {

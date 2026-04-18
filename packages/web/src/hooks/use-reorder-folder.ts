@@ -11,7 +11,7 @@ export function useReorderFolder() {
         param: { id },
         json: { position },
       });
-      if (!res.ok) throw new Error('Failed to reorder folder');
+      if (!res.ok) throw new Error('フォルダの並び替えに失敗しました');
       return res.json();
     },
     onSuccess: () => {
