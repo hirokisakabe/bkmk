@@ -5,6 +5,7 @@ import { useState } from 'react';
 
 import { useBookmarks } from '../hooks/use-bookmarks';
 import { useDeleteBookmark } from '../hooks/use-delete-bookmark';
+import { UNCATEGORIZED_FOLDER } from '../lib/constants';
 import { useSettings } from '../lib/settings-store';
 import type { Bookmark } from '../types';
 import { AddBookmarkForm } from './add-bookmark-form';
@@ -17,11 +18,17 @@ export function BookmarkList({
   folderName: string;
 }) {
   const [settings] = useSettings();
-  const deep = folderPath !== null && settings.includeSubfolders;
-  const { data: bookmarks, isLoading } = useBookmarks(folderPath, deep);
+  const isUncategorized = folderPath === UNCATEGORIZED_FOLDER;
+  const isAllBookmarks = folderPath === null;
+  const apiFolderPath = isUncategorized ? null : folderPath;
+  const deep = isAllBookmarks
+    ? true
+    : !isUncategorized && folderPath !== null && settings.includeSubfolders;
+  const { data: bookmarks, isLoading } = useBookmarks(apiFolderPath, deep);
   const deleteBookmark = useDeleteBookmark();
 
-  const canReorder = !deep && bookmarks && bookmarks.length > 1;
+  const canReorder = !deep && !isAllBookmarks && bookmarks && bookmarks.length > 1;
+  const addBookmarkFolderPath = isUncategorized ? null : folderPath;
 
   return (
     <div>
@@ -29,7 +36,7 @@ export function BookmarkList({
         <h2 className="text-xl font-bold text-gray-900">{folderName}</h2>
       </div>
 
-      <AddBookmarkForm folderPath={folderPath} />
+      <AddBookmarkForm folderPath={addBookmarkFolderPath} />
 
       {isLoading && (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">

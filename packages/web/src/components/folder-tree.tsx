@@ -6,6 +6,7 @@ import { useState } from 'react';
 
 import { useDeleteFolder } from '../hooks/use-delete-folder';
 import { useFolders } from '../hooks/use-folders';
+import { UNCATEGORIZED_FOLDER } from '../lib/constants';
 import type { Folder } from '../types';
 import { CreateFolderDialog, MoveFolderDialog, RenameFolderDialog } from './folder-dialogs';
 
@@ -76,6 +77,18 @@ export function FolderTree({
           </ContextMenu.Content>
         </ContextMenu.Portal>
       </ContextMenu.Root>
+
+      <button
+        type="button"
+        className={`w-full rounded px-2 py-1.5 text-left text-sm ${
+          selectedFolder === UNCATEGORIZED_FOLDER
+            ? 'bg-blue-100 font-semibold text-blue-800'
+            : 'text-gray-700 hover:bg-gray-200'
+        }`}
+        onClick={() => onSelectFolder(UNCATEGORIZED_FOLDER)}
+      >
+        未分類
+      </button>
 
       {isLoading && (
         <div className="mt-2 space-y-2 px-2">

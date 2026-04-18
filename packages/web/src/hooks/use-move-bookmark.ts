@@ -31,13 +31,18 @@ export function useMoveBookmark() {
         .find((b) => b.id === id);
 
       if (movedBookmark) {
+        const updated = { ...movedBookmark, folderPath };
+
         const targetKey = ['bookmarks', { folder: folderPath, deep: false }];
         const targetData = queryClient.getQueryData<Bookmark[]>(targetKey);
         if (targetData) {
-          queryClient.setQueryData<Bookmark[]>(targetKey, [
-            ...targetData,
-            { ...movedBookmark, folderPath },
-          ]);
+          queryClient.setQueryData<Bookmark[]>(targetKey, [...targetData, updated]);
+        }
+
+        const allKey = ['bookmarks', { folder: null, deep: true }];
+        const allData = queryClient.getQueryData<Bookmark[]>(allKey);
+        if (allData) {
+          queryClient.setQueryData<Bookmark[]>(allKey, [...allData, updated]);
         }
       }
 

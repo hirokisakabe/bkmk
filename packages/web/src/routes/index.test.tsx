@@ -6,15 +6,15 @@ import { mockBookmarks } from '../test/handlers';
 import { renderWithProviders } from '../test/render';
 
 describe('IndexPage', () => {
-  it('ブックマーク一覧が表示される', async () => {
+  it('「すべて」選択時にフォルダ内含む全ブックマークが表示される', async () => {
     renderWithProviders({ initialUrl: '/' });
 
-    // ブックマークのタイトルが表示されるのを待つ
     await waitFor(() => {
       expect(screen.getByText(mockBookmarks[0].title!)).toBeInTheDocument();
     });
 
     expect(screen.getByText(mockBookmarks[1].title!)).toBeInTheDocument();
+    expect(screen.getByText(mockBookmarks[2].title!)).toBeInTheDocument();
   });
 
   it('ブックマークのURLが表示される', async () => {
@@ -41,6 +41,35 @@ describe('IndexPage', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'すべて' })).toBeInTheDocument();
     });
+  });
+
+  it('サイドバーに「未分類」ノードが表示される', async () => {
+    renderWithProviders({ initialUrl: '/' });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '未分類' })).toBeInTheDocument();
+    });
+  });
+
+  it('「未分類」をクリックするとフォルダ未所属のブックマークのみ表示される', async () => {
+    const user = userEvent.setup();
+    renderWithProviders({ initialUrl: '/' });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '未分類' })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: '未分類' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: '未分類' })).toBeInTheDocument();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(mockBookmarks[0].title!)).toBeInTheDocument();
+    });
+    expect(screen.getByText(mockBookmarks[1].title!)).toBeInTheDocument();
+    expect(screen.queryByText(mockBookmarks[2].title!)).not.toBeInTheDocument();
   });
 
   it('削除ボタンをクリックすると確認ダイアログなしで即座にゴミ箱へ移動する', async () => {
