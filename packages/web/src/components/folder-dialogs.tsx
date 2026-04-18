@@ -1,9 +1,7 @@
-import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useState } from 'react';
 
 import { useCreateFolder } from '../hooks/use-create-folder';
-import { useDeleteFolder } from '../hooks/use-delete-folder';
 import { useFolders } from '../hooks/use-folders';
 import { useMoveFolder } from '../hooks/use-move-folder';
 import { useRenameFolder } from '../hooks/use-rename-folder';
@@ -293,73 +291,5 @@ function MoveFolderTree({
         </div>
       ))}
     </>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  DeleteFolderDialog                                                 */
-/* ------------------------------------------------------------------ */
-
-export function DeleteFolderDialog({
-  open,
-  onOpenChange,
-  folder,
-  onDeleted,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  folder: Folder;
-  onDeleted?: () => void;
-}) {
-  const deleteFolder = useDeleteFolder();
-
-  const handleDelete = () => {
-    deleteFolder.mutate(
-      { id: folder.id },
-      {
-        onSuccess: () => {
-          onOpenChange(false);
-          onDeleted?.();
-        },
-      },
-    );
-  };
-
-  return (
-    <AlertDialog.Root open={open} onOpenChange={onOpenChange}>
-      <AlertDialog.Portal>
-        <AlertDialog.Overlay className="fixed inset-0 bg-black/40" />
-        <AlertDialog.Content className="fixed top-1/2 left-1/2 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-lg bg-white p-6 shadow-lg">
-          <AlertDialog.Title className="mb-2 text-lg font-bold">フォルダの削除</AlertDialog.Title>
-          <AlertDialog.Description className="mb-4 text-sm text-gray-500">
-            「{folder.name}
-            」とその中のすべてのアイテムがゴミ箱に移動します。この操作は取り消せます。
-          </AlertDialog.Description>
-
-          {deleteFolder.isError && (
-            <p className="mb-4 text-sm text-red-600">{deleteFolder.error.message}</p>
-          )}
-
-          <div className="flex justify-end gap-2">
-            <AlertDialog.Cancel asChild>
-              <button
-                type="button"
-                className="rounded px-4 py-2 text-sm text-gray-600 hover:bg-gray-100"
-              >
-                キャンセル
-              </button>
-            </AlertDialog.Cancel>
-            <button
-              type="button"
-              onClick={handleDelete}
-              disabled={deleteFolder.isPending}
-              className="rounded bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700 disabled:opacity-50"
-            >
-              {deleteFolder.isPending ? '削除中...' : '削除'}
-            </button>
-          </div>
-        </AlertDialog.Content>
-      </AlertDialog.Portal>
-    </AlertDialog.Root>
   );
 }

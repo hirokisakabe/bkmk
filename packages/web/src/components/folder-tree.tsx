@@ -11,21 +11,16 @@ import { CSS } from '@dnd-kit/utilities';
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import { useState } from 'react';
 
+import { useDeleteFolder } from '../hooks/use-delete-folder';
 import { useFolders } from '../hooks/use-folders';
 import { useReorderFolder } from '../hooks/use-reorder-folder';
 import type { Folder } from '../types';
-import {
-  CreateFolderDialog,
-  DeleteFolderDialog,
-  MoveFolderDialog,
-  RenameFolderDialog,
-} from './folder-dialogs';
+import { CreateFolderDialog, MoveFolderDialog, RenameFolderDialog } from './folder-dialogs';
 
 type DialogState =
   | { type: 'create'; parentPath: string | null }
   | { type: 'rename'; folder: Folder }
   | { type: 'move'; folder: Folder }
-  | { type: 'delete'; folder: Folder }
   | null;
 
 export function FolderTree({
@@ -38,6 +33,7 @@ export function FolderTree({
   const { data: folders, isLoading } = useFolders(null);
   const [dialogState, setDialogState] = useState<DialogState>(null);
   const reorderFolder = useReorderFolder();
+  const deleteFolder = useDeleteFolder();
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -68,6 +64,10 @@ export function FolderTree({
     ) {
       onSelectFolder(null);
     }
+  };
+
+  const handleDelete = (folder: Folder) => {
+    deleteFolder.mutate({ id: folder.id }, { onSuccess: () => handleDeleteOrMove(folder) });
   };
 
   return (
@@ -113,6 +113,7 @@ export function FolderTree({
           onSelectFolder={onSelectFolder}
           depth={0}
           onAction={setDialogState}
+          onDeleteFolder={handleDelete}
           sensors={sensors}
           onDragEnd={handleDragEnd}
         />
@@ -142,15 +143,6 @@ export function FolderTree({
           onMoved={() => handleDeleteOrMove(dialogState.folder)}
         />
       )}
-
-      {dialogState?.type === 'delete' && (
-        <DeleteFolderDialog
-          open
-          onOpenChange={(open) => !open && setDialogState(null)}
-          folder={dialogState.folder}
-          onDeleted={() => handleDeleteOrMove(dialogState.folder)}
-        />
-      )}
     </nav>
   );
 }
@@ -161,6 +153,7 @@ function SortableFolderList({
   onSelectFolder,
   depth,
   onAction,
+  onDeleteFolder,
   sensors,
   onDragEnd,
 }: {
@@ -169,6 +162,7 @@ function SortableFolderList({
   onSelectFolder: (path: string | null) => void;
   depth: number;
   onAction: (state: DialogState) => void;
+  onDeleteFolder: (folder: Folder) => void;
   sensors: ReturnType<typeof useSensors>;
   onDragEnd: (event: DragEndEvent) => void;
 }) {
@@ -183,6 +177,7 @@ function SortableFolderList({
             onSelectFolder={onSelectFolder}
             depth={depth}
             onAction={onAction}
+            onDeleteFolder={onDeleteFolder}
             sensors={sensors}
           />
         ))}
@@ -197,6 +192,7 @@ function SortableFolderTreeNode({
   onSelectFolder,
   depth,
   onAction,
+  onDeleteFolder,
   sensors,
 }: {
   folder: Folder;
@@ -204,6 +200,7 @@ function SortableFolderTreeNode({
   onSelectFolder: (path: string | null) => void;
   depth: number;
   onAction: (state: DialogState) => void;
+  onDeleteFolder: (folder: Folder) => void;
   sensors: ReturnType<typeof useSensors>;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -313,7 +310,7 @@ function SortableFolderTreeNode({
             <ContextMenu.Separator className="my-1 h-px bg-gray-200" />
             <ContextMenu.Item
               className="cursor-default px-3 py-1.5 text-sm text-red-600 outline-none hover:bg-red-50 data-[highlighted]:bg-red-50"
-              onSelect={() => onAction({ type: 'delete', folder })}
+              onSelect={() => onDeleteFolder(folder)}
             >
               削除
             </ContextMenu.Item>
@@ -328,6 +325,7 @@ function SortableFolderTreeNode({
           onSelectFolder={onSelectFolder}
           depth={depth + 1}
           onAction={onAction}
+          onDeleteFolder={onDeleteFolder}
           sensors={sensors}
           onDragEnd={handleChildDragEnd}
         />
