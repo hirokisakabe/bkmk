@@ -29,10 +29,7 @@ export function FolderTree({
       {isLoading && (
         <div className="mt-2 space-y-2 px-2">
           {[...Array(3)].map((_, i) => (
-            <div
-              key={i}
-              className="h-5 animate-pulse rounded bg-gray-200"
-            />
+            <div key={i} className="h-5 animate-pulse rounded bg-gray-200" />
           ))}
         </div>
       )}
@@ -66,10 +63,7 @@ function FolderTreeNode({
     selectedFolder !== folder.path &&
     selectedFolder.startsWith(folder.path + '/');
   const [expanded, setExpanded] = useState(isAncestorOfSelected);
-  const { data: children, isLoading } = useFolders(
-    folder.path,
-    expanded || isAncestorOfSelected,
-  );
+  const { data: children, isLoading } = useFolders(folder.path, expanded || isAncestorOfSelected);
   const isSelected = selectedFolder === folder.path;
   const hasChildren = children && children.length > 0;
 
@@ -77,9 +71,7 @@ function FolderTreeNode({
     <div>
       <div
         className={`group flex items-center rounded text-sm ${
-          isSelected
-            ? 'bg-blue-100 font-semibold text-blue-800'
-            : 'text-gray-700 hover:bg-gray-200'
+          isSelected ? 'bg-blue-100 font-semibold text-blue-800' : 'text-gray-700 hover:bg-gray-200'
         }`}
         style={{ paddingLeft: `${(depth + 1) * 12}px` }}
       >
@@ -135,19 +127,8 @@ function ChevronIcon({ expanded }: { expanded: boolean }) {
 
 function Spinner() {
   return (
-    <svg
-      className="h-3 w-3 animate-spin text-gray-400"
-      viewBox="0 0 24 24"
-      fill="none"
-    >
-      <circle
-        className="opacity-25"
-        cx="12"
-        cy="12"
-        r="10"
-        stroke="currentColor"
-        strokeWidth="4"
-      />
+    <svg className="h-3 w-3 animate-spin text-gray-400" viewBox="0 0 24 24" fill="none">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
       <path
         className="opacity-75"
         fill="currentColor"

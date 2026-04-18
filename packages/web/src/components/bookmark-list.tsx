@@ -36,10 +36,7 @@ export function BookmarkList({
       {isLoading && (
         <div className="space-y-4">
           {[...Array(3)].map((_, i) => (
-            <div
-              key={i}
-              className="animate-pulse rounded-lg border border-gray-200 p-4"
-            >
+            <div key={i} className="animate-pulse rounded-lg border border-gray-200 p-4">
               <div className="flex gap-4">
                 <div className="flex-1 space-y-2">
                   <div className="h-4 w-3/4 rounded bg-gray-200" />
@@ -94,15 +91,11 @@ function BookmarkCard({ bookmark }: { bookmark: Bookmark }) {
                 }}
               />
             )}
-            <h3 className="truncate font-medium text-gray-900">
-              {displayTitle}
-            </h3>
+            <h3 className="truncate font-medium text-gray-900">{displayTitle}</h3>
           </div>
 
           {bookmark.description && (
-            <p className="mb-1 line-clamp-2 text-sm text-gray-500">
-              {bookmark.description}
-            </p>
+            <p className="mb-1 line-clamp-2 text-sm text-gray-500">{bookmark.description}</p>
           )}
 
           <p className="truncate text-xs text-gray-400">{bookmark.url}</p>

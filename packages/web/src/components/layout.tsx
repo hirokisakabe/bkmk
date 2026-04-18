@@ -3,13 +3,7 @@ import { useState, type ReactNode } from 'react';
 
 import { authClient } from '../lib/auth-client';
 
-export function Layout({
-  sidebar,
-  children,
-}: {
-  sidebar?: ReactNode;
-  children: ReactNode;
-}) {
+export function Layout({ sidebar, children }: { sidebar?: ReactNode; children: ReactNode }) {
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
 
