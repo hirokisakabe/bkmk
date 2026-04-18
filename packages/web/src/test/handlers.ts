@@ -2,7 +2,7 @@ import { http, HttpResponse } from 'msw';
 
 import type { Bookmark, Folder, SearchResult } from '../types';
 
-export const mockFolders: Folder[] = [
+const mockFolders: Folder[] = [
   {
     id: 'folder-1',
     userId: 'test-user',
@@ -46,14 +46,14 @@ export const mockBookmarks: Bookmark[] = [
   },
 ];
 
-export const mockSearchResults: SearchResult[] = [
+const mockSearchResults: SearchResult[] = [
   {
     ...mockBookmarks[0],
     folder: null,
   },
 ];
 
-export const mockTrashData = {
+const mockTrashData = {
   folders: [
     {
       ...mockFolders[0],
