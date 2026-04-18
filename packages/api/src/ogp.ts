@@ -96,7 +96,7 @@ export async function fetchOgpMetadata(targetUrl: string): Promise<OgpMetadata> 
   try {
     const response = await fetch(targetUrl, {
       headers: {
-        'User-Agent': 'bot',
+        'User-Agent': 'bkmk/1.0 (+https://github.com/hirokisakabe/bkmk)',
         Accept: 'text/html',
       },
       redirect: 'follow',
