@@ -20,8 +20,8 @@ import { UNCATEGORIZED_FOLDER } from '../lib/constants';
 import { rootRoute } from './__root';
 
 interface IndexSearch {
-  folder: string | null;
-  q: string | null;
+  folder?: string;
+  q?: string;
 }
 
 export const indexRoute = createRoute({
@@ -29,8 +29,8 @@ export const indexRoute = createRoute({
   path: '/',
   beforeLoad: requireAuth,
   validateSearch: (search: Record<string, unknown>): IndexSearch => ({
-    folder: typeof search.folder === 'string' ? search.folder : null,
-    q: typeof search.q === 'string' && search.q.trim().length > 0 ? search.q.trim() : null,
+    folder: typeof search.folder === 'string' ? search.folder : undefined,
+    q: typeof search.q === 'string' && search.q.trim().length > 0 ? search.q.trim() : undefined,
   }),
   component: IndexPage,
 });
@@ -90,8 +90,8 @@ function IndexPage() {
     navigate({
       to: '/',
       search: {
-        folder: query ? null : folder,
-        q: query || null,
+        folder: query ? undefined : folder,
+        q: query || undefined,
       },
     });
   };
@@ -110,20 +110,20 @@ function IndexPage() {
         searchInput={<SearchInput key={q ?? ''} defaultValue={q ?? ''} onSearch={handleSearch} />}
         sidebar={
           <FolderTree
-            selectedFolder={isSearching ? null : folder}
+            selectedFolder={isSearching ? null : (folder ?? null)}
             onSelectFolder={(path) =>
               navigate({
                 to: '/',
-                search: { folder: path, q: null },
+                search: { folder: path ?? undefined, q: undefined },
               })
             }
           />
         }
       >
         {isSearching ? (
-          <SearchResults query={q} />
+          <SearchResults query={q!} />
         ) : (
-          <BookmarkList folderPath={folder} folderName={folderName} />
+          <BookmarkList folderPath={folder ?? null} folderName={folderName} />
         )}
       </Layout>
     </DndContext>
