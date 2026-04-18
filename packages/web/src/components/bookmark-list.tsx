@@ -6,7 +6,7 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
-import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { SortableContext, useSortable, rectSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import { useState } from 'react';
@@ -76,16 +76,16 @@ export function BookmarkList({
       <AddBookmarkForm folderPath={folderPath} />
 
       {isLoading && (
-        <div className="space-y-4">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="animate-pulse rounded-lg border border-gray-200 p-4">
-              <div className="flex gap-4">
-                <div className="flex-1 space-y-2">
-                  <div className="h-4 w-3/4 rounded bg-gray-200" />
-                  <div className="h-3 w-full rounded bg-gray-200" />
-                  <div className="h-3 w-1/2 rounded bg-gray-200" />
-                </div>
-                <div className="h-20 w-32 shrink-0 rounded bg-gray-200" />
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+          {[...Array(6)].map((_, i) => (
+            <div
+              key={i}
+              className="animate-pulse overflow-hidden rounded-lg border border-gray-200"
+            >
+              <div className="aspect-[1.91/1] bg-gray-200" />
+              <div className="space-y-2 p-3">
+                <div className="h-4 w-3/4 rounded bg-gray-200" />
+                <div className="h-3 w-full rounded bg-gray-200" />
               </div>
             </div>
           ))}
@@ -100,11 +100,8 @@ export function BookmarkList({
 
       {!isLoading && bookmarks && bookmarks.length > 0 && canReorder && (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext
-            items={bookmarks.map((b) => b.id)}
-            strategy={verticalListSortingStrategy}
-          >
-            <div className="space-y-3">
+          <SortableContext items={bookmarks.map((b) => b.id)} strategy={rectSortingStrategy}>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
               {bookmarks.map((bookmark) => (
                 <SortableBookmarkCard
                   key={bookmark.id}
@@ -118,7 +115,7 @@ export function BookmarkList({
       )}
 
       {!isLoading && bookmarks && bookmarks.length > 0 && !canReorder && (
-        <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
           {bookmarks.map((bookmark) => (
             <BookmarkCard
               key={bookmark.id}
@@ -152,70 +149,85 @@ function SortableBookmarkCard({
 
   return (
     <div ref={setNodeRef} style={style} className={isDragging ? 'relative z-10 opacity-50' : ''}>
-      <div className="flex items-stretch">
-        <button
-          type="button"
-          className="flex w-6 shrink-0 cursor-grab items-center justify-center text-gray-300 hover:text-gray-500 active:cursor-grabbing"
-          {...attributes}
-          {...listeners}
-        >
-          <GripIcon />
-        </button>
-        <div className="min-w-0 flex-1">
-          <BookmarkCard bookmark={bookmark} onDelete={onDelete} />
-        </div>
-      </div>
+      <BookmarkCard
+        bookmark={bookmark}
+        onDelete={onDelete}
+        dragHandleProps={{ ...attributes, ...listeners }}
+      />
     </div>
   );
 }
 
-function BookmarkCard({ bookmark, onDelete }: { bookmark: Bookmark; onDelete: () => void }) {
+function BookmarkCard({
+  bookmark,
+  onDelete,
+  dragHandleProps,
+}: {
+  bookmark: Bookmark;
+  onDelete: () => void;
+  dragHandleProps?: Record<string, unknown>;
+}) {
   const [imageError, setImageError] = useState(false);
   const displayTitle = bookmark.title || bookmark.url;
+  const showImage = bookmark.imageUrl && !imageError;
 
   return (
-    <div className="group relative rounded-lg border border-gray-200 transition-colors hover:border-gray-300 hover:bg-gray-50">
-      <a href={bookmark.url} target="_blank" rel="noopener noreferrer" className="block p-4">
-        <div className="flex gap-4">
-          <div className="min-w-0 flex-1">
-            <div className="mb-1 flex items-center gap-2">
-              {bookmark.faviconUrl && (
-                <img
-                  src={bookmark.faviconUrl}
-                  alt=""
-                  className="h-4 w-4 shrink-0"
-                  onError={(e) => {
-                    e.currentTarget.style.display = 'none';
-                  }}
-                />
-              )}
-              <h3 className="truncate font-medium text-gray-900">{displayTitle}</h3>
-            </div>
-
-            {bookmark.description && (
-              <p className="mb-1 line-clamp-2 text-sm text-gray-500">{bookmark.description}</p>
-            )}
-
-            <p className="truncate text-xs text-gray-400">{bookmark.url}</p>
-          </div>
-
-          {bookmark.imageUrl && !imageError && (
+    <div className="group relative flex h-full flex-col overflow-hidden rounded-lg border border-gray-200 transition-colors hover:border-gray-300 hover:bg-gray-50">
+      <a
+        href={bookmark.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex flex-1 flex-col"
+      >
+        <div className="aspect-[1.91/1] w-full bg-gray-100">
+          {showImage ? (
             <img
-              src={bookmark.imageUrl}
+              src={bookmark.imageUrl!}
               alt=""
-              className="h-20 w-32 shrink-0 rounded object-cover"
+              className="h-full w-full object-cover"
               onError={() => setImageError(true)}
             />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-gray-300">
+              <ImagePlaceholderIcon />
+            </div>
           )}
         </div>
+        <div className="flex flex-1 flex-col p-3">
+          <div className="mb-1 flex items-center gap-1.5">
+            {bookmark.faviconUrl && (
+              <img
+                src={bookmark.faviconUrl}
+                alt=""
+                className="h-4 w-4 shrink-0"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+            )}
+            <h3 className="line-clamp-2 text-sm font-medium text-gray-900">{displayTitle}</h3>
+          </div>
+          <p className="mt-auto truncate text-xs text-gray-400">{bookmark.url}</p>
+        </div>
       </a>
+      {dragHandleProps && (
+        <button
+          type="button"
+          className="absolute top-1 left-1 cursor-grab rounded bg-black/50 p-1 text-white opacity-100 transition-opacity hover:bg-black/70 active:cursor-grabbing md:opacity-0 md:group-hover:opacity-100"
+          aria-label="並び替え"
+          {...dragHandleProps}
+        >
+          <GripIcon />
+        </button>
+      )}
       <button
         type="button"
         onClick={(e) => {
           e.stopPropagation();
+          e.preventDefault();
           onDelete();
         }}
-        className="absolute top-2 right-2 rounded p-1 text-gray-400 opacity-100 transition-opacity hover:bg-gray-200 hover:text-red-600 md:opacity-0 md:group-hover:opacity-100"
+        className="absolute top-1 right-1 rounded bg-black/50 p-1 text-white opacity-100 transition-opacity hover:bg-black/70 md:opacity-0 md:group-hover:opacity-100"
         aria-label="削除"
       >
         <TrashIcon />
@@ -301,6 +313,14 @@ function GripIcon() {
       <circle cx="11" cy="8" r="1.5" />
       <circle cx="5" cy="13" r="1.5" />
       <circle cx="11" cy="13" r="1.5" />
+    </svg>
+  );
+}
+
+function ImagePlaceholderIcon() {
+  return (
+    <svg className="h-10 w-10" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" />
     </svg>
   );
 }
