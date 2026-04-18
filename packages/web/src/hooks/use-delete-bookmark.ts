@@ -10,7 +10,7 @@ export function useDeleteBookmark() {
     void,
     Error,
     { id: string },
-    { previousQueries: [queryKey: unknown[], data: Bookmark[] | undefined][] }
+    { previousQueries: [queryKey: readonly unknown[], data: Bookmark[] | undefined][] }
   >({
     mutationFn: async ({ id }) => {
       const res = await client.api.bookmarks[':id'].$delete({
