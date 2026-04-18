@@ -15,6 +15,7 @@ pnpm lint:fix             # ESLint 自動修正
 pnpm format:check         # Prettier チェック
 pnpm format               # Prettier 自動整形
 pnpm typecheck            # 全パッケージ tsc --noEmit
+pnpm knip                 # 未使用コード・依存の検出（Knip）
 
 # テスト
 pnpm test                 # 全パッケージテスト実行
@@ -30,7 +31,7 @@ pnpm db:studio            # Drizzle Studio 起動
 
 ## CI
 
-PR 作成時に lint → format:check → typecheck → test が実行される。コミット前にこれらが通ることを確認すること。
+PR 作成時に knip → lint → format:check → typecheck → test が実行される。コミット前にこれらが通ることを確認すること。
 
 ## Architecture
 

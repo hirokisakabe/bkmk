@@ -19,7 +19,7 @@ export const TEST_USER = {
   updatedAt: new Date('2024-01-01'),
 } as typeof auth.$Infer.Session.user;
 
-export const TEST_SESSION = {
+const TEST_SESSION = {
   id: 'test-session-id',
   expiresAt: new Date('2099-01-01'),
   token: 'test-token',
@@ -66,21 +66,4 @@ export function mockQueryChain(result: unknown[] = []) {
   });
 
   return proxy;
-}
-
-/**
- * Drizzle のトランザクションをモックするヘルパー。
- */
-export function mockTransaction() {
-  return vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => {
-    const txProxy = new Proxy(
-      {},
-      {
-        get() {
-          return () => mockQueryChain();
-        },
-      },
-    );
-    return fn(txProxy);
-  });
 }

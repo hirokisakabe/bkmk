@@ -28,6 +28,7 @@ API: http://localhost:3000 / Web: http://localhost:5173
 
 ```bash
 pnpm build
+pnpm knip
 pnpm lint
 pnpm format:check
 ```
