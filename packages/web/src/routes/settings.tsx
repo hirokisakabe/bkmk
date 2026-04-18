@@ -19,7 +19,11 @@ function SettingsPage() {
     <Layout>
       <div className="mx-auto max-w-2xl">
         <div className="mb-6 flex items-center gap-3">
-          <Link to="/" className="text-gray-400 hover:text-gray-600">
+          <Link
+            to="/"
+            search={{ folder: null, q: null }}
+            className="text-gray-400 hover:text-gray-600"
+          >
             <ArrowLeftIcon />
           </Link>
           <h2 className="text-xl font-bold text-gray-900">設定</h2>
