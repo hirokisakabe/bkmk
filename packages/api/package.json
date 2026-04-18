@@ -10,10 +10,12 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.14.1",
+    "@hono/zod-validator": "^0.7.6",
     "@neondatabase/serverless": "^1.0.2",
     "better-auth": "^1.6.5",
     "drizzle-orm": "^0.45.2",
-    "hono": "^4.7.10"
+    "hono": "^4.7.10",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^22.15.18",
