@@ -10,9 +10,7 @@ describe('TrashPage', () => {
     renderWithProviders({ initialUrl: '/trash' });
 
     await waitFor(() => {
-      expect(
-        screen.getByRole('heading', { name: 'ゴミ箱' }),
-      ).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'ゴミ箱' })).toBeInTheDocument();
     });
 
     // フォルダ名とブックマークタイトルが表示される
