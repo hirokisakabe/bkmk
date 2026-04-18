@@ -6,7 +6,12 @@ import type { Folder } from '../types';
 export function useDeleteFolder() {
   const queryClient = useQueryClient();
 
-  return useMutation<void, Error, { id: string }>({
+  return useMutation<
+    void,
+    Error,
+    { id: string },
+    { previousFolderQueries: [queryKey: unknown[], data: Folder[] | undefined][] }
+  >({
     mutationFn: async ({ id }) => {
       const res = await client.api.folders[':id'].$delete({
         param: { id },

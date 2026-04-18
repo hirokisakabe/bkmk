@@ -6,7 +6,12 @@ import type { Folder } from '../types';
 export function useRenameFolder() {
   const queryClient = useQueryClient();
 
-  return useMutation<Folder, Error, { id: string; name: string }>({
+  return useMutation<
+    Folder,
+    Error,
+    { id: string; name: string },
+    { previousQueries: [queryKey: unknown[], data: Folder[] | undefined][] }
+  >({
     mutationFn: async ({ id, name }) => {
       const res = await client.api.folders[':id'].$patch({
         param: { id },

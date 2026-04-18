@@ -6,7 +6,12 @@ import type { Folder } from '../types';
 export function useMoveFolder() {
   const queryClient = useQueryClient();
 
-  return useMutation<Folder, Error, { id: string; parentPath: string | null }>({
+  return useMutation<
+    Folder,
+    Error,
+    { id: string; parentPath: string | null },
+    { previousQueries: [queryKey: unknown[], data: Folder[] | undefined][] }
+  >({
     mutationFn: async ({ id, parentPath }) => {
       const res = await client.api.folders[':id'].$patch({
         param: { id },
