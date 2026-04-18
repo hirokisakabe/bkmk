@@ -2,18 +2,17 @@ FROM node:24-slim AS base
 RUN corepack enable && corepack prepare pnpm@10.18.3 --activate
 WORKDIR /app
 
-FROM base AS deps
+FROM base AS fetch
+COPY pnpm-lock.yaml ./
+RUN pnpm fetch
+
+FROM base AS build
+COPY --from=fetch /app/node_modules ./node_modules
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/api/package.json packages/api/
 COPY packages/web/package.json packages/web/
 COPY packages/cli/package.json packages/cli/
-RUN pnpm install --frozen-lockfile
-
-FROM base AS build
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/packages/api/node_modules ./packages/api/node_modules
-COPY --from=deps /app/packages/web/node_modules ./packages/web/node_modules
-COPY --from=deps /app/packages/cli/node_modules ./packages/cli/node_modules
+RUN pnpm install --frozen-lockfile --offline
 COPY . .
 RUN pnpm build
 RUN pnpm --filter @bkmk/api deploy --prod --legacy /app/out
