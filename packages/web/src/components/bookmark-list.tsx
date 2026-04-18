@@ -1,7 +1,6 @@
 import { useDraggable } from '@dnd-kit/core';
 import { SortableContext, useSortable, rectSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import { useState } from 'react';
 
 import { useBookmarks } from '../hooks/use-bookmarks';
@@ -20,7 +19,7 @@ export function BookmarkList({
   const [settings] = useSettings();
   const deep = folderPath !== null && settings.includeSubfolders;
   const { data: bookmarks, isLoading } = useBookmarks(folderPath, deep);
-  const [deleteTarget, setDeleteTarget] = useState<Bookmark | null>(null);
+  const deleteBookmark = useDeleteBookmark();
 
   const canReorder = !deep && bookmarks && bookmarks.length > 1;
 
@@ -62,7 +61,7 @@ export function BookmarkList({
               <SortableBookmarkCard
                 key={bookmark.id}
                 bookmark={bookmark}
-                onDelete={() => setDeleteTarget(bookmark)}
+                onDelete={() => deleteBookmark.mutate({ id: bookmark.id })}
               />
             ))}
           </div>
@@ -75,13 +74,11 @@ export function BookmarkList({
             <DraggableBookmarkCard
               key={bookmark.id}
               bookmark={bookmark}
-              onDelete={() => setDeleteTarget(bookmark)}
+              onDelete={() => deleteBookmark.mutate({ id: bookmark.id })}
             />
           ))}
         </div>
       )}
-
-      <DeleteBookmarkDialog target={deleteTarget} onClose={() => setDeleteTarget(null)} />
     </div>
   );
 }
@@ -216,62 +213,6 @@ function BookmarkCard({
         <TrashIcon />
       </button>
     </div>
-  );
-}
-
-function DeleteBookmarkDialog({
-  target,
-  onClose,
-}: {
-  target: Bookmark | null;
-  onClose: () => void;
-}) {
-  const deleteBookmark = useDeleteBookmark();
-
-  const handleDelete = () => {
-    if (!target) return;
-    deleteBookmark.mutate({ id: target.id }, { onSuccess: onClose });
-  };
-
-  const name = target ? target.title || target.url : '';
-
-  return (
-    <AlertDialog.Root open={target !== null} onOpenChange={(open) => !open && onClose()}>
-      <AlertDialog.Portal>
-        <AlertDialog.Overlay className="fixed inset-0 bg-black/40" />
-        <AlertDialog.Content className="fixed top-1/2 left-1/2 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-lg bg-white p-6 shadow-lg">
-          <AlertDialog.Title className="mb-2 text-lg font-bold">
-            ブックマークを削除
-          </AlertDialog.Title>
-          <AlertDialog.Description className="mb-4 text-sm text-gray-500">
-            「{name}」をゴミ箱に移動します。ゴミ箱から復元できます。
-          </AlertDialog.Description>
-
-          {deleteBookmark.isError && (
-            <p className="mb-4 text-sm text-red-600">{deleteBookmark.error.message}</p>
-          )}
-
-          <div className="flex justify-end gap-2">
-            <AlertDialog.Cancel asChild>
-              <button
-                type="button"
-                className="rounded px-4 py-2 text-sm text-gray-600 hover:bg-gray-100"
-              >
-                キャンセル
-              </button>
-            </AlertDialog.Cancel>
-            <button
-              type="button"
-              onClick={handleDelete}
-              disabled={deleteBookmark.isPending}
-              className="rounded bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700 disabled:opacity-50"
-            >
-              {deleteBookmark.isPending ? '削除中...' : '削除'}
-            </button>
-          </div>
-        </AlertDialog.Content>
-      </AlertDialog.Portal>
-    </AlertDialog.Root>
   );
 }
 
