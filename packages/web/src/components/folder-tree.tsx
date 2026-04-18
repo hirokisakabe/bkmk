@@ -54,7 +54,7 @@ export function FolderTree({
           <button
             ref={rootDropRef}
             type="button"
-            className={`w-full rounded px-2 py-1.5 text-left text-sm ${
+            className={`flex w-full items-center rounded px-2 py-1.5 text-left text-sm ${
               isRootDropTarget
                 ? 'ring-2 ring-blue-400 bg-blue-50'
                 : selectedFolder === null
@@ -63,6 +63,7 @@ export function FolderTree({
             }`}
             onClick={() => onSelectFolder(null)}
           >
+            <span className="w-5 shrink-0" />
             すべて
           </button>
         </ContextMenu.Trigger>
@@ -80,13 +81,14 @@ export function FolderTree({
 
       <button
         type="button"
-        className={`w-full rounded px-2 py-1.5 text-left text-sm ${
+        className={`flex w-full items-center rounded px-2 py-1.5 text-left text-sm ${
           selectedFolder === UNCATEGORIZED_FOLDER
             ? 'bg-blue-100 font-semibold text-blue-800'
             : 'text-gray-700 hover:bg-gray-200'
         }`}
         onClick={() => onSelectFolder(UNCATEGORIZED_FOLDER)}
       >
+        <span className="w-5 shrink-0" />
         未分類
       </button>
 
@@ -218,17 +220,8 @@ function SortableFolderTreeNode({
                   ? 'bg-blue-100 font-semibold text-blue-800'
                   : 'text-gray-700 hover:bg-gray-200'
             }`}
-            style={{ paddingLeft: `${(depth + 1) * 12}px` }}
+            style={{ paddingLeft: `${8 + depth * 12}px` }}
           >
-            <button
-              type="button"
-              className="flex h-6 w-4 shrink-0 cursor-grab items-center justify-center text-gray-300 hover:text-gray-500 active:cursor-grabbing"
-              {...attributes}
-              {...listeners}
-            >
-              <GripIcon />
-            </button>
-
             <button
               type="button"
               className="flex h-6 w-5 shrink-0 items-center justify-center text-gray-400"
@@ -253,6 +246,15 @@ function SortableFolderTreeNode({
               }}
             >
               {folder.name}
+            </button>
+
+            <button
+              type="button"
+              className="ml-auto flex h-6 w-4 shrink-0 cursor-grab items-center justify-center text-gray-300 opacity-0 group-hover:opacity-100 hover:text-gray-500 active:cursor-grabbing"
+              {...attributes}
+              {...listeners}
+            >
+              <GripIcon />
             </button>
           </div>
         </ContextMenu.Trigger>
