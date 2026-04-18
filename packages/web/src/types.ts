@@ -23,3 +23,12 @@ export interface Bookmark {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface SearchResult extends Bookmark {
+  folder: {
+    id: string;
+    name: string;
+    path: string;
+    parentPath: string | null;
+  } | null;
+}
