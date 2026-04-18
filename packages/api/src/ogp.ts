@@ -86,11 +86,56 @@ async function readLimitedBody(response: Response): Promise<string> {
   return result;
 }
 
+export function isYouTubeUrl(targetUrl: string): boolean {
+  try {
+    const url = new URL(targetUrl);
+    const hostname = url.hostname.toLowerCase();
+    return (
+      ((hostname === 'www.youtube.com' || hostname === 'youtube.com') &&
+        url.pathname === '/watch') ||
+      hostname === 'youtu.be'
+    );
+  } catch {
+    return false;
+  }
+}
+
+async function fetchYouTubeOembedMetadata(targetUrl: string): Promise<OgpMetadata | null> {
+  try {
+    const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(targetUrl)}&format=json`;
+    const response = await fetch(oembedUrl, {
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data = (await response.json()) as { title?: string; thumbnail_url?: string };
+
+    return {
+      title: data.title ?? null,
+      description: null,
+      imageUrl: data.thumbnail_url ?? null,
+      faviconUrl: 'https://www.youtube.com/favicon.ico',
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchOgpMetadata(targetUrl: string): Promise<OgpMetadata> {
   const empty: OgpMetadata = { title: null, description: null, imageUrl: null, faviconUrl: null };
 
   if (!validateFetchUrl(targetUrl)) {
     return empty;
+  }
+
+  if (isYouTubeUrl(targetUrl)) {
+    const oembedResult = await fetchYouTubeOembedMetadata(targetUrl);
+    if (oembedResult) {
+      return oembedResult;
+    }
   }
 
   try {
