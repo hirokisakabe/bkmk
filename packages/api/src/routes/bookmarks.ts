@@ -27,36 +27,48 @@ function isUniqueViolation(err: unknown): boolean {
 const bookmarksRoute = new Hono<Env>();
 
 // GET /api/bookmarks?folder=/work&deep=false — 一覧取得
-bookmarksRoute.get('/', async (c) => {
-  const userId = c.var.user.id;
-  const folder = c.req.query('folder') ?? null;
-  const deep = c.req.query('deep') === 'true';
+bookmarksRoute.get(
+  '/',
+  zValidator(
+    'query',
+    z.object({
+      folder: z.string().optional(),
+      deep: z.string().optional(),
+    }),
+    validationHook,
+  ),
+  async (c) => {
+    const userId = c.var.user.id;
+    const { folder, deep } = c.req.valid('query');
+    const folderPath = folder ?? null;
+    const isDeep = deep === 'true';
 
-  const conditions = [eq(bookmarks.userId, userId), isNull(bookmarks.deletedAt)];
+    const conditions = [eq(bookmarks.userId, userId), isNull(bookmarks.deletedAt)];
 
-  if (deep && folder !== null) {
-    // folder 自身 + その配下すべて
-    const escaped = escapeLike(folder);
-    conditions.push(
-      sql`(${bookmarks.folderPath} = ${folder} OR ${bookmarks.folderPath} LIKE ${escaped + '/%'} ESCAPE '\\')`,
-    );
-  } else if (deep && folder === null) {
-    // ルートから再帰 = 全件（deletedAt is null のみ）
-  } else {
-    // 直下のみ
-    conditions.push(
-      folder === null ? isNull(bookmarks.folderPath) : eq(bookmarks.folderPath, folder),
-    );
-  }
+    if (isDeep && folderPath !== null) {
+      // folder 自身 + その配下すべて
+      const escaped = escapeLike(folderPath);
+      conditions.push(
+        sql`(${bookmarks.folderPath} = ${folderPath} OR ${bookmarks.folderPath} LIKE ${escaped + '/%'} ESCAPE '\\')`,
+      );
+    } else if (isDeep && folderPath === null) {
+      // ルートから再帰 = 全件（deletedAt is null のみ）
+    } else {
+      // 直下のみ
+      conditions.push(
+        folderPath === null ? isNull(bookmarks.folderPath) : eq(bookmarks.folderPath, folderPath),
+      );
+    }
 
-  const result = await db
-    .select()
-    .from(bookmarks)
-    .where(and(...conditions))
-    .orderBy(bookmarks.position);
+    const result = await db
+      .select()
+      .from(bookmarks)
+      .where(and(...conditions))
+      .orderBy(bookmarks.position);
 
-  return c.json(result);
-});
+    return c.json(result);
+  },
+);
 
 // POST /api/bookmarks — ブックマーク追加（OGP自動取得）
 bookmarksRoute.post(

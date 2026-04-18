@@ -1,19 +1,21 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { apiFetch } from '../lib/api-client';
+import { client } from '../lib/api-client';
 
 export function useDeleteFolder() {
   const queryClient = useQueryClient();
 
   return useMutation<void, Error, { id: string }>({
     mutationFn: async ({ id }) => {
-      const res = await apiFetch(`/folders/${id}`, {
-        method: 'DELETE',
+      const res = await client.api.folders[':id'].$delete({
+        param: { id },
       });
 
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || 'フォルダの削除に失敗しました');
+        const body = await res.json().catch(() => ({ error: undefined }));
+        throw new Error(
+          ('error' in body ? body.error : undefined) || 'フォルダの削除に失敗しました',
+        );
       }
     },
     onSuccess: () => {

@@ -35,28 +35,25 @@ app.use('/api/*', async (c, next) => {
   await next();
 });
 
-// Folder routes
-app.route('/api/folders', foldersRoute);
+// API routes (chained for RPC type inference)
+const routes = app
+  .route('/api/folders', foldersRoute)
+  .route('/api/bookmarks', bookmarksRoute)
+  .route('/api/trash', trashRoute)
+  .route('/api/search', searchRoute);
 
-// Bookmark routes
-app.route('/api/bookmarks', bookmarksRoute);
+export type AppType = typeof routes;
 
-// Trash routes
-app.route('/api/trash', trashRoute);
-
-// Search routes
-app.route('/api/search', searchRoute);
-
-app.get('/health', (c) => {
+routes.get('/health', (c) => {
   return c.json({ status: 'ok' });
 });
 
 // SPA 静的配信（本番時）
-app.use('/*', serveStatic({ root: './public' }));
-app.get('/*', serveStatic({ path: './public/index.html' }));
+routes.use('/*', serveStatic({ root: './public' }));
+routes.get('/*', serveStatic({ path: './public/index.html' }));
 
 const port = Number(process.env.PORT) || 3000;
 
-serve({ fetch: app.fetch, port }, () => {
+serve({ fetch: routes.fetch, port }, () => {
   console.log(`Server is running on http://localhost:${port}`);
 });

@@ -1,19 +1,19 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { apiFetch } from '../lib/api-client';
+import { client } from '../lib/api-client';
 
 export function useRestoreTrashItem() {
   const queryClient = useQueryClient();
 
   return useMutation<void, Error, { id: string }>({
     mutationFn: async ({ id }) => {
-      const res = await apiFetch(`/trash/${id}/restore`, {
-        method: 'POST',
+      const res = await client.api.trash[':id'].restore.$post({
+        param: { id },
       });
 
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || '復元に失敗しました');
+        const body = await res.json().catch(() => ({ error: undefined }));
+        throw new Error(('error' in body ? body.error : undefined) || '復元に失敗しました');
       }
     },
     onSuccess: () => {
