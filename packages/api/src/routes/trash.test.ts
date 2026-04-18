@@ -76,9 +76,7 @@ describe('POST /api/trash/:id/restore', () => {
     vi.mocked(db.select).mockReturnValueOnce(mockQueryChain([]) as never);
     vi.mocked(db.select).mockReturnValueOnce(mockQueryChain([mockDeletedBookmark]) as never);
     // 復元先フォルダ確認 (folderPath が null なのでスキップ)
-    // maxPos
-    vi.mocked(db.select).mockReturnValueOnce(mockQueryChain([{ max: -1 }]) as never);
-    // update
+    // 既存アイテムの position シフト + 復元 update
     vi.mocked(db.update).mockReturnValue(mockQueryChain([]) as never);
 
     const res = await app.request('/api/trash/bk-1/restore', { method: 'POST' });

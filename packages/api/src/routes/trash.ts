@@ -97,10 +97,10 @@ const trashRoute = new Hono<Env>()
         }
       }
 
-      // 同一親内の最大 position を取得
-      const maxPos = await db
-        .select({ max: sql<number>`coalesce(max(${folders.position}), -1)` })
-        .from(folders)
+      // 同一親内の既存フォルダの position を +1 シフト
+      await db
+        .update(folders)
+        .set({ position: sql`${folders.position} + 1` })
         .where(
           and(
             eq(folders.userId, userId),
@@ -110,7 +110,7 @@ const trashRoute = new Hono<Env>()
             isNull(folders.deletedAt),
           ),
         );
-      const position = (maxPos[0]?.max ?? -1) + 1;
+      const position = 0;
 
       const oldPath = folder.path;
 
@@ -230,10 +230,10 @@ const trashRoute = new Hono<Env>()
       }
     }
 
-    // 同一フォルダ内の最大 position を取得
-    const maxPos = await db
-      .select({ max: sql<number>`coalesce(max(${bookmarks.position}), -1)` })
-      .from(bookmarks)
+    // 同一フォルダ内の既存アイテムの position を +1 シフト
+    await db
+      .update(bookmarks)
+      .set({ position: sql`${bookmarks.position} + 1` })
       .where(
         and(
           eq(bookmarks.userId, userId),
@@ -243,7 +243,7 @@ const trashRoute = new Hono<Env>()
           isNull(bookmarks.deletedAt),
         ),
       );
-    const position = (maxPos[0]?.max ?? -1) + 1;
+    const position = 0;
 
     try {
       await db

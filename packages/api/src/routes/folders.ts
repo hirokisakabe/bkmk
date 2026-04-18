@@ -115,10 +115,10 @@ const foldersRoute = new Hono<Env>()
         }
       }
 
-      // 同一親内の最大 position を取得
-      const maxPos = await db
-        .select({ max: sql<number>`coalesce(max(${folders.position}), -1)` })
-        .from(folders)
+      // 同一親内の既存フォルダの position を +1 シフト
+      await db
+        .update(folders)
+        .set({ position: sql`${folders.position} + 1` })
         .where(
           and(
             eq(folders.userId, userId),
@@ -127,7 +127,7 @@ const foldersRoute = new Hono<Env>()
           ),
         );
 
-      const position = (maxPos[0]?.max ?? -1) + 1;
+      const position = 0;
 
       try {
         const [created] = await db

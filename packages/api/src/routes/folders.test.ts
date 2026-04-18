@@ -49,8 +49,8 @@ describe('GET /api/folders', () => {
 
 describe('POST /api/folders', () => {
   it('フォルダを作成する', async () => {
-    // maxPos クエリ
-    vi.mocked(db.select).mockReturnValue(mockQueryChain([{ max: -1 }]) as never);
+    // 既存フォルダの position シフト
+    vi.mocked(db.update).mockReturnValueOnce(mockQueryChain([]) as never);
     // insert
     vi.mocked(db.insert).mockReturnValue(mockQueryChain([mockFolder]) as never);
 
