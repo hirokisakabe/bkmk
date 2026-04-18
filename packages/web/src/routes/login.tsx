@@ -39,7 +39,7 @@ function LoginPage() {
           return;
         }
       }
-      await router.navigate({ to: '/', search: { folder: null, deep: false, q: null } });
+      await router.navigate({ to: '/', search: { folder: null, q: null } });
     } catch {
       setError(mode === 'login' ? 'ログインに失敗しました' : 'アカウント作成に失敗しました');
     } finally {

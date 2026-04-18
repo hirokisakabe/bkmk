@@ -52,10 +52,11 @@ pnpm モノレポ（Node.js 24+, TypeScript 6, ES modules）。
 
 ### フロントエンド（@bkmk/web）
 
-- **ルーティング**: TanStack Router。`src/routes/` 配下に `index`（メイン）、`login`、`trash`。`__root.tsx` がレイアウト。
+- **ルーティング**: TanStack Router。`src/routes/` 配下に `index`（メイン）、`login`、`settings`、`trash`。`__root.tsx` がレイアウト。
 - **データ取得**: `src/hooks/` 配下のカスタムフック（use-bookmarks, use-folders 等）が React Query + Hono RPC 経由で API を呼ぶ。
 - **API クライアント**: `src/lib/api-client.ts`。Hono RPC（`hono/client` の `hc`）を使用。API 側の `AppType` を参照して型安全にリクエストを送信。
 - **認証ガード**: `src/lib/auth-guard.ts` + `src/lib/auth-client.ts`（better-auth クライアント）。
+- **設定ストア**: `src/lib/settings-store.ts`。IndexedDB でユーザー設定を永続化。`useSettings` フックで読み書き。
 
 ### データモデル
 

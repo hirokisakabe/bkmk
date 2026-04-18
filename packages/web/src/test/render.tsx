@@ -4,10 +4,11 @@ import { render } from '@testing-library/react';
 
 import { indexRoute } from '../routes/index';
 import { loginRoute } from '../routes/login';
+import { settingsRoute } from '../routes/settings';
 import { trashRoute } from '../routes/trash';
 import { rootRoute } from '../routes/__root';
 
-const routeTree = rootRoute.addChildren([indexRoute, loginRoute, trashRoute]);
+const routeTree = rootRoute.addChildren([indexRoute, loginRoute, settingsRoute, trashRoute]);
 
 interface RenderOptions {
   initialUrl?: string;

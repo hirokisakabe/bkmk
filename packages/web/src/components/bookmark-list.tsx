@@ -14,20 +14,19 @@ import { useState } from 'react';
 import { useBookmarks } from '../hooks/use-bookmarks';
 import { useDeleteBookmark } from '../hooks/use-delete-bookmark';
 import { useReorderBookmark } from '../hooks/use-reorder-bookmark';
+import { useSettings } from '../lib/settings-store';
 import type { Bookmark } from '../types';
 import { AddBookmarkForm } from './add-bookmark-form';
 
 export function BookmarkList({
   folderPath,
   folderName,
-  deep,
-  onToggleDeep,
 }: {
   folderPath: string | null;
   folderName: string;
-  deep: boolean;
-  onToggleDeep: (deep: boolean) => void;
 }) {
+  const [settings] = useSettings();
+  const deep = folderPath !== null && settings.includeSubfolders;
   const { data: bookmarks, isLoading } = useBookmarks(folderPath, deep);
   const reorderBookmark = useReorderBookmark();
   const [deleteTarget, setDeleteTarget] = useState<Bookmark | null>(null);
@@ -58,19 +57,8 @@ export function BookmarkList({
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6">
         <h2 className="text-xl font-bold text-gray-900">{folderName}</h2>
-        {folderPath !== null && (
-          <label className="flex items-center gap-2 text-sm text-gray-600">
-            <input
-              type="checkbox"
-              checked={deep}
-              onChange={(e) => onToggleDeep(e.target.checked)}
-              className="rounded border-gray-300"
-            />
-            サブフォルダを含む
-          </label>
-        )}
       </div>
 
       <AddBookmarkForm folderPath={folderPath} />
