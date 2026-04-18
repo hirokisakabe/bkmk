@@ -93,6 +93,10 @@ export const handlers = [
     return HttpResponse.json(created, { status: 201 });
   }),
 
+  http.delete('/api/bookmarks/:id', () => {
+    return HttpResponse.json({ success: true });
+  }),
+
   // Folders
   http.get('/api/folders', () => {
     return HttpResponse.json(mockFolders);
