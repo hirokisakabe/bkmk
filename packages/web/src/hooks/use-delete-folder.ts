@@ -10,7 +10,7 @@ export function useDeleteFolder() {
     void,
     Error,
     { id: string },
-    { previousFolderQueries: [queryKey: unknown[], data: Folder[] | undefined][] }
+    { previousFolderQueries: [queryKey: readonly unknown[], data: Folder[] | undefined][] }
   >({
     mutationFn: async ({ id }) => {
       const res = await client.api.folders[':id'].$delete({

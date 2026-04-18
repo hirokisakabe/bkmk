@@ -10,7 +10,7 @@ export function useMoveFolder() {
     Folder,
     Error,
     { id: string; parentPath: string | null },
-    { previousQueries: [queryKey: unknown[], data: Folder[] | undefined][] }
+    { previousQueries: [queryKey: readonly unknown[], data: Folder[] | undefined][] }
   >({
     mutationFn: async ({ id, parentPath }) => {
       const res = await client.api.folders[':id'].$patch({
