@@ -22,10 +22,12 @@
     "better-auth": "^1.6.5",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.7.10",
+    "ws": "^8.20.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^22.15.18",
+    "@types/ws": "^8.18.1",
     "tsx": "^4.19.4",
     "vitest": "^4.1.4"
   }
