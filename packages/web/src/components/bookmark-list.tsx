@@ -1,18 +1,10 @@
-import {
-  closestCenter,
-  DndContext,
-  type DragEndEvent,
-  PointerSensor,
-  useSensor,
-  useSensors,
-} from '@dnd-kit/core';
+import { useDraggable } from '@dnd-kit/core';
 import { SortableContext, useSortable, rectSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useState } from 'react';
 
 import { useBookmarks } from '../hooks/use-bookmarks';
 import { useDeleteBookmark } from '../hooks/use-delete-bookmark';
-import { useReorderBookmark } from '../hooks/use-reorder-bookmark';
 import { useSettings } from '../lib/settings-store';
 import type { Bookmark } from '../types';
 import { AddBookmarkForm } from './add-bookmark-form';
@@ -27,30 +19,7 @@ export function BookmarkList({
   const [settings] = useSettings();
   const deep = folderPath !== null && settings.includeSubfolders;
   const { data: bookmarks, isLoading } = useBookmarks(folderPath, deep);
-  const reorderBookmark = useReorderBookmark();
   const deleteBookmark = useDeleteBookmark();
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 5 },
-    }),
-  );
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    if (reorderBookmark.isPending) return;
-
-    const { active, over } = event;
-    if (!over || active.id === over.id || !bookmarks) return;
-
-    const oldIndex = bookmarks.findIndex((b) => b.id === active.id);
-    const newIndex = bookmarks.findIndex((b) => b.id === over.id);
-    if (oldIndex === -1 || newIndex === -1) return;
-
-    reorderBookmark.mutate({
-      id: bookmarks[oldIndex].id,
-      position: bookmarks[newIndex].position,
-    });
-  };
 
   const canReorder = !deep && bookmarks && bookmarks.length > 1;
 
@@ -86,25 +55,23 @@ export function BookmarkList({
       )}
 
       {!isLoading && bookmarks && bookmarks.length > 0 && canReorder && (
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={bookmarks.map((b) => b.id)} strategy={rectSortingStrategy}>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-              {bookmarks.map((bookmark) => (
-                <SortableBookmarkCard
-                  key={bookmark.id}
-                  bookmark={bookmark}
-                  onDelete={() => deleteBookmark.mutate({ id: bookmark.id })}
-                />
-              ))}
-            </div>
-          </SortableContext>
-        </DndContext>
+        <SortableContext items={bookmarks.map((b) => b.id)} strategy={rectSortingStrategy}>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+            {bookmarks.map((bookmark) => (
+              <SortableBookmarkCard
+                key={bookmark.id}
+                bookmark={bookmark}
+                onDelete={() => deleteBookmark.mutate({ id: bookmark.id })}
+              />
+            ))}
+          </div>
+        </SortableContext>
       )}
 
       {!isLoading && bookmarks && bookmarks.length > 0 && !canReorder && (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
           {bookmarks.map((bookmark) => (
-            <BookmarkCard
+            <DraggableBookmarkCard
               key={bookmark.id}
               bookmark={bookmark}
               onDelete={() => deleteBookmark.mutate({ id: bookmark.id })}
@@ -125,11 +92,39 @@ function SortableBookmarkCard({
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: bookmark.id,
+    data: { type: 'bookmark', bookmark },
   });
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className={isDragging ? 'relative z-10 opacity-50' : ''}>
+      <BookmarkCard
+        bookmark={bookmark}
+        onDelete={onDelete}
+        dragHandleProps={{ ...attributes, ...listeners }}
+      />
+    </div>
+  );
+}
+
+function DraggableBookmarkCard({
+  bookmark,
+  onDelete,
+}: {
+  bookmark: Bookmark;
+  onDelete: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: bookmark.id,
+    data: { type: 'bookmark', bookmark },
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
   };
 
   return (

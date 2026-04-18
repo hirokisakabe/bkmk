@@ -1,11 +1,4 @@
-import {
-  closestCenter,
-  DndContext,
-  type DragEndEvent,
-  PointerSensor,
-  useSensor,
-  useSensors,
-} from '@dnd-kit/core';
+import { useDndContext, useDroppable } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import * as ContextMenu from '@radix-ui/react-context-menu';
@@ -13,7 +6,6 @@ import { useState } from 'react';
 
 import { useDeleteFolder } from '../hooks/use-delete-folder';
 import { useFolders } from '../hooks/use-folders';
-import { useReorderFolder } from '../hooks/use-reorder-folder';
 import type { Folder } from '../types';
 import { CreateFolderDialog, MoveFolderDialog, RenameFolderDialog } from './folder-dialogs';
 
@@ -32,30 +24,14 @@ export function FolderTree({
 }) {
   const { data: folders, isLoading } = useFolders(null);
   const [dialogState, setDialogState] = useState<DialogState>(null);
-  const reorderFolder = useReorderFolder();
   const deleteFolder = useDeleteFolder();
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 5 },
-    }),
-  );
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    if (reorderFolder.isPending) return;
-
-    const { active, over } = event;
-    if (!over || active.id === over.id || !folders) return;
-
-    const oldIndex = folders.findIndex((f) => f.id === active.id);
-    const newIndex = folders.findIndex((f) => f.id === over.id);
-    if (oldIndex === -1 || newIndex === -1) return;
-
-    reorderFolder.mutate({
-      id: folders[oldIndex].id,
-      position: folders[newIndex].position,
-    });
-  };
+  const { setNodeRef: rootDropRef, isOver: isOverRoot } = useDroppable({
+    id: 'folder-drop-root',
+    data: { type: 'folder-root', folderPath: null },
+  });
+  const { active } = useDndContext();
+  const isRootDropTarget = active?.data.current?.type === 'bookmark' && isOverRoot;
 
   const handleDeleteOrMove = (folder: Folder) => {
     if (
@@ -75,11 +51,14 @@ export function FolderTree({
       <ContextMenu.Root>
         <ContextMenu.Trigger asChild>
           <button
+            ref={rootDropRef}
             type="button"
             className={`w-full rounded px-2 py-1.5 text-left text-sm ${
-              selectedFolder === null
-                ? 'bg-blue-100 font-semibold text-blue-800'
-                : 'text-gray-700 hover:bg-gray-200'
+              isRootDropTarget
+                ? 'ring-2 ring-blue-400 bg-blue-50'
+                : selectedFolder === null
+                  ? 'bg-blue-100 font-semibold text-blue-800'
+                  : 'text-gray-700 hover:bg-gray-200'
             }`}
             onClick={() => onSelectFolder(null)}
           >
@@ -114,8 +93,6 @@ export function FolderTree({
           depth={0}
           onAction={setDialogState}
           onDeleteFolder={handleDelete}
-          sensors={sensors}
-          onDragEnd={handleDragEnd}
         />
       )}
 
@@ -154,8 +131,6 @@ function SortableFolderList({
   depth,
   onAction,
   onDeleteFolder,
-  sensors,
-  onDragEnd,
 }: {
   folders: Folder[];
   selectedFolder: string | null;
@@ -163,26 +138,21 @@ function SortableFolderList({
   depth: number;
   onAction: (state: DialogState) => void;
   onDeleteFolder: (folder: Folder) => void;
-  sensors: ReturnType<typeof useSensors>;
-  onDragEnd: (event: DragEndEvent) => void;
 }) {
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-      <SortableContext items={folders.map((f) => f.id)} strategy={verticalListSortingStrategy}>
-        {folders.map((folder) => (
-          <SortableFolderTreeNode
-            key={folder.id}
-            folder={folder}
-            selectedFolder={selectedFolder}
-            onSelectFolder={onSelectFolder}
-            depth={depth}
-            onAction={onAction}
-            onDeleteFolder={onDeleteFolder}
-            sensors={sensors}
-          />
-        ))}
-      </SortableContext>
-    </DndContext>
+    <SortableContext items={folders.map((f) => f.id)} strategy={verticalListSortingStrategy}>
+      {folders.map((folder) => (
+        <SortableFolderTreeNode
+          key={folder.id}
+          folder={folder}
+          selectedFolder={selectedFolder}
+          onSelectFolder={onSelectFolder}
+          depth={depth}
+          onAction={onAction}
+          onDeleteFolder={onDeleteFolder}
+        />
+      ))}
+    </SortableContext>
   );
 }
 
@@ -193,7 +163,6 @@ function SortableFolderTreeNode({
   depth,
   onAction,
   onDeleteFolder,
-  sensors,
 }: {
   folder: Folder;
   selectedFolder: string | null;
@@ -201,10 +170,10 @@ function SortableFolderTreeNode({
   depth: number;
   onAction: (state: DialogState) => void;
   onDeleteFolder: (folder: Folder) => void;
-  sensors: ReturnType<typeof useSensors>;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: folder.id,
+    data: { type: 'folder', folder },
   });
 
   const style = {
@@ -221,23 +190,8 @@ function SortableFolderTreeNode({
   const isSelected = selectedFolder === folder.path;
   const hasChildren = children && children.length > 0;
 
-  const reorderFolder = useReorderFolder();
-
-  const handleChildDragEnd = (event: DragEndEvent) => {
-    if (reorderFolder.isPending) return;
-
-    const { active, over } = event;
-    if (!over || active.id === over.id || !children) return;
-
-    const oldIndex = children.findIndex((f) => f.id === active.id);
-    const newIndex = children.findIndex((f) => f.id === over.id);
-    if (oldIndex === -1 || newIndex === -1) return;
-
-    reorderFolder.mutate({
-      id: children[oldIndex].id,
-      position: children[newIndex].position,
-    });
-  };
+  const { active, over } = useDndContext();
+  const isDropTarget = active?.data.current?.type === 'bookmark' && over?.id === folder.id;
 
   return (
     <div ref={setNodeRef} style={style} className={isDragging ? 'relative z-10 opacity-50' : ''}>
@@ -245,9 +199,11 @@ function SortableFolderTreeNode({
         <ContextMenu.Trigger asChild>
           <div
             className={`group flex items-center rounded text-sm ${
-              isSelected
-                ? 'bg-blue-100 font-semibold text-blue-800'
-                : 'text-gray-700 hover:bg-gray-200'
+              isDropTarget
+                ? 'ring-2 ring-blue-400 bg-blue-50'
+                : isSelected
+                  ? 'bg-blue-100 font-semibold text-blue-800'
+                  : 'text-gray-700 hover:bg-gray-200'
             }`}
             style={{ paddingLeft: `${(depth + 1) * 12}px` }}
           >
@@ -326,8 +282,6 @@ function SortableFolderTreeNode({
           depth={depth + 1}
           onAction={onAction}
           onDeleteFolder={onDeleteFolder}
-          sensors={sensors}
-          onDragEnd={handleChildDragEnd}
         />
       )}
     </div>
