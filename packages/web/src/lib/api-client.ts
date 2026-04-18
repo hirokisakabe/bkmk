@@ -1,14 +1,7 @@
-export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
-  const headers: HeadersInit = { ...init?.headers };
+import { hc } from 'hono/client';
 
-  if (init?.body && !(init.body instanceof FormData)) {
-    (headers as Record<string, string>)['Content-Type'] = 'application/json';
-  }
+import type { AppType } from '@bkmk/api';
 
-  const response = await fetch(`/api${path}`, {
-    ...init,
-    credentials: 'include',
-    headers,
-  });
-  return response;
-}
+export const client = hc<AppType>('/', {
+  init: { credentials: 'include' },
+});

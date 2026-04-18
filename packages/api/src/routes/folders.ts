@@ -41,24 +41,35 @@ function isUniqueViolation(err: unknown): boolean {
 const foldersRoute = new Hono<Env>();
 
 // GET /api/folders?parent=/work — 指定パス直下のフォルダ一覧
-foldersRoute.get('/', async (c) => {
-  const userId = c.var.user.id;
-  const parent = c.req.query('parent') ?? null;
+foldersRoute.get(
+  '/',
+  zValidator(
+    'query',
+    z.object({
+      parent: z.string().optional(),
+    }),
+    validationHook,
+  ),
+  async (c) => {
+    const userId = c.var.user.id;
+    const { parent } = c.req.valid('query');
+    const parentPath = parent ?? null;
 
-  const result = await db
-    .select()
-    .from(folders)
-    .where(
-      and(
-        eq(folders.userId, userId),
-        parent === null ? isNull(folders.parentPath) : eq(folders.parentPath, parent),
-        isNull(folders.deletedAt),
-      ),
-    )
-    .orderBy(folders.position);
+    const result = await db
+      .select()
+      .from(folders)
+      .where(
+        and(
+          eq(folders.userId, userId),
+          parentPath === null ? isNull(folders.parentPath) : eq(folders.parentPath, parentPath),
+          isNull(folders.deletedAt),
+        ),
+      )
+      .orderBy(folders.position);
 
-  return c.json(result);
-});
+    return c.json(result);
+  },
+);
 
 // POST /api/folders — フォルダ作成
 foldersRoute.post(

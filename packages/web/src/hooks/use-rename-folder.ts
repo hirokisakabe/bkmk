@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { apiFetch } from '../lib/api-client';
+import { client } from '../lib/api-client';
 import type { Folder } from '../types';
 
 export function useRenameFolder() {
@@ -8,17 +8,19 @@ export function useRenameFolder() {
 
   return useMutation<Folder, Error, { id: string; name: string }>({
     mutationFn: async ({ id, name }) => {
-      const res = await apiFetch(`/folders/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ name }),
+      const res = await client.api.folders[':id'].$patch({
+        param: { id },
+        json: { name },
       });
 
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || 'フォルダ名の変更に失敗しました');
+        const body = await res.json().catch(() => ({ error: undefined }));
+        throw new Error(
+          ('error' in body ? body.error : undefined) || 'フォルダ名の変更に失敗しました',
+        );
       }
 
-      return res.json();
+      return (await res.json()) as Folder;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['folders'] });

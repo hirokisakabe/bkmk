@@ -43,7 +43,7 @@ pnpm モノレポ（Node.js 24+, TypeScript 6, ES modules）。
 
 ### バックエンド（@bkmk/api）
 
-- **エントリポイント**: `src/index.ts` — Hono アプリ。`/auth/*` を better-auth に委譲し、`/api/*` に認証ミドルウェアを適用。
+- **エントリポイント**: `src/index.ts` — Hono アプリ。`/auth/*` を better-auth に委譲し、`/api/*` に認証ミドルウェアを適用。`AppType` をエクスポートして Hono RPC の型共有に使用。
 - **ルート**: `src/routes/` — bookmarks, folders, trash, search。各ルートは `Hono<Env>` 型で `c.get('user')` から認証ユーザーを取得。
 - **バリデーション**: `@hono/zod-validator` + `src/validation-hook.ts` でリクエストを Zod スキーマで検証。
 - **DB**: Drizzle ORM + Neon PostgreSQL。スキーマは `src/db/schema.ts`。
@@ -52,8 +52,8 @@ pnpm モノレポ（Node.js 24+, TypeScript 6, ES modules）。
 ### フロントエンド（@bkmk/web）
 
 - **ルーティング**: TanStack Router。`src/routes/` 配下に `index`（メイン）、`login`、`trash`。`__root.tsx` がレイアウト。
-- **データ取得**: `src/hooks/` 配下のカスタムフック（use-bookmarks, use-folders 等）が React Query 経由で API を呼ぶ。
-- **API クライアント**: `src/lib/api-client.ts`。
+- **データ取得**: `src/hooks/` 配下のカスタムフック（use-bookmarks, use-folders 等）が React Query + Hono RPC 経由で API を呼ぶ。
+- **API クライアント**: `src/lib/api-client.ts`。Hono RPC（`hono/client` の `hc`）を使用。API 側の `AppType` を参照して型安全にリクエストを送信。
 - **認証ガード**: `src/lib/auth-guard.ts` + `src/lib/auth-client.ts`（better-auth クライアント）。
 
 ### データモデル

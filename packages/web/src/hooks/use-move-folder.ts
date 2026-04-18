@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { apiFetch } from '../lib/api-client';
+import { client } from '../lib/api-client';
 import type { Folder } from '../types';
 
 export function useMoveFolder() {
@@ -8,17 +8,19 @@ export function useMoveFolder() {
 
   return useMutation<Folder, Error, { id: string; parentPath: string | null }>({
     mutationFn: async ({ id, parentPath }) => {
-      const res = await apiFetch(`/folders/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ parentPath }),
+      const res = await client.api.folders[':id'].$patch({
+        param: { id },
+        json: { parentPath },
       });
 
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || 'フォルダの移動に失敗しました');
+        const body = await res.json().catch(() => ({ error: undefined }));
+        throw new Error(
+          ('error' in body ? body.error : undefined) || 'フォルダの移動に失敗しました',
+        );
       }
 
-      return res.json();
+      return (await res.json()) as Folder;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['folders'] });

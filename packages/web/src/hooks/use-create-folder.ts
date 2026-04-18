@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { apiFetch } from '../lib/api-client';
+import { client } from '../lib/api-client';
 import type { Folder } from '../types';
 
 export function useCreateFolder() {
@@ -8,17 +8,18 @@ export function useCreateFolder() {
 
   return useMutation<Folder, Error, { path: string }>({
     mutationFn: async ({ path }) => {
-      const res = await apiFetch('/folders', {
-        method: 'POST',
-        body: JSON.stringify({ path }),
+      const res = await client.api.folders.$post({
+        json: { path },
       });
 
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || 'フォルダの作成に失敗しました');
+        const body = await res.json().catch(() => ({ error: undefined }));
+        throw new Error(
+          ('error' in body ? body.error : undefined) || 'フォルダの作成に失敗しました',
+        );
       }
 
-      return res.json();
+      return (await res.json()) as Folder;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['folders'] });
