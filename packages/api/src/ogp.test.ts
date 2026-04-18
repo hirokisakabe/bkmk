@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { fetchOgpMetadata, validateFetchUrl } from './ogp.js';
+import { fetchOgpMetadata, isYouTubeUrl, validateFetchUrl } from './ogp.js';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -52,6 +52,32 @@ describe('validateFetchUrl', () => {
 
   it('file:// スキームを拒否する', () => {
     expect(validateFetchUrl('file:///etc/passwd')).toBe(false);
+  });
+});
+
+describe('isYouTubeUrl', () => {
+  it('youtube.com/watch のURLを判定する', () => {
+    expect(isYouTubeUrl('https://www.youtube.com/watch?v=dQw4w9WgXcQ')).toBe(true);
+  });
+
+  it('www なしの youtube.com/watch を判定する', () => {
+    expect(isYouTubeUrl('https://youtube.com/watch?v=dQw4w9WgXcQ')).toBe(true);
+  });
+
+  it('youtu.be のURLを判定する', () => {
+    expect(isYouTubeUrl('https://youtu.be/dQw4w9WgXcQ')).toBe(true);
+  });
+
+  it('YouTube以外のURLはfalseを返す', () => {
+    expect(isYouTubeUrl('https://example.com')).toBe(false);
+  });
+
+  it('youtube.com の watch 以外のパスはfalseを返す', () => {
+    expect(isYouTubeUrl('https://www.youtube.com/channel/UCxxxx')).toBe(false);
+  });
+
+  it('不正なURLはfalseを返す', () => {
+    expect(isYouTubeUrl('not-a-url')).toBe(false);
   });
 });
 
@@ -141,6 +167,102 @@ describe('fetchOgpMetadata', () => {
       description: null,
       imageUrl: null,
       faviconUrl: null,
+    });
+  });
+
+  it('YouTube URLの場合はoEmbed APIからメタデータを取得する', async () => {
+    const oembedResponse = {
+      title: 'YouTube Video Title',
+      thumbnail_url: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
+    };
+
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify(oembedResponse), {
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+
+    const result = await fetchOgpMetadata('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+    expect(result).toEqual({
+      title: 'YouTube Video Title',
+      description: null,
+      imageUrl: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
+      faviconUrl: 'https://www.youtube.com/favicon.ico',
+    });
+  });
+
+  it('youtu.be URLの場合はoEmbed APIからメタデータを取得する', async () => {
+    const oembedResponse = {
+      title: 'Short URL Video',
+      thumbnail_url: 'https://i.ytimg.com/vi/abc123/hqdefault.jpg',
+    };
+
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify(oembedResponse), {
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+
+    const result = await fetchOgpMetadata('https://youtu.be/abc123');
+    expect(result).toEqual({
+      title: 'Short URL Video',
+      description: null,
+      imageUrl: 'https://i.ytimg.com/vi/abc123/hqdefault.jpg',
+      faviconUrl: 'https://www.youtube.com/favicon.ico',
+    });
+  });
+
+  it('YouTube oEmbed APIが失敗した場合は通常のOGP取得にフォールバックする', async () => {
+    const html = `
+      <html>
+        <head>
+          <meta property="og:title" content="Fallback Title" />
+          <meta property="og:description" content="Fallback Description" />
+          <meta property="og:image" content="https://example.com/fallback.jpg" />
+        </head>
+        <body></body>
+      </html>
+    `;
+
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response('', { status: 404 }))
+      .mockResolvedValueOnce(
+        new Response(html, {
+          headers: { 'content-type': 'text/html' },
+        }),
+      );
+
+    const result = await fetchOgpMetadata('https://www.youtube.com/watch?v=invalid');
+    expect(result).toEqual({
+      title: 'Fallback Title',
+      description: 'Fallback Description',
+      imageUrl: 'https://example.com/fallback.jpg',
+      faviconUrl: 'https://www.youtube.com/favicon.ico',
+    });
+  });
+
+  it('YouTube oEmbed APIがエラーの場合は通常のOGP取得にフォールバックする', async () => {
+    const html = `
+      <html>
+        <head><title>YouTube</title></head>
+        <body></body>
+      </html>
+    `;
+
+    vi.spyOn(globalThis, 'fetch')
+      .mockRejectedValueOnce(new Error('Network error'))
+      .mockResolvedValueOnce(
+        new Response(html, {
+          headers: { 'content-type': 'text/html' },
+        }),
+      );
+
+    const result = await fetchOgpMetadata('https://www.youtube.com/watch?v=xxx');
+    expect(result).toEqual({
+      title: 'YouTube',
+      description: null,
+      imageUrl: null,
+      faviconUrl: 'https://www.youtube.com/favicon.ico',
     });
   });
 });
