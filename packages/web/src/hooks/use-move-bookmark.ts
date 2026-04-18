@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { client } from '../lib/api-client';
+import type { Bookmark } from '../types';
 
 export function useMoveBookmark() {
   const queryClient = useQueryClient();
@@ -14,7 +15,40 @@ export function useMoveBookmark() {
       if (!res.ok) throw new Error('ブックマークの移動に失敗しました');
       return res.json();
     },
-    onSuccess: () => {
+    onMutate: async ({ id, folderPath }) => {
+      await queryClient.cancelQueries({ queryKey: ['bookmarks'] });
+      const previousQueries = queryClient.getQueriesData<Bookmark[]>({
+        queryKey: ['bookmarks'],
+      });
+
+      queryClient.setQueriesData<Bookmark[]>({ queryKey: ['bookmarks'] }, (old) => {
+        if (!old) return old;
+        return old.filter((b) => b.id !== id);
+      });
+
+      const movedBookmark = previousQueries
+        .flatMap(([, data]) => data ?? [])
+        .find((b) => b.id === id);
+
+      if (movedBookmark) {
+        const targetKey = ['bookmarks', { folder: folderPath, deep: false }];
+        const targetData = queryClient.getQueryData<Bookmark[]>(targetKey);
+        if (targetData) {
+          queryClient.setQueryData<Bookmark[]>(targetKey, [
+            ...targetData,
+            { ...movedBookmark, folderPath },
+          ]);
+        }
+      }
+
+      return { previousQueries };
+    },
+    onError: (_err, _vars, context) => {
+      context?.previousQueries.forEach(([queryKey, data]) => {
+        queryClient.setQueryData(queryKey, data);
+      });
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['bookmarks'] });
     },
   });
