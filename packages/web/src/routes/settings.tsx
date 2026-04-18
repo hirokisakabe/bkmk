@@ -1,6 +1,8 @@
-import { createRoute, Link } from '@tanstack/react-router';
+import { createRoute, Link, useRouter } from '@tanstack/react-router';
+import { useState } from 'react';
 
 import { Layout } from '../components/layout';
+import { authClient } from '../lib/auth-client';
 import { requireAuth } from '../lib/auth-guard';
 import { useSettings } from '../lib/settings-store';
 import { rootRoute } from './__root';
@@ -14,6 +16,18 @@ export const settingsRoute = createRoute({
 
 function SettingsPage() {
   const [settings, updateSettings] = useSettings();
+  const router = useRouter();
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    try {
+      await authClient.signOut();
+      await router.navigate({ to: '/login' });
+    } finally {
+      setLoggingOut(false);
+    }
+  };
 
   return (
     <Layout>
@@ -48,6 +62,21 @@ function SettingsPage() {
                 className="h-4 w-4 rounded border-gray-300"
               />
             </label>
+          </div>
+        </div>
+
+        <div className="mt-6 rounded-lg border border-gray-200 bg-white">
+          <div className="border-b border-gray-200 px-4 py-3">
+            <h3 className="font-medium text-gray-900">アカウント</h3>
+          </div>
+          <div className="px-4 py-4">
+            <button
+              onClick={handleLogout}
+              disabled={loggingOut}
+              className="rounded-md bg-gray-100 px-4 py-2 text-sm text-gray-700 hover:bg-gray-200 disabled:opacity-50"
+            >
+              {loggingOut ? 'ログアウト中...' : 'ログアウト'}
+            </button>
           </div>
         </div>
       </div>
