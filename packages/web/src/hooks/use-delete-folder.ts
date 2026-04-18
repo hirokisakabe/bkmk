@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { client } from '../lib/api-client';
+import type { Folder } from '../types';
 
 export function useDeleteFolder() {
   const queryClient = useQueryClient();
@@ -18,7 +19,25 @@ export function useDeleteFolder() {
         );
       }
     },
-    onSuccess: () => {
+    onMutate: async ({ id }) => {
+      await queryClient.cancelQueries({ queryKey: ['folders'] });
+      const previousFolderQueries = queryClient.getQueriesData<Folder[]>({
+        queryKey: ['folders'],
+      });
+
+      queryClient.setQueriesData<Folder[]>({ queryKey: ['folders'] }, (old) => {
+        if (!old) return old;
+        return old.filter((f) => f.id !== id);
+      });
+
+      return { previousFolderQueries };
+    },
+    onError: (_err, _vars, context) => {
+      context?.previousFolderQueries.forEach(([queryKey, data]) => {
+        queryClient.setQueryData(queryKey, data);
+      });
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['folders'] });
       queryClient.invalidateQueries({ queryKey: ['bookmarks'] });
     },

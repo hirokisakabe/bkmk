@@ -22,7 +22,25 @@ export function useRenameFolder() {
 
       return (await res.json()) as Folder;
     },
-    onSuccess: () => {
+    onMutate: async ({ id, name }) => {
+      await queryClient.cancelQueries({ queryKey: ['folders'] });
+      const previousQueries = queryClient.getQueriesData<Folder[]>({
+        queryKey: ['folders'],
+      });
+
+      queryClient.setQueriesData<Folder[]>({ queryKey: ['folders'] }, (old) => {
+        if (!old) return old;
+        return old.map((f) => (f.id === id ? { ...f, name } : f));
+      });
+
+      return { previousQueries };
+    },
+    onError: (_err, _vars, context) => {
+      context?.previousQueries.forEach(([queryKey, data]) => {
+        queryClient.setQueryData(queryKey, data);
+      });
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['folders'] });
       queryClient.invalidateQueries({ queryKey: ['bookmarks'] });
     },
