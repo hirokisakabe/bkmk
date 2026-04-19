@@ -205,7 +205,7 @@ function BookmarkCard({
       {dragHandleProps && (
         <button
           type="button"
-          className="absolute top-1 left-1 cursor-grab rounded bg-black/50 p-1 text-white opacity-100 transition-opacity hover:bg-black/70 active:cursor-grabbing md:opacity-0 md:group-hover:opacity-100"
+          className="absolute top-1 right-1 cursor-grab rounded bg-black/50 p-1 text-white opacity-100 transition-opacity hover:bg-black/70 active:cursor-grabbing md:opacity-0 md:group-hover:opacity-100"
           aria-label="並び替え"
           {...dragHandleProps}
         >
@@ -219,7 +219,7 @@ function BookmarkCard({
           e.preventDefault();
           onDelete();
         }}
-        className="absolute top-1 right-1 rounded bg-black/50 p-1 text-white opacity-100 transition-opacity hover:bg-black/70 md:opacity-0 md:group-hover:opacity-100"
+        className="absolute top-1 left-1 rounded bg-black/50 p-1 text-white opacity-100 transition-opacity hover:bg-black/70 md:opacity-0 md:group-hover:opacity-100"
         aria-label="削除"
       >
         <TrashIcon />
