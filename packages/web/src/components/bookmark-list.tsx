@@ -196,6 +196,9 @@ function BookmarkCard({
             )}
             <h3 className="line-clamp-2 text-sm font-medium text-gray-900">{displayTitle}</h3>
           </div>
+          {bookmark.description && (
+            <p className="line-clamp-2 text-xs text-gray-500">{bookmark.description}</p>
+          )}
           <p className="mt-auto truncate text-xs text-gray-400">{bookmark.url}</p>
         </div>
       </a>
