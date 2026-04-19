@@ -229,7 +229,17 @@ const bookmarksRoute = new Hono<Env>()
         return c.json(created, 201);
       } catch (err) {
         if (isUniqueViolation(err)) {
-          return c.json({ error: 'このURLはすでに登録されています' }, 409);
+          const [existing] = await db
+            .select({ folderPath: bookmarks.folderPath })
+            .from(bookmarks)
+            .where(and(eq(bookmarks.userId, userId), eq(bookmarks.url, body.url)));
+          const folderLabel = existing?.folderPath ?? '未分類';
+          return c.json(
+            {
+              error: `このURLはすでに「${folderLabel}」に登録されています`,
+            },
+            409,
+          );
         }
         throw err;
       }

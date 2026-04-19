@@ -183,6 +183,62 @@ describe('POST /api/bookmarks', () => {
     expect(res.status).toBe(201);
     expect(db.delete).toHaveBeenCalled();
   });
+
+  it('URL重複時にフォルダパスを含むエラーメッセージを返す', async () => {
+    // ソフトデリート済みレコードの物理削除
+    vi.mocked(db.delete).mockReturnValueOnce(mockQueryChain([]) as never);
+    // 既存アイテムの position シフト
+    vi.mocked(db.update).mockReturnValueOnce(mockQueryChain([]) as never);
+    // insert → unique violation
+    const uniqueError = new Error('duplicate key');
+    (uniqueError as unknown as { code: string }).code = '23505';
+    vi.mocked(db.insert).mockReturnValue({
+      values: () => ({
+        returning: () => Promise.reject(uniqueError),
+      }),
+    } as never);
+    // 既存ブックマークの検索
+    vi.mocked(db.select).mockReturnValue(
+      mockQueryChain([{ folderPath: '/tech/frontend' }]) as never,
+    );
+
+    const res = await app.request('/api/bookmarks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: 'https://example.com' }),
+    });
+
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.error).toBe('このURLはすでに「/tech/frontend」に登録されています');
+  });
+
+  it('URL重複時にfolderPathがnullの場合「未分類」と表示する', async () => {
+    // ソフトデリート済みレコードの物理削除
+    vi.mocked(db.delete).mockReturnValueOnce(mockQueryChain([]) as never);
+    // 既存アイテムの position シフト
+    vi.mocked(db.update).mockReturnValueOnce(mockQueryChain([]) as never);
+    // insert → unique violation
+    const uniqueError = new Error('duplicate key');
+    (uniqueError as unknown as { code: string }).code = '23505';
+    vi.mocked(db.insert).mockReturnValue({
+      values: () => ({
+        returning: () => Promise.reject(uniqueError),
+      }),
+    } as never);
+    // 既存ブックマークの検索（未分類）
+    vi.mocked(db.select).mockReturnValue(mockQueryChain([{ folderPath: null }]) as never);
+
+    const res = await app.request('/api/bookmarks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: 'https://example.com' }),
+    });
+
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.error).toBe('このURLはすでに「未分類」に登録されています');
+  });
 });
 
 describe('PATCH /api/bookmarks/:id', () => {
