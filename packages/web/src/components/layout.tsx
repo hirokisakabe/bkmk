@@ -61,7 +61,9 @@ export function Layout({
     >
       <div className="flex h-screen">
         <aside className="flex w-64 shrink-0 flex-col overflow-y-auto border-r border-gray-200 bg-gray-50 p-4">
-          <h1 className="mb-4 text-lg font-bold">bkmk</h1>
+          <Link to="/">
+            <h1 className="mb-4 text-lg font-bold">bkmk</h1>
+          </Link>
           <SearchInput
             key={isOnIndex ? (q ?? '') : ''}
             defaultValue={isOnIndex ? (q ?? '') : ''}
