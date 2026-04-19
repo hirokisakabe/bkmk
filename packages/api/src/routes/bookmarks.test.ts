@@ -76,6 +76,8 @@ describe('GET /api/bookmarks', () => {
 describe('POST /api/bookmarks', () => {
   it('ブックマークを作成する', async () => {
     // フォルダ確認不要（folderPath なし）
+    // ソフトデリート済みレコードの物理削除
+    vi.mocked(db.delete).mockReturnValueOnce(mockQueryChain([]) as never);
     // 既存アイテムの position シフト
     vi.mocked(db.update).mockReturnValueOnce(mockQueryChain([]) as never);
     // insert
@@ -123,6 +125,24 @@ describe('POST /api/bookmarks', () => {
     });
 
     expect(res.status).toBe(404);
+  });
+
+  it('ソフトデリート済みの同一URLブックマークを物理削除してから新規作成する', async () => {
+    // ソフトデリート済みレコードの物理削除
+    vi.mocked(db.delete).mockReturnValueOnce(mockQueryChain([]) as never);
+    // 既存アイテムの position シフト
+    vi.mocked(db.update).mockReturnValueOnce(mockQueryChain([]) as never);
+    // insert
+    vi.mocked(db.insert).mockReturnValue(mockQueryChain([mockBookmark]) as never);
+
+    const res = await app.request('/api/bookmarks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: 'https://example.com' }),
+    });
+
+    expect(res.status).toBe(201);
+    expect(db.delete).toHaveBeenCalled();
   });
 });
 

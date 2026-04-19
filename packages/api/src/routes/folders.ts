@@ -1,5 +1,5 @@
 import { zValidator } from '@hono/zod-validator';
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 
@@ -120,6 +120,17 @@ const foldersRoute = new Hono<Env>()
           return c.json({ error: 'Parent folder not found' }, 404);
         }
       }
+
+      // ソフトデリート済みの同一パスレコードがあれば物理削除
+      await db
+        .delete(folders)
+        .where(
+          and(
+            eq(folders.userId, userId),
+            eq(folders.path, body.path),
+            isNotNull(folders.deletedAt),
+          ),
+        );
 
       // 同一親内の既存フォルダの position を +1 シフト
       await db
