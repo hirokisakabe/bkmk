@@ -1,22 +1,31 @@
 {
   "name": "@bkmk/cli",
   "version": "0.0.1",
-  "private": true,
+  "description": "CLI for bkmk — a bookmark manager",
   "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hirokisakabe/bkmk.git",
+    "directory": "packages/cli"
+  },
   "bin": {
     "bkmk": "dist/index.js"
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "dev": "tsx src/index.ts",
     "build": "tsc",
     "test": "vitest run"
   },
   "dependencies": {
-    "@bkmk/api": "workspace:*",
     "commander": "^13.1.0",
     "hono": "^4.7.10"
   },
   "devDependencies": {
+    "@bkmk/api": "workspace:*",
     "tsx": "^4.19.4",
     "@types/node": "^22.15.18",
     "vitest": "^4.1.4"

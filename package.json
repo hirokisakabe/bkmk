@@ -16,6 +16,9 @@
     "test": "pnpm -r --parallel run test",
     "typecheck": "pnpm -r --parallel exec tsc --noEmit",
     "knip": "knip",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "pnpm build && changeset publish",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio"
@@ -26,6 +29,7 @@
     ]
   },
   "devDependencies": {
+    "@changesets/cli": "^2.31.0",
     "@eslint/js": "^9.27.0",
     "concurrently": "^9.1.2",
     "drizzle-kit": "^0.31.10",

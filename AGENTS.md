@@ -33,6 +33,10 @@ pnpm db:studio            # Drizzle Studio 起動
 
 PR 作成時に knip → lint → format:check → typecheck → test が実行される。コミット前にこれらが通ることを確認すること。
 
+## Changesets
+
+`packages/cli` に変更がある場合は `pnpm changeset add` で changeset を追加すること。main マージ後に Version PR が自動作成され、そのマージで npm publish が実行される。
+
 ## Architecture
 
 pnpm モノレポ（Node.js 24+, TypeScript 6, ES modules）。
@@ -40,6 +44,7 @@ pnpm モノレポ（Node.js 24+, TypeScript 6, ES modules）。
 ### パッケージ構成
 
 - **`packages/api`** — Hono バックエンド。本番では `public/` 配下の SPA 静的ファイルも配信する。
+- **`packages/cli`** — CLI ツール。Commander.js + Hono RPC クライアント。npm に `@bkmk/cli` として公開。
 - **`packages/web`** — React 19 + Vite フロントエンド。TanStack Router / React Query、Radix UI + TailwindCSS 4。
 
 ### バックエンド（@bkmk/api）
