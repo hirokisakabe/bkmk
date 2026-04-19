@@ -24,6 +24,9 @@ function validateSegments(segments: string[]): string | null {
     if (seg.length === 0 || seg.length > MAX_NAME_LENGTH) {
       return 'Each path segment must be 1-255 characters';
     }
+    if (seg !== seg.trim()) {
+      return 'Path segments must not have leading or trailing whitespace';
+    }
     if (!VALID_SEGMENT.test(seg)) {
       return 'Path segments may only contain alphanumeric, CJK, emoji, dot, hyphen, underscore, or space characters';
     }

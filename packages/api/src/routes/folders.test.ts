@@ -146,6 +146,46 @@ describe('POST /api/folders', () => {
     expect(body.name).toBe('Linux 📝');
   });
 
+  it('空白のみのフォルダ名で400を返す', async () => {
+    const res = await app.request('/api/folders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: '/ ' }),
+    });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('複数空白のみのフォルダ名で400を返す', async () => {
+    const res = await app.request('/api/folders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: '/   ' }),
+    });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('先頭に空白を含むフォルダ名で400を返す', async () => {
+    const res = await app.request('/api/folders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: '/ work' }),
+    });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('末尾に空白を含むフォルダ名で400を返す', async () => {
+    const res = await app.request('/api/folders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: '/work ' }),
+    });
+
+    expect(res.status).toBe(400);
+  });
+
   it('存在しない親フォルダで404を返す', async () => {
     // 親フォルダ検索 → 見つからない
     vi.mocked(db.select).mockReturnValue(mockQueryChain([]) as never);
@@ -203,6 +243,26 @@ describe('PATCH /api/folders/:id', () => {
     });
 
     expect(res.status).toBe(404);
+  });
+
+  it('空白のみの名前でリネームすると400を返す', async () => {
+    const res = await app.request('/api/folders/folder-1', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: '  ' }),
+    });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('先頭・末尾に空白を含む名前でリネームすると400を返す', async () => {
+    const res = await app.request('/api/folders/folder-1', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: ' work ' }),
+    });
+
+    expect(res.status).toBe(400);
   });
 });
 
