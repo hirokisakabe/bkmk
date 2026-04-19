@@ -4,6 +4,7 @@ import { PinoLogger } from 'hono-pino';
 import pino from 'pino';
 
 import type { auth } from '../auth.js';
+import { errorHandler } from '../error-handler.js';
 
 type Env = HonoPinoEnv & {
   Variables: {
@@ -46,6 +47,8 @@ export function createTestApp(path: string, route: Hono<Env>): Hono<Env> {
     c.set('logger', new PinoLogger(pino({ level: 'silent' })));
     await next();
   });
+
+  app.onError(errorHandler);
 
   app.route(path, route);
 
