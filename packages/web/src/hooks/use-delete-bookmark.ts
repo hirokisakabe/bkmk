@@ -31,7 +31,7 @@ export function useDeleteBookmark() {
       });
 
       queryClient.setQueriesData<Bookmark[]>({ queryKey: ['bookmarks'] }, (old) => {
-        if (!old) return old;
+        if (!old || !Array.isArray(old)) return old;
         return old.filter((b) => b.id !== id);
       });
 
