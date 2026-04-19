@@ -220,9 +220,18 @@ describe('POST /api/folders', () => {
 
 describe('PATCH /api/folders/:id', () => {
   it('フォルダ名を更新する', async () => {
-    const updated = { ...mockFolder, name: 'updated' };
-    vi.mocked(db.select).mockReturnValue(mockQueryChain([mockFolder]) as never);
-    vi.mocked(db.update).mockReturnValue(mockQueryChain([updated]) as never);
+    const updated = { ...mockFolder, name: 'updated', path: '/updated' };
+    // フォルダ取得
+    vi.mocked(db.select).mockReturnValueOnce(mockQueryChain([mockFolder]) as never);
+    // 子フォルダ取得（配下なし）
+    vi.mocked(db.select).mockReturnValueOnce(mockQueryChain([]) as never);
+
+    vi.mocked(db.transaction).mockImplementation(async (fn) => {
+      const tx = {
+        update: () => mockQueryChain([updated]),
+      };
+      return fn(tx as never);
+    });
 
     const res = await app.request('/api/folders/folder-1', {
       method: 'PATCH',
@@ -263,6 +272,189 @@ describe('PATCH /api/folders/:id', () => {
     });
 
     expect(res.status).toBe(400);
+  });
+
+  it('フォルダを別の親フォルダに移動する', async () => {
+    const sourceFolder = {
+      ...mockFolder,
+      id: 'folder-a',
+      name: 'a',
+      path: '/a',
+      parentPath: null,
+      position: 0,
+    };
+    const parentFolder = {
+      ...mockFolder,
+      id: 'folder-x',
+      name: 'x',
+      path: '/x',
+      parentPath: null,
+      position: 1,
+    };
+
+    // フォルダ取得
+    vi.mocked(db.select).mockReturnValueOnce(mockQueryChain([sourceFolder]) as never);
+    // 親フォルダ存在チェック
+    vi.mocked(db.select).mockReturnValueOnce(mockQueryChain([parentFolder]) as never);
+    // 子フォルダ取得（配下なし）
+    vi.mocked(db.select).mockReturnValueOnce(mockQueryChain([]) as never);
+    // position 取得
+    vi.mocked(db.select).mockReturnValueOnce(mockQueryChain([{ max: 0 }]) as never);
+
+    const updatedFolder = {
+      ...sourceFolder,
+      name: 'a',
+      path: '/x/a',
+      parentPath: '/x',
+      position: 1,
+    };
+    vi.mocked(db.transaction).mockImplementation(async (fn) => {
+      const tx = {
+        update: () => mockQueryChain([updatedFolder]),
+      };
+      return fn(tx as never);
+    });
+
+    const res = await app.request('/api/folders/folder-a', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parentPath: '/x' }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.path).toBe('/x/a');
+    expect(body.parentPath).toBe('/x');
+  });
+
+  it('ネストしたフォルダを移動する', async () => {
+    const sourceFolder = {
+      ...mockFolder,
+      id: 'folder-a',
+      name: 'a',
+      path: '/a',
+      parentPath: null,
+      position: 0,
+    };
+    const childFolder = {
+      ...mockFolder,
+      id: 'folder-b',
+      name: 'b',
+      path: '/a/b',
+      parentPath: '/a',
+      position: 0,
+    };
+
+    // フォルダ取得
+    vi.mocked(db.select).mockReturnValueOnce(mockQueryChain([sourceFolder]) as never);
+    // 親フォルダ存在チェック
+    vi.mocked(db.select).mockReturnValueOnce(
+      mockQueryChain([{ id: 'folder-x', name: 'x', path: '/x' }]) as never,
+    );
+    // 子フォルダ取得
+    vi.mocked(db.select).mockReturnValueOnce(mockQueryChain([childFolder]) as never);
+    // 子フォルダ衝突チェック（衝突なし）
+    vi.mocked(db.select).mockReturnValueOnce(mockQueryChain([]) as never);
+    // position 取得
+    vi.mocked(db.select).mockReturnValueOnce(mockQueryChain([{ max: 0 }]) as never);
+
+    const updatedFolder = { ...sourceFolder, path: '/x/a', parentPath: '/x', position: 1 };
+    vi.mocked(db.transaction).mockImplementation(async (fn) => {
+      const tx = {
+        update: () => mockQueryChain([updatedFolder]),
+      };
+      return fn(tx as never);
+    });
+
+    const res = await app.request('/api/folders/folder-a', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parentPath: '/x' }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(db.transaction).toHaveBeenCalled();
+  });
+
+  it('子フォルダのパス衝突時に409を返す', async () => {
+    const sourceFolder = {
+      ...mockFolder,
+      id: 'folder-a',
+      name: 'a',
+      path: '/a',
+      parentPath: null,
+      position: 0,
+    };
+    const childFolder = { path: '/a/b' };
+
+    // フォルダ取得
+    vi.mocked(db.select).mockReturnValueOnce(mockQueryChain([sourceFolder]) as never);
+    // 親フォルダ存在チェック
+    vi.mocked(db.select).mockReturnValueOnce(
+      mockQueryChain([{ id: 'folder-x', name: 'x', path: '/x' }]) as never,
+    );
+    // 子フォルダ取得
+    vi.mocked(db.select).mockReturnValueOnce(mockQueryChain([childFolder]) as never);
+    // 子フォルダ衝突チェック（衝突あり）
+    vi.mocked(db.select).mockReturnValueOnce(mockQueryChain([{ id: 'existing-folder' }]) as never);
+
+    const res = await app.request('/api/folders/folder-a', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parentPath: '/x' }),
+    });
+
+    expect(res.status).toBe(409);
+  });
+
+  it('自分自身の配下への移動は400を返す', async () => {
+    const sourceFolder = {
+      ...mockFolder,
+      id: 'folder-a',
+      name: 'a',
+      path: '/a',
+      parentPath: null,
+      position: 0,
+    };
+
+    // フォルダ取得
+    vi.mocked(db.select).mockReturnValueOnce(mockQueryChain([sourceFolder]) as never);
+    // 親フォルダ存在チェック
+    vi.mocked(db.select).mockReturnValueOnce(
+      mockQueryChain([{ id: 'folder-a-b', name: 'b', path: '/a/b' }]) as never,
+    );
+
+    const res = await app.request('/api/folders/folder-a', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parentPath: '/a/b' }),
+    });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('存在しない親フォルダへの移動は404を返す', async () => {
+    const sourceFolder = {
+      ...mockFolder,
+      id: 'folder-a',
+      name: 'a',
+      path: '/a',
+      parentPath: null,
+      position: 0,
+    };
+
+    // フォルダ取得
+    vi.mocked(db.select).mockReturnValueOnce(mockQueryChain([sourceFolder]) as never);
+    // 親フォルダ存在チェック（見つからない）
+    vi.mocked(db.select).mockReturnValueOnce(mockQueryChain([]) as never);
+
+    const res = await app.request('/api/folders/folder-a', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parentPath: '/nonexistent' }),
+    });
+
+    expect(res.status).toBe(404);
   });
 });
 
