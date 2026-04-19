@@ -93,7 +93,7 @@ describe('addCommand', () => {
     mockPost.mockResolvedValue({
       ok: false,
       statusText: 'Conflict',
-      json: async () => ({ error: 'Bookmark with this URL already exists' }),
+      json: async () => ({ error: 'このURLはすでに登録されています' }),
     });
 
     await expect(addCommand('https://example.com', {})).rejects.toThrow('process.exit');

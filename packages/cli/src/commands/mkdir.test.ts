@@ -71,7 +71,7 @@ describe('mkdirCommand', () => {
     mockPost.mockResolvedValue({
       ok: false,
       statusText: 'Conflict',
-      json: async () => ({ error: 'Folder already exists at this path' }),
+      json: async () => ({ error: 'このフォルダはすでに登録されています' }),
     });
 
     await expect(mkdirCommand('/work', {})).rejects.toThrow('process.exit');

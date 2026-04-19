@@ -21,7 +21,13 @@ function escapeLike(value: string): string {
 }
 
 function isUniqueViolation(err: unknown): boolean {
-  return err instanceof Error && 'code' in err && (err as { code: string }).code === '23505';
+  if (err instanceof Error && 'code' in err && (err as { code: string }).code === '23505') {
+    return true;
+  }
+  if (err instanceof Error && 'cause' in err) {
+    return isUniqueViolation((err as { cause: unknown }).cause);
+  }
+  return false;
 }
 
 const bookmarksRoute = new Hono<Env>()
@@ -145,7 +151,7 @@ const bookmarksRoute = new Hono<Env>()
         return c.json(created, 201);
       } catch (err) {
         if (isUniqueViolation(err)) {
-          return c.json({ error: 'Bookmark with this URL already exists' }, 409);
+          return c.json({ error: 'このURLはすでに登録されています' }, 409);
         }
         throw err;
       }
@@ -245,7 +251,7 @@ const bookmarksRoute = new Hono<Env>()
         return c.json(updated);
       } catch (err) {
         if (isUniqueViolation(err)) {
-          return c.json({ error: 'Bookmark with this URL already exists' }, 409);
+          return c.json({ error: 'このURLはすでに登録されています' }, 409);
         }
         throw err;
       }

@@ -17,7 +17,13 @@ function escapeLike(value: string): string {
 }
 
 function isUniqueViolation(err: unknown): boolean {
-  return err instanceof Error && 'code' in err && (err as { code: string }).code === '23505';
+  if (err instanceof Error && 'code' in err && (err as { code: string }).code === '23505') {
+    return true;
+  }
+  if (err instanceof Error && 'cause' in err) {
+    return isUniqueViolation((err as { cause: unknown }).cause);
+  }
+  return false;
 }
 
 const trashRoute = new Hono<Env>()
@@ -200,7 +206,7 @@ const trashRoute = new Hono<Env>()
         });
       } catch (err) {
         if (isUniqueViolation(err)) {
-          return c.json({ error: 'Folder already exists at the restore path' }, 409);
+          return c.json({ error: 'このフォルダはすでに登録されています' }, 409);
         }
         throw err;
       }
@@ -252,7 +258,7 @@ const trashRoute = new Hono<Env>()
         .where(eq(bookmarks.id, bookmark!.id));
     } catch (err) {
       if (isUniqueViolation(err)) {
-        return c.json({ error: 'Bookmark with this URL already exists' }, 409);
+        return c.json({ error: 'このURLはすでに登録されています' }, 409);
       }
       throw err;
     }
