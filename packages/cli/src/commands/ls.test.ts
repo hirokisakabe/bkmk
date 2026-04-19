@@ -81,4 +81,28 @@ describe('lsCommand', () => {
       query: { folder: '/work', deep: 'true' },
     });
   });
+
+  it('strips trailing slashes from folder path', async () => {
+    mockFoldersGet.mockResolvedValue({ ok: true, json: async () => [] });
+    mockBookmarksGet.mockResolvedValue({ ok: true, json: async () => [] });
+
+    await lsCommand('/work/', {});
+
+    expect(mockFoldersGet).toHaveBeenCalledWith({ query: { parent: '/work' } });
+    expect(mockBookmarksGet).toHaveBeenCalledWith({
+      query: { folder: '/work', deep: undefined },
+    });
+  });
+
+  it('preserves root path when trailing slash is stripped', async () => {
+    mockFoldersGet.mockResolvedValue({ ok: true, json: async () => [] });
+    mockBookmarksGet.mockResolvedValue({ ok: true, json: async () => [] });
+
+    await lsCommand('/', {});
+
+    expect(mockFoldersGet).toHaveBeenCalledWith({ query: { parent: '/' } });
+    expect(mockBookmarksGet).toHaveBeenCalledWith({
+      query: { folder: '/', deep: undefined },
+    });
+  });
 });
