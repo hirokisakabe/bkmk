@@ -307,6 +307,16 @@ describe('fetchOgpMetadata', () => {
       tweet: {
         text: 'これはテストツイートです',
         author: { name: 'Test User' },
+        media: {
+          photos: [
+            {
+              type: 'photo',
+              url: 'https://pbs.twimg.com/media/test123.jpg',
+              width: 1200,
+              height: 800,
+            },
+          ],
+        },
       },
     };
 
@@ -320,7 +330,7 @@ describe('fetchOgpMetadata', () => {
     expect(result).toEqual({
       title: 'Test User',
       description: 'これはテストツイートです',
-      imageUrl: null,
+      imageUrl: 'https://pbs.twimg.com/media/test123.jpg',
       faviconUrl: 'https://x.com/favicon.ico',
     });
   });

@@ -157,13 +157,16 @@ async function fetchTweetMetadata(targetUrl: string): Promise<OgpMetadata | null
       tweet?: {
         text?: string;
         author?: { name?: string };
+        media?: {
+          photos?: { url: string }[];
+        };
       };
     };
 
     return {
       title: data.tweet?.author?.name ?? null,
       description: data.tweet?.text ?? null,
-      imageUrl: null,
+      imageUrl: data.tweet?.media?.photos?.[0]?.url ?? null,
       faviconUrl: 'https://x.com/favicon.ico',
     };
   } catch {
