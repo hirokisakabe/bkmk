@@ -31,7 +31,7 @@ pnpm db:studio            # Drizzle Studio 起動
 
 ## CI
 
-PR 作成時に knip → lint → format:check → typecheck → test が実行される。コミット前にこれらが通ることを確認すること。
+PR 作成時に knip → lint → format:check → typecheck → test が実行される。加えて Docker ビルドテストも別ジョブで実行される。コミット前にこれらが通ることを確認すること。
 
 ## Changesets
 
@@ -54,7 +54,8 @@ pnpm モノレポ（Node.js 24+, TypeScript 6, ES modules）。
 - **バリデーション**: `@hono/zod-validator` + `src/validation-hook.ts` でリクエストを Zod スキーマで検証。
 - **DB**: Drizzle ORM + Neon PostgreSQL。スキーマは `src/db/schema.ts`。
 - **認証**: better-auth（email/password + bearer token プラグイン）。設定は `src/auth.ts`。
-- **OGP 取得**: `src/ogp.ts` — URL からメタデータ（title, description, image, favicon）を抽出。localhost・プライベート IP を拒否、HTML サイズ上限 512KB。
+- **OGP 取得**: `src/ogp.ts` — URL からメタデータ（title, description, image, favicon）を抽出。localhost・プライベート IP を拒否、HTML サイズ上限 512KB。YouTube は oEmbed API、Twitter/X は FxTwitter API で専用取得。
+- **Hono RPC 型共有**: `src/index.ts` でルートをチェーンして `AppType` をエクスポート。Web・CLI パッケージがこの型を参照して型安全な API クライアントを構築。
 
 ### フロントエンド（@bkmk/web）
 
@@ -96,3 +97,14 @@ pnpm モノレポ（Node.js 24+, TypeScript 6, ES modules）。
 ## Environment Variables
 
 `.env.example` を参照。`DATABASE_URL`（Neon PostgreSQL）、`BETTER_AUTH_SECRET`、`BETTER_AUTH_URL` が必要。
+
+## 開発環境
+
+- 開発時は `pnpm dev` で API（port 3000）と Web（Vite dev server）が同時起動する。
+- Vite が `/api`、`/auth`、`/health` を `http://localhost:3000` にプロキシするため、CORS 設定不要。
+
+## デプロイ
+
+- **Docker**: マルチステージビルド（`Dockerfile`）。Web をビルドし API の `public/` にコピーして単一コンテナで配信。
+- **本番ポート**: 8080（`PORT` 環境変数で変更可）。
+- **SPA ルーティング**: API が `public/index.html` へフォールバック配信。
