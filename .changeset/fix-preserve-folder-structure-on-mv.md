@@ -1,5 +1,5 @@
 ---
-"@bkmk/cli": patch
+'@bkmk/cli': patch
 ---
 
 mv コマンドでフォルダ移動時にフォルダ構造を保持するよう修正
