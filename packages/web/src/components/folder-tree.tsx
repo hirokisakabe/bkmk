@@ -5,7 +5,7 @@ import * as ContextMenu from '@radix-ui/react-context-menu';
 import { useState } from 'react';
 
 import { useDeleteFolder } from '../hooks/use-delete-folder';
-import { useFolders } from '../hooks/use-folders';
+import { getChildFolders, useAllFolders } from '../hooks/use-folders';
 import { UNCATEGORIZED_FOLDER } from '../lib/constants';
 import type { Folder } from '../types';
 import { CreateFolderDialog, MoveFolderDialog, RenameFolderDialog } from './folder-dialogs';
@@ -23,7 +23,7 @@ export function FolderTree({
   selectedFolder: string | null;
   onSelectFolder: (path: string | null) => void;
 }) {
-  const { data: folders, isLoading } = useFolders(null);
+  const { data: allFolders, isLoading } = useAllFolders();
   const [dialogState, setDialogState] = useState<DialogState>(null);
   const deleteFolder = useDeleteFolder();
 
@@ -46,6 +46,8 @@ export function FolderTree({
   const handleDelete = (folder: Folder) => {
     deleteFolder.mutate({ id: folder.id }, { onSuccess: () => handleDeleteOrMove(folder) });
   };
+
+  const rootFolders = allFolders ? getChildFolders(allFolders, null) : [];
 
   return (
     <nav className="flex-1">
@@ -100,9 +102,10 @@ export function FolderTree({
         </div>
       )}
 
-      {folders && folders.length > 0 && (
+      {rootFolders.length > 0 && allFolders && (
         <SortableFolderList
-          folders={folders}
+          folders={rootFolders}
+          allFolders={allFolders}
           selectedFolder={selectedFolder}
           onSelectFolder={onSelectFolder}
           depth={0}
@@ -141,6 +144,7 @@ export function FolderTree({
 
 function SortableFolderList({
   folders,
+  allFolders,
   selectedFolder,
   onSelectFolder,
   depth,
@@ -148,6 +152,7 @@ function SortableFolderList({
   onDeleteFolder,
 }: {
   folders: Folder[];
+  allFolders: Folder[];
   selectedFolder: string | null;
   onSelectFolder: (path: string | null) => void;
   depth: number;
@@ -160,6 +165,7 @@ function SortableFolderList({
         <SortableFolderTreeNode
           key={folder.id}
           folder={folder}
+          allFolders={allFolders}
           selectedFolder={selectedFolder}
           onSelectFolder={onSelectFolder}
           depth={depth}
@@ -173,6 +179,7 @@ function SortableFolderList({
 
 function SortableFolderTreeNode({
   folder,
+  allFolders,
   selectedFolder,
   onSelectFolder,
   depth,
@@ -180,6 +187,7 @@ function SortableFolderTreeNode({
   onDeleteFolder,
 }: {
   folder: Folder;
+  allFolders: Folder[];
   selectedFolder: string | null;
   onSelectFolder: (path: string | null) => void;
   depth: number;
@@ -201,9 +209,9 @@ function SortableFolderTreeNode({
     selectedFolder !== folder.path &&
     selectedFolder.startsWith(folder.path + '/');
   const [expanded, setExpanded] = useState(isAncestorOfSelected);
-  const { data: children, isLoading } = useFolders(folder.path, expanded || isAncestorOfSelected);
+  const children = getChildFolders(allFolders, folder.path);
   const isSelected = selectedFolder === folder.path;
-  const hasChildren = children && children.length > 0;
+  const hasChildren = children.length > 0;
 
   const { active, over } = useDndContext();
   const isDropTarget = active?.data.current?.type === 'bookmark' && over?.id === folder.id;
@@ -230,11 +238,7 @@ function SortableFolderTreeNode({
                 setExpanded(!expanded);
               }}
             >
-              {isLoading ? (
-                <Spinner />
-              ) : hasChildren || !expanded ? (
-                <ChevronIcon expanded={expanded} />
-              ) : null}
+              {hasChildren ? <ChevronIcon expanded={expanded} /> : null}
             </button>
 
             <button
@@ -289,9 +293,10 @@ function SortableFolderTreeNode({
         </ContextMenu.Portal>
       </ContextMenu.Root>
 
-      {expanded && children && children.length > 0 && (
+      {expanded && hasChildren && (
         <SortableFolderList
           folders={children}
+          allFolders={allFolders}
           selectedFolder={selectedFolder}
           onSelectFolder={onSelectFolder}
           depth={depth + 1}
@@ -311,19 +316,6 @@ function ChevronIcon({ expanded }: { expanded: boolean }) {
       fill="currentColor"
     >
       <path d="M4.5 2l4 4-4 4V2z" />
-    </svg>
-  );
-}
-
-function Spinner() {
-  return (
-    <svg className="h-3 w-3 animate-spin text-gray-400" viewBox="0 0 24 24" fill="none">
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-      <path
-        className="opacity-75"
-        fill="currentColor"
-        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-      />
     </svg>
   );
 }

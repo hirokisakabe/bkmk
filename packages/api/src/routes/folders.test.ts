@@ -45,6 +45,23 @@ describe('GET /api/folders', () => {
     const res = await app.request('/api/folders?parent=/work');
     expect(res.status).toBe(200);
   });
+
+  it('all=true で全フォルダを返す', async () => {
+    const childFolder = {
+      ...mockFolder,
+      id: 'folder-2',
+      name: 'sub',
+      path: '/work/sub',
+      parentPath: '/work',
+    };
+    vi.mocked(db.select).mockReturnValue(mockQueryChain([mockFolder, childFolder]) as never);
+
+    const res = await app.request('/api/folders?all=true');
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body).toEqual([mockFolder, childFolder]);
+  });
 });
 
 describe('POST /api/folders', () => {

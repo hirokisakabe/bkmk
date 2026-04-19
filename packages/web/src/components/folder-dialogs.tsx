@@ -2,7 +2,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { useState } from 'react';
 
 import { useCreateFolder } from '../hooks/use-create-folder';
-import { useFolders } from '../hooks/use-folders';
+import { getChildFolders, useAllFolders } from '../hooks/use-folders';
 import { useMoveFolder } from '../hooks/use-move-folder';
 import { useRenameFolder } from '../hooks/use-rename-folder';
 import type { Folder } from '../types';
@@ -208,11 +208,9 @@ export function MoveFolderDialog({
               / (ルート)
             </button>
             <MoveFolderTree
-              parentPath={null}
               excludePath={folder.path}
               selectedParent={selectedParent}
               onSelect={setSelectedParent}
-              depth={0}
             />
           </div>
 
@@ -244,32 +242,40 @@ export function MoveFolderDialog({
   );
 }
 
+function buildTreeOrder(allFolders: Folder[], parentPath: string | null): Folder[] {
+  const children = getChildFolders(allFolders, parentPath);
+  const result: Folder[] = [];
+  for (const child of children) {
+    result.push(child);
+    result.push(...buildTreeOrder(allFolders, child.path));
+  }
+  return result;
+}
+
 function MoveFolderTree({
-  parentPath,
   excludePath,
   selectedParent,
   onSelect,
-  depth,
 }: {
-  parentPath: string | null;
   excludePath: string;
   selectedParent: string | null;
   onSelect: (path: string | null) => void;
-  depth: number;
 }) {
-  const { data: folders } = useFolders(parentPath);
+  const { data: allFolders } = useAllFolders();
 
-  if (!folders) return null;
+  if (!allFolders) return null;
 
-  const filtered = folders.filter(
+  const treeOrdered = buildTreeOrder(allFolders, null).filter(
     (f) => f.path !== excludePath && !f.path.startsWith(excludePath + '/'),
   );
 
   return (
     <>
-      {filtered.map((f) => (
-        <div key={f.id}>
+      {treeOrdered.map((f) => {
+        const depth = f.path.split('/').filter(Boolean).length - 1;
+        return (
           <button
+            key={f.id}
             type="button"
             onClick={() => onSelect(f.path)}
             className={`w-full px-3 py-2 text-left text-sm ${
@@ -277,19 +283,12 @@ function MoveFolderTree({
                 ? 'bg-blue-100 font-semibold text-blue-800'
                 : 'text-gray-700 hover:bg-gray-100'
             }`}
-            style={{ paddingLeft: `${(depth + 1) * 16 + 12}px` }}
+            style={{ paddingLeft: `${depth * 16 + 28}px` }}
           >
             {f.name}
           </button>
-          <MoveFolderTree
-            parentPath={f.path}
-            excludePath={excludePath}
-            selectedParent={selectedParent}
-            onSelect={onSelect}
-            depth={depth + 1}
-          />
-        </div>
-      ))}
+        );
+      })}
     </>
   );
 }

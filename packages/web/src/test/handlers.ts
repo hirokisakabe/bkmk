@@ -129,8 +129,17 @@ export const handlers = [
   }),
 
   // Folders
-  http.get('/api/folders', () => {
-    return HttpResponse.json(mockFolders);
+  http.get('/api/folders', ({ request }) => {
+    const url = new URL(request.url);
+    const all = url.searchParams.get('all');
+    if (all === 'true') {
+      return HttpResponse.json(mockFolders);
+    }
+    const parent = url.searchParams.get('parent');
+    if (parent) {
+      return HttpResponse.json(mockFolders.filter((f) => f.parentPath === parent));
+    }
+    return HttpResponse.json(mockFolders.filter((f) => f.parentPath === null));
   }),
 
   // Search

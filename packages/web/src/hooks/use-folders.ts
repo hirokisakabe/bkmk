@@ -3,18 +3,21 @@ import { useQuery } from '@tanstack/react-query';
 import { client } from '../lib/api-client';
 import type { Folder } from '../types';
 
-export function useFolders(parentPath: string | null, enabled = true) {
+export function useAllFolders() {
   return useQuery<Folder[]>({
-    queryKey: ['folders', { parent: parentPath }],
+    queryKey: ['folders', 'all'],
     queryFn: async () => {
       const res = await client.api.folders.$get({
         query: {
-          parent: parentPath ?? undefined,
+          all: 'true',
         },
       });
       if (!res.ok) throw new Error('Failed to fetch folders');
       return (await res.json()) as Folder[];
     },
-    enabled,
   });
+}
+
+export function getChildFolders(allFolders: Folder[], parentPath: string | null): Folder[] {
+  return allFolders.filter((f) => f.parentPath === parentPath);
 }
