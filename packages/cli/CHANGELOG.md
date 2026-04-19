@@ -1,5 +1,11 @@
 # @bkmk/cli
 
+## 0.0.3
+
+### Patch Changes
+
+- 24aef6a: fix: ls コマンドでフォルダパスの末尾スラッシュを正規化するように修正
+
 ## 0.0.2
 
 ### Patch Changes
