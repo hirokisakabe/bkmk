@@ -324,8 +324,8 @@ const foldersRoute = new Hono<Env>()
             await tx
               .update(folders)
               .set({
-                path: sql`${newPath} || substring(${folders.path} from ${oldPath.length + 1})`,
-                parentPath: sql`${newPath} || substring(${folders.parentPath} from ${oldPath.length + 1})`,
+                path: sql`${newPath} || substr(${folders.path}, ${oldPath.length + 1})`,
+                parentPath: sql`${newPath} || substr(${folders.parentPath}, ${oldPath.length + 1})`,
               })
               .where(
                 and(
@@ -338,7 +338,7 @@ const foldersRoute = new Hono<Env>()
             await tx
               .update(bookmarks)
               .set({
-                folderPath: sql`${newPath} || substring(${bookmarks.folderPath} from ${oldPath.length + 1})`,
+                folderPath: sql`${newPath} || substr(${bookmarks.folderPath}, ${oldPath.length + 1})`,
               })
               .where(
                 and(
