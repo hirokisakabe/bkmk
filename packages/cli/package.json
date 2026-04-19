@@ -1,6 +1,6 @@
 {
   "name": "@bkmk/cli",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "CLI for bkmk — a bookmark manager",
   "type": "module",
   "license": "MIT",
