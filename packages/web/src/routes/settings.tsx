@@ -1,7 +1,9 @@
+import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import { createRoute, Link, useRouter } from '@tanstack/react-router';
 import { useState } from 'react';
 
 import { Layout } from '../components/layout';
+import { useDeleteAccount } from '../hooks/use-user';
 import { authClient } from '../lib/auth-client';
 import { requireAuth } from '../lib/auth-guard';
 import { useSettings } from '../lib/settings-store';
@@ -18,6 +20,8 @@ function SettingsPage() {
   const [settings, updateSettings] = useSettings();
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const deleteAccount = useDeleteAccount();
 
   const handleLogout = async () => {
     setLoggingOut(true);
@@ -27,6 +31,16 @@ function SettingsPage() {
     } finally {
       setLoggingOut(false);
     }
+  };
+
+  const handleDeleteAccount = () => {
+    deleteAccount.mutate(undefined, {
+      onSuccess: async () => {
+        setDeleteDialogOpen(false);
+        await authClient.signOut();
+        await router.navigate({ to: '/login' });
+      },
+    });
   };
 
   return (
@@ -75,6 +89,60 @@ function SettingsPage() {
             </button>
           </div>
         </div>
+
+        <div className="mt-6 rounded-lg border border-red-200 bg-white">
+          <div className="border-b border-red-200 px-4 py-3">
+            <h3 className="font-medium text-red-600">危険な操作</h3>
+          </div>
+          <div className="px-4 py-4">
+            <p className="mb-3 text-sm text-gray-500">
+              アカウントを削除すると、すべてのブックマーク・フォルダ・セッションが完全に削除されます。この操作は取り消せません。
+            </p>
+            <button
+              onClick={() => setDeleteDialogOpen(true)}
+              className="rounded-md bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700"
+            >
+              アカウントを削除
+            </button>
+          </div>
+        </div>
+
+        <AlertDialog.Root open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialog.Portal>
+            <AlertDialog.Overlay className="fixed inset-0 bg-black/40" />
+            <AlertDialog.Content className="fixed top-1/2 left-1/2 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-lg bg-white p-6 shadow-lg">
+              <AlertDialog.Title className="mb-2 text-lg font-bold">
+                アカウント削除
+              </AlertDialog.Title>
+              <AlertDialog.Description className="mb-4 text-sm text-gray-500">
+                本当にアカウントを削除しますか？すべてのデータが完全に削除され、この操作は取り消せません。
+              </AlertDialog.Description>
+
+              {deleteAccount.isError && (
+                <p className="mb-4 text-sm text-red-600">{deleteAccount.error.message}</p>
+              )}
+
+              <div className="flex justify-end gap-2">
+                <AlertDialog.Cancel asChild>
+                  <button
+                    type="button"
+                    className="rounded px-4 py-2 text-sm text-gray-600 hover:bg-gray-100"
+                  >
+                    キャンセル
+                  </button>
+                </AlertDialog.Cancel>
+                <button
+                  type="button"
+                  onClick={handleDeleteAccount}
+                  disabled={deleteAccount.isPending}
+                  className="rounded bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700 disabled:opacity-50"
+                >
+                  {deleteAccount.isPending ? '削除中...' : '削除する'}
+                </button>
+              </div>
+            </AlertDialog.Content>
+          </AlertDialog.Portal>
+        </AlertDialog.Root>
       </div>
     </Layout>
   );

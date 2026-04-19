@@ -167,6 +167,11 @@ export const handlers = [
     return HttpResponse.json({ success: true });
   }),
 
+  // User
+  http.delete('/api/user', () => {
+    return HttpResponse.json({ success: true });
+  }),
+
   // Auth session
   http.get('/auth/get-session', () => {
     return HttpResponse.json({
