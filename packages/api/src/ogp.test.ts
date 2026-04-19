@@ -306,7 +306,7 @@ describe('fetchOgpMetadata', () => {
       message: 'OK',
       tweet: {
         text: 'これはテストツイートです',
-        author: { name: 'Test User' },
+        author: { name: 'Test User', avatar_url: 'https://pbs.twimg.com/profile/test.jpg' },
         media: {
           photos: [
             {
@@ -341,7 +341,7 @@ describe('fetchOgpMetadata', () => {
       message: 'OK',
       tweet: {
         text: 'Hello world!',
-        author: { name: 'Another User' },
+        author: { name: 'Another User', avatar_url: 'https://pbs.twimg.com/profile/another.jpg' },
       },
     };
 
@@ -355,6 +355,31 @@ describe('fetchOgpMetadata', () => {
     expect(result).toEqual({
       title: 'Another User',
       description: 'Hello world!',
+      imageUrl: 'https://pbs.twimg.com/profile/another.jpg',
+      faviconUrl: 'https://x.com/favicon.ico',
+    });
+  });
+
+  it('画像なし・アバターなしのツイートではimageUrlがnullになる', async () => {
+    const fxResponse = {
+      code: 200,
+      message: 'OK',
+      tweet: {
+        text: 'No media tweet',
+        author: { name: 'No Avatar User' },
+      },
+    };
+
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify(fxResponse), {
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+
+    const result = await fetchOgpMetadata('https://x.com/noavatar/status/789');
+    expect(result).toEqual({
+      title: 'No Avatar User',
+      description: 'No media tweet',
       imageUrl: null,
       faviconUrl: 'https://x.com/favicon.ico',
     });
