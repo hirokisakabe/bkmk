@@ -35,7 +35,13 @@ function escapeLike(value: string): string {
 }
 
 function isUniqueViolation(err: unknown): boolean {
-  return err instanceof Error && 'code' in err && (err as { code: string }).code === '23505';
+  if (err instanceof Error && 'code' in err && (err as { code: string }).code === '23505') {
+    return true;
+  }
+  if (err instanceof Error && 'cause' in err) {
+    return isUniqueViolation((err as { cause: unknown }).cause);
+  }
+  return false;
 }
 
 const foldersRoute = new Hono<Env>()
