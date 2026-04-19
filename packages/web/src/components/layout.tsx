@@ -1,44 +1,97 @@
-import { Link } from '@tanstack/react-router';
+import {
+  closestCenter,
+  DndContext,
+  type DragEndEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
+import { FolderTree } from './folder-tree';
+
 export function Layout({
-  sidebar,
   children,
-  searchInput,
+  onDragEnd,
 }: {
-  sidebar?: ReactNode;
   children: ReactNode;
-  searchInput?: ReactNode;
+  onDragEnd?: (event: DragEndEvent) => void;
 }) {
+  const navigate = useNavigate();
+  const location = useRouterState({ select: (s) => s.location });
+
+  const search = location.search as Record<string, unknown>;
+  const isOnIndex = location.pathname === '/';
+  const folder = typeof search.folder === 'string' ? search.folder : undefined;
+  const q =
+    typeof search.q === 'string' && search.q.trim().length > 0 ? search.q.trim() : undefined;
+  const isSearching = !!q;
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 5 },
+    }),
+  );
+
+  const handleSearch = (query: string) => {
+    navigate({
+      to: '/',
+      search: {
+        folder: query ? undefined : isOnIndex ? folder : undefined,
+        q: query || undefined,
+      },
+    });
+  };
+
+  const handleSelectFolder = (path: string | null) => {
+    navigate({
+      to: '/',
+      search: { folder: path ?? undefined, q: undefined },
+    });
+  };
+
+  const selectedFolder = isOnIndex && !isSearching ? (folder ?? null) : null;
+
   return (
-    <div className="flex h-screen">
-      <aside className="flex w-64 shrink-0 flex-col overflow-y-auto border-r border-gray-200 bg-gray-50 p-4">
-        <h1 className="mb-4 text-lg font-bold">bkmk</h1>
-        {searchInput}
-        {sidebar}
-        <div className="mt-auto space-y-2">
-          <Link
-            to="/trash"
-            className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
-          >
-            <TrashIcon />
-            ゴミ箱
-          </Link>
-          <Link
-            to="/settings"
-            className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
-          >
-            <SettingsIcon />
-            設定
-          </Link>
-        </div>
-      </aside>
-      <main className="flex-1 overflow-y-auto p-4">{children}</main>
-    </div>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragEnd={onDragEnd ?? (() => {})}
+    >
+      <div className="flex h-screen">
+        <aside className="flex w-64 shrink-0 flex-col overflow-y-auto border-r border-gray-200 bg-gray-50 p-4">
+          <h1 className="mb-4 text-lg font-bold">bkmk</h1>
+          <SearchInput
+            key={isOnIndex ? (q ?? '') : ''}
+            defaultValue={isOnIndex ? (q ?? '') : ''}
+            onSearch={handleSearch}
+          />
+          <FolderTree selectedFolder={selectedFolder} onSelectFolder={handleSelectFolder} />
+          <div className="mt-auto space-y-2">
+            <Link
+              to="/trash"
+              className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
+            >
+              <TrashIcon />
+              ゴミ箱
+            </Link>
+            <Link
+              to="/settings"
+              className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
+            >
+              <SettingsIcon />
+              設定
+            </Link>
+          </div>
+        </aside>
+        <main className="flex-1 overflow-y-auto p-4">{children}</main>
+      </div>
+    </DndContext>
   );
 }
 
-export function SearchInput({
+function SearchInput({
   defaultValue,
   onSearch,
 }: {

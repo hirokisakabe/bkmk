@@ -1,19 +1,11 @@
-import {
-  closestCenter,
-  DndContext,
-  type DragEndEvent,
-  PointerSensor,
-  useSensor,
-  useSensors,
-} from '@dnd-kit/core';
-import { createRoute, useNavigate } from '@tanstack/react-router';
+import { type DragEndEvent } from '@dnd-kit/core';
+import { createRoute } from '@tanstack/react-router';
 
 import { BookmarkList } from '../components/bookmark-list';
-import { FolderTree } from '../components/folder-tree';
 import { useMoveBookmark } from '../hooks/use-move-bookmark';
 import { useReorderBookmark } from '../hooks/use-reorder-bookmark';
 import { useReorderFolder } from '../hooks/use-reorder-folder';
-import { Layout, SearchInput } from '../components/layout';
+import { Layout } from '../components/layout';
 import { SearchResults } from '../components/search-results';
 import { requireAuth } from '../lib/auth-guard';
 import { UNCATEGORIZED_FOLDER } from '../lib/constants';
@@ -37,13 +29,6 @@ export const indexRoute = createRoute({
 
 function IndexPage() {
   const { folder, q } = indexRoute.useSearch();
-  const navigate = useNavigate();
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 5 },
-    }),
-  );
 
   const reorderBookmark = useReorderBookmark();
   const reorderFolder = useReorderFolder();
@@ -86,16 +71,6 @@ function IndexPage() {
     }
   };
 
-  const handleSearch = (query: string) => {
-    navigate({
-      to: '/',
-      search: {
-        folder: query ? undefined : folder,
-        q: query || undefined,
-      },
-    });
-  };
-
   const folderName =
     folder === UNCATEGORIZED_FOLDER
       ? '未分類'
@@ -105,27 +80,12 @@ function IndexPage() {
   const isSearching = !!q;
 
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-      <Layout
-        searchInput={<SearchInput key={q ?? ''} defaultValue={q ?? ''} onSearch={handleSearch} />}
-        sidebar={
-          <FolderTree
-            selectedFolder={isSearching ? null : (folder ?? null)}
-            onSelectFolder={(path) =>
-              navigate({
-                to: '/',
-                search: { folder: path ?? undefined, q: undefined },
-              })
-            }
-          />
-        }
-      >
-        {isSearching ? (
-          <SearchResults query={q!} />
-        ) : (
-          <BookmarkList folderPath={folder ?? null} folderName={folderName} />
-        )}
-      </Layout>
-    </DndContext>
+    <Layout onDragEnd={handleDragEnd}>
+      {isSearching ? (
+        <SearchResults query={q!} />
+      ) : (
+        <BookmarkList folderPath={folder ?? null} folderName={folderName} />
+      )}
+    </Layout>
   );
 }
