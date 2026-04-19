@@ -140,8 +140,8 @@ const trashRoute = new Hono<Env>()
               .update(folders)
               .set({
                 deletedAt: null,
-                path: sql`${restorePath} || substring(${folders.path} from ${oldPath.length + 1})`,
-                parentPath: sql`${restorePath} || substring(${folders.parentPath} from ${oldPath.length + 1})`,
+                path: sql`${restorePath} || substr(${folders.path}, ${oldPath.length + 1})`,
+                parentPath: sql`${restorePath} || substr(${folders.parentPath}, ${oldPath.length + 1})`,
               })
               .where(
                 and(
@@ -156,7 +156,7 @@ const trashRoute = new Hono<Env>()
               .update(bookmarks)
               .set({
                 deletedAt: null,
-                folderPath: sql`${restorePath} || substring(${bookmarks.folderPath} from ${oldPath.length + 1})`,
+                folderPath: sql`${restorePath} || substr(${bookmarks.folderPath}, ${oldPath.length + 1})`,
               })
               .where(
                 and(

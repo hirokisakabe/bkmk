@@ -86,6 +86,129 @@ describe('POST /api/trash/:id/restore', () => {
     expect(body).toEqual({ success: true });
   });
 
+  it('親フォルダが存在する場合、元のパスに復元する', async () => {
+    const deletedChildFolder = {
+      id: 'child-folder-1',
+      userId: TEST_USER.id,
+      name: '子フォルダ',
+      path: '/親フォルダ/子フォルダ',
+      parentPath: '/親フォルダ',
+      position: 0,
+      deletedAt: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+    };
+
+    // フォルダ検索 → 見つかる
+    vi.mocked(db.select).mockReturnValueOnce(mockQueryChain([deletedChildFolder]) as never);
+    // ブックマーク検索 → 見つからない
+    vi.mocked(db.select).mockReturnValueOnce(mockQueryChain([]) as never);
+    // 親フォルダ確認 → 存在する
+    vi.mocked(db.select).mockReturnValueOnce(mockQueryChain([{ id: 'parent-folder-1' }]) as never);
+    // position シフト
+    vi.mocked(db.update).mockReturnValue(mockQueryChain([]) as never);
+    // transaction: 復元時に正しいパスが使われることを検証
+    const setArgs: unknown[] = [];
+    vi.mocked(db.transaction).mockImplementation(async (fn) => {
+      const tx = {
+        update: () => {
+          const chain = {
+            set: (values: unknown) => {
+              setArgs.push(values);
+              return mockQueryChain([]);
+            },
+          };
+          return chain;
+        },
+      };
+      return fn(tx as never);
+    });
+
+    const res = await app.request('/api/trash/child-folder-1/restore', { method: 'POST' });
+    expect(res.status).toBe(200);
+
+    // 最初の set() 呼び出し（自身の復元）で元のパスが保持されることを確認
+    expect(setArgs[0]).toEqual(
+      expect.objectContaining({
+        path: '/親フォルダ/子フォルダ',
+        parentPath: '/親フォルダ',
+        deletedAt: null,
+      }),
+    );
+  });
+
+  it('親フォルダが削除済みの場合、ルートに復元する', async () => {
+    const deletedChildFolder = {
+      id: 'child-folder-2',
+      userId: TEST_USER.id,
+      name: '子フォルダ',
+      path: '/親フォルダ/子フォルダ',
+      parentPath: '/親フォルダ',
+      position: 0,
+      deletedAt: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+    };
+
+    // フォルダ検索 → 見つかる
+    vi.mocked(db.select).mockReturnValueOnce(mockQueryChain([deletedChildFolder]) as never);
+    // ブックマーク検索 → 見つからない
+    vi.mocked(db.select).mockReturnValueOnce(mockQueryChain([]) as never);
+    // 親フォルダ確認 → 存在しない
+    vi.mocked(db.select).mockReturnValueOnce(mockQueryChain([]) as never);
+    // position シフト
+    vi.mocked(db.update).mockReturnValue(mockQueryChain([]) as never);
+    // transaction
+    const setArgs: unknown[] = [];
+    vi.mocked(db.transaction).mockImplementation(async (fn) => {
+      const tx = {
+        update: () => {
+          const chain = {
+            set: (values: unknown) => {
+              setArgs.push(values);
+              return mockQueryChain([]);
+            },
+          };
+          return chain;
+        },
+      };
+      return fn(tx as never);
+    });
+
+    const res = await app.request('/api/trash/child-folder-2/restore', { method: 'POST' });
+    expect(res.status).toBe(200);
+
+    // 親フォルダが存在しない場合、ルートに復元される
+    expect(setArgs[0]).toEqual(
+      expect.objectContaining({
+        path: '/子フォルダ',
+        parentPath: null,
+        deletedAt: null,
+      }),
+    );
+  });
+
+  it('ルート直下のフォルダを復元する', async () => {
+    // フォルダ検索 → 見つかる
+    vi.mocked(db.select).mockReturnValueOnce(mockQueryChain([mockDeletedFolder]) as never);
+    // ブックマーク検索 → 見つからない
+    vi.mocked(db.select).mockReturnValueOnce(mockQueryChain([]) as never);
+    // parentPath が null なので親フォルダ確認はスキップ
+    // position シフト
+    vi.mocked(db.update).mockReturnValue(mockQueryChain([]) as never);
+    // transaction
+    vi.mocked(db.transaction).mockImplementation(async (fn) => {
+      const tx = {
+        update: () => mockQueryChain([]),
+      };
+      return fn(tx as never);
+    });
+
+    const res = await app.request('/api/trash/folder-1/restore', { method: 'POST' });
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body).toEqual({ success: true });
+  });
+
   it('存在しないアイテムで404を返す', async () => {
     vi.mocked(db.select).mockReturnValueOnce(mockQueryChain([]) as never);
     vi.mocked(db.select).mockReturnValueOnce(mockQueryChain([]) as never);
