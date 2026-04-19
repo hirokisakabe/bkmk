@@ -1,5 +1,5 @@
 import { zValidator } from '@hono/zod-validator';
-import { and, eq, isNotNull, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 
@@ -65,11 +65,13 @@ const bookmarksRoute = new Hono<Env>()
         );
       }
 
+      const isAllFolder = isDeep && folderPath === null;
+
       const result = await db
         .select()
         .from(bookmarks)
         .where(and(...conditions))
-        .orderBy(bookmarks.position);
+        .orderBy(isAllFolder ? desc(bookmarks.createdAt) : bookmarks.position);
 
       return c.json(result);
     },
