@@ -1,5 +1,11 @@
 # @bkmk/cli
 
+## 0.0.4
+
+### Patch Changes
+
+- 27dd635: mv コマンドでフォルダ移動時にフォルダ構造を保持するよう修正
+
 ## 0.0.3
 
 ### Patch Changes
