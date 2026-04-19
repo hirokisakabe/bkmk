@@ -6,6 +6,10 @@ interface LsOptions {
 }
 
 export async function lsCommand(folderPath: string | undefined, options: LsOptions): Promise<void> {
+  if (folderPath) {
+    folderPath = folderPath.replace(/\/+$/, '') || '/';
+  }
+
   const client = createClient();
 
   const query: Record<string, string> = {};
