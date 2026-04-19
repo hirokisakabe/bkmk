@@ -1,8 +1,9 @@
-import { and, eq, isNotNull, isNull, or, sql } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 
 import type { auth } from '../auth.js';
 import { db } from '../db/index.js';
+import { childPathCondition, rebasePath, selfOrChildPathCondition } from '../db/path-helpers.js';
 import { bookmarks, folders } from '../db/schema.js';
 import type { Env as HonoPinoEnv } from 'hono-pino';
 
@@ -12,10 +13,6 @@ type Env = HonoPinoEnv & {
     session: typeof auth.$Infer.Session.session;
   };
 };
-
-function escapeLike(value: string): string {
-  return value.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
-}
 
 function isUniqueViolation(err: unknown): boolean {
   if (err instanceof Error && 'code' in err && (err as { code: string }).code === '23505') {
@@ -78,7 +75,6 @@ const trashRoute = new Hono<Env>()
 
     if (folder) {
       // フォルダ復元: 配下のアイテムも一括復元
-      const escapedPath = escapeLike(folder.path);
 
       // 復元先の親フォルダが存在するか確認
       let restoreParentPath = folder.parentPath;
@@ -140,14 +136,14 @@ const trashRoute = new Hono<Env>()
               .update(folders)
               .set({
                 deletedAt: null,
-                path: sql`${restorePath} || substr(${folders.path}, ${oldPath.length + 1})`,
-                parentPath: sql`${restorePath} || substr(${folders.parentPath}, ${oldPath.length + 1})`,
+                path: rebasePath(folders.path, oldPath, restorePath),
+                parentPath: rebasePath(folders.parentPath, oldPath, restorePath),
               })
               .where(
                 and(
                   eq(folders.userId, userId),
                   isNotNull(folders.deletedAt),
-                  sql`${folders.path} LIKE ${escapedPath + '/%'} ESCAPE '\\'`,
+                  childPathCondition(folders.path, oldPath),
                 ),
               );
 
@@ -156,13 +152,13 @@ const trashRoute = new Hono<Env>()
               .update(bookmarks)
               .set({
                 deletedAt: null,
-                folderPath: sql`${restorePath} || substr(${bookmarks.folderPath}, ${oldPath.length + 1})`,
+                folderPath: rebasePath(bookmarks.folderPath, oldPath, restorePath),
               })
               .where(
                 and(
                   eq(bookmarks.userId, userId),
                   isNotNull(bookmarks.deletedAt),
-                  sql`${bookmarks.folderPath} LIKE ${escapedPath + '/%'} ESCAPE '\\'`,
+                  childPathCondition(bookmarks.folderPath, oldPath),
                 ),
               );
 
@@ -186,7 +182,7 @@ const trashRoute = new Hono<Env>()
                 and(
                   eq(folders.userId, userId),
                   isNotNull(folders.deletedAt),
-                  sql`${folders.path} LIKE ${escapedPath + '/%'} ESCAPE '\\'`,
+                  childPathCondition(folders.path, oldPath),
                 ),
               );
 
@@ -197,10 +193,7 @@ const trashRoute = new Hono<Env>()
                 and(
                   eq(bookmarks.userId, userId),
                   isNotNull(bookmarks.deletedAt),
-                  or(
-                    eq(bookmarks.folderPath, folder.path),
-                    sql`${bookmarks.folderPath} LIKE ${escapedPath + '/%'} ESCAPE '\\'`,
-                  ),
+                  selfOrChildPathCondition(bookmarks.folderPath, folder.path),
                 ),
               );
           }
@@ -296,8 +289,6 @@ const trashRoute = new Hono<Env>()
     }
 
     if (folder) {
-      const escapedPath = escapeLike(folder.path);
-
       await db.transaction(async (tx) => {
         // 配下のブックマークを完全削除
         await tx
@@ -305,22 +296,14 @@ const trashRoute = new Hono<Env>()
           .where(
             and(
               eq(bookmarks.userId, userId),
-              or(
-                eq(bookmarks.folderPath, folder.path),
-                sql`${bookmarks.folderPath} LIKE ${escapedPath + '/%'} ESCAPE '\\'`,
-              ),
+              selfOrChildPathCondition(bookmarks.folderPath, folder.path),
             ),
           );
 
         // 配下のフォルダを完全削除
         await tx
           .delete(folders)
-          .where(
-            and(
-              eq(folders.userId, userId),
-              sql`${folders.path} LIKE ${escapedPath + '/%'} ESCAPE '\\'`,
-            ),
-          );
+          .where(and(eq(folders.userId, userId), childPathCondition(folders.path, folder.path)));
 
         // 自身を完全削除
         await tx.delete(folders).where(eq(folders.id, folder.id));

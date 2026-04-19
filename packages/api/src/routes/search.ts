@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import type { auth } from '../auth.js';
 import { db } from '../db/index.js';
+import { escapeLike } from '../db/path-helpers.js';
 import { bookmarks, folders } from '../db/schema.js';
 import { validationHook } from '../validation-hook.js';
 import type { Env as HonoPinoEnv } from 'hono-pino';
@@ -15,10 +16,6 @@ type Env = HonoPinoEnv & {
     session: typeof auth.$Infer.Session.session;
   };
 };
-
-function escapeLike(value: string): string {
-  return value.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
-}
 
 const searchRoute = new Hono<Env>()
   // GET /api/search?q=keyword — 横断検索
