@@ -48,7 +48,7 @@ describe('loginCommand', () => {
 
     expect(mockFetch).toHaveBeenCalledWith('http://localhost:3000/auth/sign-in/email', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Origin: 'http://localhost:3000' },
       body: JSON.stringify({ email: 'user@example.com', password: 'password123' }),
     });
     expect(saveToken).toHaveBeenCalledWith('test-bearer-token');
