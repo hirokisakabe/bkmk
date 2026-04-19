@@ -110,7 +110,10 @@ const foldersRoute = new Hono<Env>()
       const userId = c.var.user.id;
       const body = c.req.valid('json');
 
-      const segments = body.path.split('/').filter(Boolean);
+      // 末尾スラッシュを正規化（例: "/foo/" → "/foo"）
+      const normalizedPath = body.path.replace(/\/+$/, '') || '/';
+
+      const segments = normalizedPath.split('/').filter(Boolean);
       if (segments.length === 0) {
         return c.json({ error: 'Invalid path' }, 400);
       }
@@ -148,7 +151,7 @@ const foldersRoute = new Hono<Env>()
         .where(
           and(
             eq(folders.userId, userId),
-            eq(folders.path, body.path),
+            eq(folders.path, normalizedPath),
             isNotNull(folders.deletedAt),
           ),
         );
@@ -173,7 +176,7 @@ const foldersRoute = new Hono<Env>()
           .values({
             userId,
             name,
-            path: body.path,
+            path: normalizedPath,
             parentPath,
             position,
           })

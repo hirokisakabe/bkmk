@@ -186,6 +186,27 @@ describe('POST /api/folders', () => {
     expect(res.status).toBe(400);
   });
 
+  it('末尾スラッシュ付きパスを正規化してフォルダを作成する', async () => {
+    const normalizedFolder = {
+      ...mockFolder,
+      name: 'test',
+      path: '/test',
+    };
+    vi.mocked(db.delete).mockReturnValueOnce(mockQueryChain([]) as never);
+    vi.mocked(db.update).mockReturnValueOnce(mockQueryChain([]) as never);
+    vi.mocked(db.insert).mockReturnValue(mockQueryChain([normalizedFolder]) as never);
+
+    const res = await app.request('/api/folders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: '/test/' }),
+    });
+
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.path).toBe('/test');
+  });
+
   it('存在しない親フォルダで404を返す', async () => {
     // 親フォルダ検索 → 見つからない
     vi.mocked(db.select).mockReturnValue(mockQueryChain([]) as never);

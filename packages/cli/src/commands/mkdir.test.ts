@@ -67,6 +67,23 @@ describe('mkdirCommand', () => {
     expect(consoleSpy).toHaveBeenCalledWith(JSON.stringify(folder, null, 2));
   });
 
+  it('strips trailing slash before sending to API', async () => {
+    mockPost.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        id: 'folder-1',
+        name: 'work',
+        path: '/work',
+        parentPath: null,
+        position: 0,
+      }),
+    });
+
+    await mkdirCommand('/work/', { json: false });
+
+    expect(mockPost).toHaveBeenCalledWith({ json: { path: '/work' } });
+  });
+
   it('exits with error when creation fails', async () => {
     mockPost.mockResolvedValue({
       ok: false,
