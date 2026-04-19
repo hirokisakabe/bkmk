@@ -145,7 +145,7 @@ const bookmarksRoute = new Hono<Env>()
         return c.json(created, 201);
       } catch (err) {
         if (isUniqueViolation(err)) {
-          return c.json({ error: 'Bookmark with this URL already exists' }, 409);
+          return c.json({ error: 'このURLはすでに登録されています' }, 409);
         }
         throw err;
       }
@@ -245,7 +245,7 @@ const bookmarksRoute = new Hono<Env>()
         return c.json(updated);
       } catch (err) {
         if (isUniqueViolation(err)) {
-          return c.json({ error: 'Bookmark with this URL already exists' }, 409);
+          return c.json({ error: 'このURLはすでに登録されています' }, 409);
         }
         throw err;
       }

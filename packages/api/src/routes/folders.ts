@@ -144,7 +144,7 @@ const foldersRoute = new Hono<Env>()
         return c.json(created, 201);
       } catch (err) {
         if (isUniqueViolation(err)) {
-          return c.json({ error: 'Folder already exists at this path' }, 409);
+          return c.json({ error: 'このフォルダはすでに登録されています' }, 409);
         }
         throw err;
       }
@@ -292,7 +292,7 @@ const foldersRoute = new Hono<Env>()
         return c.json(updated);
       } catch (err) {
         if (isUniqueViolation(err)) {
-          return c.json({ error: 'Folder already exists at this path' }, 409);
+          return c.json({ error: 'このフォルダはすでに登録されています' }, 409);
         }
         throw err;
       }

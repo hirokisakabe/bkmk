@@ -200,7 +200,7 @@ const trashRoute = new Hono<Env>()
         });
       } catch (err) {
         if (isUniqueViolation(err)) {
-          return c.json({ error: 'Folder already exists at the restore path' }, 409);
+          return c.json({ error: 'このフォルダはすでに登録されています' }, 409);
         }
         throw err;
       }
@@ -252,7 +252,7 @@ const trashRoute = new Hono<Env>()
         .where(eq(bookmarks.id, bookmark!.id));
     } catch (err) {
       if (isUniqueViolation(err)) {
-        return c.json({ error: 'Bookmark with this URL already exists' }, 409);
+        return c.json({ error: 'このURLはすでに登録されています' }, 409);
       }
       throw err;
     }
