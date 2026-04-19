@@ -3,9 +3,10 @@ import { useState } from 'react';
 
 import { useCreateFolder } from '../hooks/use-create-folder';
 import { getChildFolders, useAllFolders } from '../hooks/use-folders';
+import { useMoveBookmark } from '../hooks/use-move-bookmark';
 import { useMoveFolder } from '../hooks/use-move-folder';
 import { useRenameFolder } from '../hooks/use-rename-folder';
-import type { Folder } from '../types';
+import type { Bookmark, Folder } from '../types';
 
 /* ------------------------------------------------------------------ */
 /*  CreateFolderDialog                                                 */
@@ -239,6 +240,126 @@ export function MoveFolderDialog({
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  MoveBookmarkDialog                                                 */
+/* ------------------------------------------------------------------ */
+
+export function MoveBookmarkDialog({
+  open,
+  onOpenChange,
+  bookmark,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  bookmark: Bookmark;
+}) {
+  const [selectedFolder, setSelectedFolder] = useState<string | null>(bookmark.folderPath);
+  const moveBookmark = useMoveBookmark();
+
+  const handleMove = () => {
+    if (selectedFolder === bookmark.folderPath) return;
+
+    moveBookmark.mutate(
+      { id: bookmark.id, folderPath: selectedFolder },
+      {
+        onSuccess: () => {
+          onOpenChange(false);
+        },
+      },
+    );
+  };
+
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 bg-black/40" />
+        <Dialog.Content className="fixed top-1/2 left-1/2 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg bg-white p-6 shadow-lg">
+          <Dialog.Title className="mb-4 text-lg font-bold">ブックマークの移動</Dialog.Title>
+
+          <p className="mb-3 text-sm text-gray-500">
+            「{bookmark.title || bookmark.url}」の移動先を選択してください
+          </p>
+
+          <div className="max-h-64 overflow-y-auto rounded border border-gray-200">
+            <button
+              type="button"
+              onClick={() => setSelectedFolder(null)}
+              className={`w-full px-3 py-2 text-left text-sm ${
+                selectedFolder === null
+                  ? 'bg-blue-100 font-semibold text-blue-800'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              未分類
+            </button>
+            <MoveBookmarkTree selectedFolder={selectedFolder} onSelect={setSelectedFolder} />
+          </div>
+
+          {moveBookmark.isError && (
+            <p className="mt-2 text-sm text-red-600">{moveBookmark.error.message}</p>
+          )}
+
+          <div className="mt-4 flex justify-end gap-2">
+            <Dialog.Close asChild>
+              <button
+                type="button"
+                className="rounded px-4 py-2 text-sm text-gray-600 hover:bg-gray-100"
+              >
+                キャンセル
+              </button>
+            </Dialog.Close>
+            <button
+              type="button"
+              onClick={handleMove}
+              disabled={selectedFolder === bookmark.folderPath || moveBookmark.isPending}
+              className="rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {moveBookmark.isPending ? '移動中...' : '移動'}
+            </button>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
+function MoveBookmarkTree({
+  selectedFolder,
+  onSelect,
+}: {
+  selectedFolder: string | null;
+  onSelect: (path: string | null) => void;
+}) {
+  const { data: allFolders } = useAllFolders();
+
+  if (!allFolders) return null;
+
+  const treeOrdered = buildTreeOrder(allFolders, null);
+
+  return (
+    <>
+      {treeOrdered.map((f) => {
+        const depth = f.path.split('/').filter(Boolean).length - 1;
+        return (
+          <button
+            key={f.id}
+            type="button"
+            onClick={() => onSelect(f.path)}
+            className={`w-full px-3 py-2 text-left text-sm ${
+              selectedFolder === f.path
+                ? 'bg-blue-100 font-semibold text-blue-800'
+                : 'text-gray-700 hover:bg-gray-100'
+            }`}
+            style={{ paddingLeft: `${depth * 16 + 28}px` }}
+          >
+            {f.name}
+          </button>
+        );
+      })}
+    </>
   );
 }
 
