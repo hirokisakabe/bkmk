@@ -1,4 +1,9 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "ignoreDependencies": ["vitest"]
+  "ignoreDependencies": ["vitest"],
+  "workspaces": {
+    "packages/api": {
+      "ignoreDependencies": ["pino-pretty"]
+    }
+  }
 }

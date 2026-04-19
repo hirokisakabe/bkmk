@@ -4,8 +4,9 @@ import { Hono } from 'hono';
 import type { auth } from '../auth.js';
 import { db } from '../db/index.js';
 import { user } from '../db/schema.js';
+import type { Env as HonoPinoEnv } from 'hono-pino';
 
-type Env = {
+type Env = HonoPinoEnv & {
   Variables: {
     user: typeof auth.$Infer.Session.user;
     session: typeof auth.$Infer.Session.session;
