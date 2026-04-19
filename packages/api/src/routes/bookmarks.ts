@@ -1,5 +1,5 @@
 import { zValidator } from '@hono/zod-validator';
-import { and, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 
@@ -30,6 +30,21 @@ function isUniqueViolation(err: unknown): boolean {
   return false;
 }
 
+function encodeCursor(sortValue: string, id: string): string {
+  return Buffer.from(`${sortValue}:${id}`).toString('base64url');
+}
+
+function decodeCursor(cursor: string): { sortValue: string; id: string } | null {
+  try {
+    const decoded = Buffer.from(cursor, 'base64url').toString();
+    const lastColon = decoded.lastIndexOf(':');
+    if (lastColon === -1) return null;
+    return { sortValue: decoded.slice(0, lastColon), id: decoded.slice(lastColon + 1) };
+  } catch {
+    return null;
+  }
+}
+
 const bookmarksRoute = new Hono<Env>()
   // GET /api/bookmarks?folder=/work&deep=false — 一覧取得
   .get(
@@ -39,12 +54,14 @@ const bookmarksRoute = new Hono<Env>()
       z.object({
         folder: z.string().optional(),
         deep: z.string().optional(),
+        cursor: z.string().optional(),
+        limit: z.coerce.number().int().positive().optional(),
       }),
       validationHook,
     ),
     async (c) => {
       const userId = c.var.user.id;
-      const { folder, deep } = c.req.valid('query');
+      const { folder, deep, cursor, limit } = c.req.valid('query');
       const folderPath = folder ?? null;
       const isDeep = deep === 'true';
 
@@ -67,13 +84,60 @@ const bookmarksRoute = new Hono<Env>()
 
       const isAllFolder = isDeep && folderPath === null;
 
-      const result = await db
+      // カーソル条件を追加
+      if (cursor) {
+        const parsed = decodeCursor(cursor);
+        if (parsed) {
+          if (isAllFolder) {
+            // createdAt DESC: (createdAt, id) < (cursor_createdAt, cursor_id)
+            conditions.push(
+              or(
+                lt(bookmarks.createdAt, new Date(parsed.sortValue)),
+                and(
+                  eq(bookmarks.createdAt, new Date(parsed.sortValue)),
+                  lt(bookmarks.id, parsed.id),
+                ),
+              )!,
+            );
+          } else {
+            // position ASC: (position, id) > (cursor_position, cursor_id)
+            conditions.push(
+              or(
+                gt(bookmarks.position, Number(parsed.sortValue)),
+                and(eq(bookmarks.position, Number(parsed.sortValue)), gt(bookmarks.id, parsed.id)),
+              )!,
+            );
+          }
+        }
+      }
+
+      const query = db
         .select()
         .from(bookmarks)
         .where(and(...conditions))
         .orderBy(isAllFolder ? desc(bookmarks.createdAt) : bookmarks.position);
 
-      return c.json(result);
+      // limit 未指定時は全件返却（後方互換）
+      if (limit === undefined) {
+        const result = await query;
+        return c.json(result);
+      }
+
+      // limit 指定時はページネーション
+      const result = await query.limit(limit + 1);
+      const hasMore = result.length > limit;
+      const data = hasMore ? result.slice(0, limit) : result;
+
+      let nextCursor: string | null = null;
+      if (hasMore) {
+        const lastItem = data[data.length - 1];
+        const sortValue = isAllFolder
+          ? new Date(lastItem.createdAt).toISOString()
+          : String(lastItem.position);
+        nextCursor = encodeCursor(sortValue, lastItem.id);
+      }
+
+      return c.json({ data, nextCursor });
     },
   )
   // POST /api/bookmarks — ブックマーク追加（OGP自動取得）

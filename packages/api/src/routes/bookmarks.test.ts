@@ -71,6 +71,45 @@ describe('GET /api/bookmarks', () => {
     const res = await app.request('/api/bookmarks?folder=/work&deep=true');
     expect(res.status).toBe(200);
   });
+
+  it('limit 指定時にページネーション形式で返す', async () => {
+    vi.mocked(db.select).mockReturnValue(mockQueryChain([mockBookmark]) as never);
+
+    const res = await app.request('/api/bookmarks?limit=10');
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body).toHaveProperty('data');
+    expect(body).toHaveProperty('nextCursor');
+    expect(body.data).toEqual([mockBookmark]);
+    expect(body.nextCursor).toBeNull();
+  });
+
+  it('limit 指定時に次ページがある場合 nextCursor を返す', async () => {
+    const items = Array.from({ length: 3 }, (_, i) => ({
+      ...mockBookmark,
+      id: `bk-${i}`,
+      position: i,
+    }));
+    vi.mocked(db.select).mockReturnValue(mockQueryChain(items) as never);
+
+    const res = await app.request('/api/bookmarks?limit=2');
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.data).toHaveLength(2);
+    expect(body.nextCursor).not.toBeNull();
+  });
+
+  it('limit 未指定時は従来どおり配列を返す', async () => {
+    vi.mocked(db.select).mockReturnValue(mockQueryChain([mockBookmark]) as never);
+
+    const res = await app.request('/api/bookmarks');
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(Array.isArray(body)).toBe(true);
+  });
 });
 
 describe('POST /api/bookmarks', () => {

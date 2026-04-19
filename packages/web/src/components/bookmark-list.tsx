@@ -1,9 +1,9 @@
 import { useDraggable } from '@dnd-kit/core';
 import { SortableContext, useSortable, rectSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
-import { useBookmarks } from '../hooks/use-bookmarks';
+import { useBookmarks, useBookmarksPaginated } from '../hooks/use-bookmarks';
 import { useDeleteBookmark } from '../hooks/use-delete-bookmark';
 import { UNCATEGORIZED_FOLDER } from '../lib/constants';
 import { useSettings } from '../lib/settings-store';
@@ -24,11 +24,46 @@ export function BookmarkList({
   const deep = isAllBookmarks
     ? true
     : !isUncategorized && folderPath !== null && settings.includeSubfolders;
-  const { data: bookmarks, isLoading } = useBookmarks(apiFolderPath, deep);
-  const deleteBookmark = useDeleteBookmark();
 
-  const canReorder = !deep && !isAllBookmarks && bookmarks && bookmarks.length > 1;
+  // D&D 可能 = 単一フォルダ直下 & deep=false
+  const canReorder = !deep && !isAllBookmarks;
   const addBookmarkFolderPath = isUncategorized ? null : folderPath;
+
+  if (canReorder) {
+    return (
+      <ReorderableBookmarkList
+        folderPath={apiFolderPath}
+        folderName={folderName}
+        deep={deep}
+        addBookmarkFolderPath={addBookmarkFolderPath}
+      />
+    );
+  }
+
+  return (
+    <PaginatedBookmarkList
+      folderPath={apiFolderPath}
+      folderName={folderName}
+      deep={deep}
+      addBookmarkFolderPath={addBookmarkFolderPath}
+    />
+  );
+}
+
+function ReorderableBookmarkList({
+  folderPath,
+  folderName,
+  deep,
+  addBookmarkFolderPath,
+}: {
+  folderPath: string | null;
+  folderName: string;
+  deep: boolean;
+  addBookmarkFolderPath: string | null;
+}) {
+  const { data: bookmarks, isLoading } = useBookmarks(folderPath, deep);
+  const deleteBookmark = useDeleteBookmark();
+  const canReorder = bookmarks && bookmarks.length > 1;
 
   return (
     <div>
@@ -38,30 +73,9 @@ export function BookmarkList({
 
       <AddBookmarkForm folderPath={addBookmarkFolderPath} />
 
-      {isLoading && (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-          {[...Array(6)].map((_, i) => (
-            <div
-              key={i}
-              className="animate-pulse overflow-hidden rounded-lg border border-gray-200"
-            >
-              <div className="aspect-[1.91/1] overflow-hidden bg-gray-200" />
-              <div className="space-y-2 p-3">
-                <div className="min-h-[2.5rem]">
-                  <div className="h-4 w-3/4 rounded bg-gray-200" />
-                </div>
-                <div className="h-3 w-full rounded bg-gray-200" />
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      <LoadingSkeleton isLoading={isLoading} />
 
-      {!isLoading && bookmarks?.length === 0 && (
-        <div className="py-12 text-center text-gray-400">
-          <p className="text-lg">ブックマークはありません</p>
-        </div>
-      )}
+      {!isLoading && bookmarks?.length === 0 && <EmptyState />}
 
       {!isLoading && bookmarks && bookmarks.length > 0 && canReorder && (
         <SortableContext items={bookmarks.map((b) => b.id)} strategy={rectSortingStrategy}>
@@ -88,6 +102,119 @@ export function BookmarkList({
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function PaginatedBookmarkList({
+  folderPath,
+  folderName,
+  deep,
+  addBookmarkFolderPath,
+}: {
+  folderPath: string | null;
+  folderName: string;
+  deep: boolean;
+  addBookmarkFolderPath: string | null;
+}) {
+  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useBookmarksPaginated(
+    folderPath,
+    deep,
+  );
+  const deleteBookmark = useDeleteBookmark();
+
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage();
+        }
+      },
+      { threshold: 0 },
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  const bookmarks = data?.pages.flatMap((page) => page.data) ?? [];
+
+  return (
+    <div>
+      <div className="mb-6">
+        <h2 className="text-xl font-bold text-gray-900">{folderName}</h2>
+      </div>
+
+      <AddBookmarkForm folderPath={addBookmarkFolderPath} />
+
+      <LoadingSkeleton isLoading={isLoading} />
+
+      {!isLoading && bookmarks.length === 0 && <EmptyState />}
+
+      {!isLoading && bookmarks.length > 0 && (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+          {bookmarks.map((bookmark) => (
+            <DraggableBookmarkCard
+              key={bookmark.id}
+              bookmark={bookmark}
+              onDelete={() => deleteBookmark.mutate({ id: bookmark.id })}
+            />
+          ))}
+        </div>
+      )}
+
+      <div ref={sentinelRef} className="h-1" />
+
+      {isFetchingNextPage && (
+        <div className="grid grid-cols-2 gap-4 pt-4 sm:grid-cols-3 lg:grid-cols-6">
+          {[...Array(6)].map((_, i) => (
+            <div
+              key={i}
+              className="animate-pulse overflow-hidden rounded-lg border border-gray-200"
+            >
+              <div className="aspect-[1.91/1] overflow-hidden bg-gray-200" />
+              <div className="space-y-2 p-3">
+                <div className="min-h-[2.5rem]">
+                  <div className="h-4 w-3/4 rounded bg-gray-200" />
+                </div>
+                <div className="h-3 w-full rounded bg-gray-200" />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LoadingSkeleton({ isLoading }: { isLoading: boolean }) {
+  if (!isLoading) return null;
+  return (
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+      {[...Array(6)].map((_, i) => (
+        <div key={i} className="animate-pulse overflow-hidden rounded-lg border border-gray-200">
+          <div className="aspect-[1.91/1] overflow-hidden bg-gray-200" />
+          <div className="space-y-2 p-3">
+            <div className="min-h-[2.5rem]">
+              <div className="h-4 w-3/4 rounded bg-gray-200" />
+            </div>
+            <div className="h-3 w-full rounded bg-gray-200" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function EmptyState() {
+  return (
+    <div className="py-12 text-center text-gray-400">
+      <p className="text-lg">ブックマークはありません</p>
     </div>
   );
 }

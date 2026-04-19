@@ -88,21 +88,25 @@ export const handlers = [
     const url = new URL(request.url);
     const folder = url.searchParams.get('folder');
     const deep = url.searchParams.get('deep') === 'true';
+    const limit = url.searchParams.get('limit');
 
+    let filtered: Bookmark[];
     if (!folder && deep) {
-      return HttpResponse.json(mockBookmarks);
-    }
-    if (!folder && !deep) {
-      return HttpResponse.json(mockBookmarks.filter((b) => b.folderPath === null));
-    }
-    if (folder && deep) {
-      return HttpResponse.json(
-        mockBookmarks.filter(
-          (b) => b.folderPath === folder || b.folderPath?.startsWith(folder + '/'),
-        ),
+      filtered = mockBookmarks;
+    } else if (!folder && !deep) {
+      filtered = mockBookmarks.filter((b) => b.folderPath === null);
+    } else if (folder && deep) {
+      filtered = mockBookmarks.filter(
+        (b) => b.folderPath === folder || b.folderPath?.startsWith(folder + '/'),
       );
+    } else {
+      filtered = mockBookmarks.filter((b) => b.folderPath === folder);
     }
-    return HttpResponse.json(mockBookmarks.filter((b) => b.folderPath === folder));
+
+    if (limit) {
+      return HttpResponse.json({ data: filtered, nextCursor: null });
+    }
+    return HttpResponse.json(filtered);
   }),
 
   http.post('/api/bookmarks', async ({ request }) => {

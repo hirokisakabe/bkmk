@@ -39,7 +39,8 @@ export async function lsCommand(folderPath: string | undefined, options: LsOptio
   }
 
   const foldersList = await foldersRes.json();
-  const bookmarksList = await bookmarksRes.json();
+  const bookmarksJson = await bookmarksRes.json();
+  const bookmarksList = Array.isArray(bookmarksJson) ? bookmarksJson : bookmarksJson.data;
 
   if (options.json) {
     console.log(JSON.stringify({ folders: foldersList, bookmarks: bookmarksList }, null, 2));

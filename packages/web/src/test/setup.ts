@@ -23,6 +23,15 @@ vi.mock('../lib/auth-guard', () => ({
 // jsdom 未実装の scrollTo をスタブ
 window.scrollTo = vi.fn() as unknown as typeof window.scrollTo;
 
+// jsdom 未実装の IntersectionObserver をスタブ
+class MockIntersectionObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+globalThis.IntersectionObserver =
+  MockIntersectionObserver as unknown as typeof IntersectionObserver;
+
 beforeAll(() => server.listen({ onUnhandledRequest: 'warn' }));
 afterEach(() => {
   server.resetHandlers();

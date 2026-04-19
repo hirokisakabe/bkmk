@@ -22,12 +22,12 @@ export function useMoveBookmark() {
       });
 
       queryClient.setQueriesData<Bookmark[]>({ queryKey: ['bookmarks'] }, (old) => {
-        if (!old) return old;
+        if (!old || !Array.isArray(old)) return old;
         return old.filter((b) => b.id !== id);
       });
 
       const movedBookmark = previousQueries
-        .flatMap(([, data]) => data ?? [])
+        .flatMap(([, data]) => (Array.isArray(data) ? data : []))
         .find((b) => b.id === id);
 
       if (movedBookmark) {

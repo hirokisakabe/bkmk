@@ -27,7 +27,8 @@ export async function openCommand(id: string, options: OpenOptions): Promise<voi
     process.exit(1);
   }
 
-  const allBookmarks = await res.json();
+  const bookmarksJson = await res.json();
+  const allBookmarks = Array.isArray(bookmarksJson) ? bookmarksJson : bookmarksJson.data;
   const bookmark = allBookmarks.find((b) => b.id === id);
 
   if (!bookmark) {
