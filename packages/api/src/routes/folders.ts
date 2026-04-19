@@ -46,18 +46,34 @@ function isUniqueViolation(err: unknown): boolean {
 
 const foldersRoute = new Hono<Env>()
   // GET /api/folders?parent=/work — 指定パス直下のフォルダ一覧
+  // GET /api/folders?all=true   — 全フォルダ一括取得
   .get(
     '/',
     zValidator(
       'query',
       z.object({
         parent: z.string().optional(),
+        all: z
+          .enum(['true', 'false'])
+          .transform((v) => v === 'true')
+          .optional(),
       }),
       validationHook,
     ),
     async (c) => {
       const userId = c.var.user.id;
-      const { parent } = c.req.valid('query');
+      const { parent, all } = c.req.valid('query');
+
+      if (all) {
+        const result = await db
+          .select()
+          .from(folders)
+          .where(and(eq(folders.userId, userId), isNull(folders.deletedAt)))
+          .orderBy(folders.position);
+
+        return c.json(result);
+      }
+
       const parentPath = parent ?? null;
 
       const result = await db
