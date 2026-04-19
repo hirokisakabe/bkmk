@@ -94,6 +94,8 @@ export function FolderTree({
         未分類
       </button>
 
+      <hr className="my-1 border-gray-200" />
+
       {isLoading && (
         <div className="mt-2 space-y-2 px-2">
           {[...Array(3)].map((_, i) => (
