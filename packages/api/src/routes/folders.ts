@@ -1,10 +1,11 @@
 import { zValidator } from '@hono/zod-validator';
-import { and, eq, isNotNull, isNull, sql } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 
 import type { auth } from '../auth.js';
 import { db } from '../db/index.js';
+import { childPathCondition, rebasePath, selfOrChildPathCondition } from '../db/path-helpers.js';
 import { bookmarks, folders } from '../db/schema.js';
 import { validationHook } from '../validation-hook.js';
 import type { Env as HonoPinoEnv } from 'hono-pino';
@@ -33,10 +34,6 @@ function validateSegments(segments: string[]): string | null {
     }
   }
   return null;
-}
-
-function escapeLike(value: string): string {
-  return value.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
 }
 
 function isUniqueViolation(err: unknown): boolean {
@@ -262,7 +259,6 @@ const foldersRoute = new Hono<Env>()
       }
 
       const oldPath = folder.path;
-      const escapedOldPath = escapeLike(oldPath);
 
       // パスが変わる場合、子フォルダのパス衝突を事前チェック
       if (oldPath !== newPath) {
@@ -270,12 +266,7 @@ const foldersRoute = new Hono<Env>()
         const childFolders = await db
           .select({ path: folders.path })
           .from(folders)
-          .where(
-            and(
-              eq(folders.userId, userId),
-              sql`${folders.path} LIKE ${escapedOldPath + '/%'} ESCAPE '\\'`,
-            ),
-          );
+          .where(and(eq(folders.userId, userId), childPathCondition(folders.path, oldPath)));
 
         if (childFolders.length > 0) {
           // 移動後のパスを計算
@@ -328,26 +319,21 @@ const foldersRoute = new Hono<Env>()
             await tx
               .update(folders)
               .set({
-                path: sql`${newPath} || substr(${folders.path}, ${oldPath.length + 1})`,
-                parentPath: sql`${newPath} || substr(${folders.parentPath}, ${oldPath.length + 1})`,
+                path: rebasePath(folders.path, oldPath, newPath),
+                parentPath: rebasePath(folders.parentPath, oldPath, newPath),
               })
-              .where(
-                and(
-                  eq(folders.userId, userId),
-                  sql`${folders.path} LIKE ${escapedOldPath + '/%'} ESCAPE '\\'`,
-                ),
-              );
+              .where(and(eq(folders.userId, userId), childPathCondition(folders.path, oldPath)));
 
             // 配下のブックマークの folderPath を更新
             await tx
               .update(bookmarks)
               .set({
-                folderPath: sql`${newPath} || substr(${bookmarks.folderPath}, ${oldPath.length + 1})`,
+                folderPath: rebasePath(bookmarks.folderPath, oldPath, newPath),
               })
               .where(
                 and(
                   eq(bookmarks.userId, userId),
-                  sql`${bookmarks.folderPath} LIKE ${escapedOldPath + '/%'} ESCAPE '\\'`,
+                  childPathCondition(bookmarks.folderPath, oldPath),
                 ),
               );
 
@@ -473,7 +459,6 @@ const foldersRoute = new Hono<Env>()
     }
 
     const now = new Date();
-    const escapedPath = escapeLike(folder.path);
 
     // 自身と配下のフォルダを一括ソフトデリート
     await db
@@ -483,7 +468,7 @@ const foldersRoute = new Hono<Env>()
         and(
           eq(folders.userId, userId),
           isNull(folders.deletedAt),
-          sql`(${folders.id} = ${folderId} OR ${folders.path} LIKE ${escapedPath + '/%'} ESCAPE '\\')`,
+          or(eq(folders.id, folderId), childPathCondition(folders.path, folder.path)),
         ),
       );
 
@@ -495,7 +480,7 @@ const foldersRoute = new Hono<Env>()
         and(
           eq(bookmarks.userId, userId),
           isNull(bookmarks.deletedAt),
-          sql`(${bookmarks.folderPath} = ${folder.path} OR ${bookmarks.folderPath} LIKE ${escapedPath + '/%'} ESCAPE '\\')`,
+          selfOrChildPathCondition(bookmarks.folderPath, folder.path),
         ),
       );
 

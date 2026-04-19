@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import type { auth } from '../auth.js';
 import { db } from '../db/index.js';
+import { selfOrChildPathCondition } from '../db/path-helpers.js';
 import { bookmarks, folders } from '../db/schema.js';
 import { validationHook } from '../validation-hook.js';
 import { fetchOgpMetadata, validateFetchUrl } from '../ogp.js';
@@ -16,10 +17,6 @@ type Env = HonoPinoEnv & {
     session: typeof auth.$Infer.Session.session;
   };
 };
-
-function escapeLike(value: string): string {
-  return value.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
-}
 
 function isUniqueViolation(err: unknown): boolean {
   if (err instanceof Error && 'code' in err && (err as { code: string }).code === '23505') {
@@ -70,10 +67,7 @@ const bookmarksRoute = new Hono<Env>()
 
       if (isDeep && folderPath !== null) {
         // folder 自身 + その配下すべて
-        const escaped = escapeLike(folderPath);
-        conditions.push(
-          sql`(${bookmarks.folderPath} = ${folderPath} OR ${bookmarks.folderPath} LIKE ${escaped + '/%'} ESCAPE '\\')`,
-        );
+        conditions.push(selfOrChildPathCondition(bookmarks.folderPath, folderPath));
       } else if (isDeep && folderPath === null) {
         // ルートから再帰 = 全件（deletedAt is null のみ）
       } else {
