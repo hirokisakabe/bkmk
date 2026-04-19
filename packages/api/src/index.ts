@@ -5,6 +5,7 @@ import { requestId } from 'hono/request-id';
 import type { Env as HonoPinoEnv } from 'hono-pino';
 
 import { auth } from './auth.js';
+import { errorHandler } from './error-handler.js';
 import { logger, rootLogger } from './logger.js';
 import { bookmarksRoute } from './routes/bookmarks.js';
 import { foldersRoute } from './routes/folders.js';
@@ -33,6 +34,9 @@ app.use(async (c, next) => {
   await next();
   c.res.headers.set('X-Request-Id', c.get('requestId'));
 });
+
+// Error handling middleware
+app.onError(errorHandler);
 
 // Auth routes
 app.on(['POST', 'GET'], '/auth/*', (c) => {
