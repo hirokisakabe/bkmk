@@ -1,6 +1,7 @@
-import { createRoute, Link, useRouter } from '@tanstack/react-router';
+import { createRoute, Link, useNavigate, useRouter } from '@tanstack/react-router';
 import { useState } from 'react';
 
+import { FolderTree } from '../components/folder-tree';
 import { Layout } from '../components/layout';
 import { authClient } from '../lib/auth-client';
 import { requireAuth } from '../lib/auth-guard';
@@ -17,6 +18,7 @@ export const settingsRoute = createRoute({
 function SettingsPage() {
   const [settings, updateSettings] = useSettings();
   const router = useRouter();
+  const navigate = useNavigate();
   const [loggingOut, setLoggingOut] = useState(false);
 
   const handleLogout = async () => {
@@ -30,7 +32,19 @@ function SettingsPage() {
   };
 
   return (
-    <Layout>
+    <Layout
+      sidebar={
+        <FolderTree
+          selectedFolder={null}
+          onSelectFolder={(path) =>
+            navigate({
+              to: '/',
+              search: { folder: path ?? undefined },
+            })
+          }
+        />
+      }
+    >
       <div className="mx-auto max-w-2xl">
         <div className="mb-6 flex items-center gap-3">
           <Link to="/" search={{}} className="text-gray-400 hover:text-gray-600">
