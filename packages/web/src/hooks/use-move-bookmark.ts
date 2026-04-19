@@ -36,13 +36,13 @@ export function useMoveBookmark() {
         const targetKey = ['bookmarks', { folder: folderPath, deep: false }];
         const targetData = queryClient.getQueryData<Bookmark[]>(targetKey);
         if (targetData) {
-          queryClient.setQueryData<Bookmark[]>(targetKey, [...targetData, updated]);
+          queryClient.setQueryData<Bookmark[]>(targetKey, [updated, ...targetData]);
         }
 
         const allKey = ['bookmarks', { folder: null, deep: true }];
         const allData = queryClient.getQueryData<Bookmark[]>(allKey);
         if (allData) {
-          queryClient.setQueryData<Bookmark[]>(allKey, [...allData, updated]);
+          queryClient.setQueryData<Bookmark[]>(allKey, [updated, ...allData]);
         }
       }
 
