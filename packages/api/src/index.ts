@@ -1,6 +1,7 @@
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
+import { requestId } from 'hono/request-id';
 import type { Env as HonoPinoEnv } from 'hono-pino';
 
 import { auth } from './auth.js';
@@ -16,12 +17,22 @@ const app = new Hono<
     Variables: {
       user: typeof auth.$Infer.Session.user | null;
       session: typeof auth.$Infer.Session.session | null;
+      requestId: string;
     };
   }
 >();
 
+// Request ID middleware
+app.use(requestId());
+
 // Logger middleware
 app.use(logger);
+
+// Set X-Request-Id response header
+app.use(async (c, next) => {
+  await next();
+  c.res.headers.set('X-Request-Id', c.get('requestId'));
+});
 
 // Auth routes
 app.on(['POST', 'GET'], '/auth/*', (c) => {

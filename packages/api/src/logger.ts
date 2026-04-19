@@ -1,3 +1,4 @@
+import type { Context } from 'hono';
 import pino from 'pino';
 import { pinoLogger } from 'hono-pino';
 
@@ -16,5 +17,25 @@ export const rootLogger = pino({
 
 export const logger = pinoLogger({
   pino: rootLogger,
-  http: false,
+  http: {
+    referRequestIdKey: 'requestId',
+    onReqBindings: (c: Context) => ({
+      req: {
+        url: c.req.path,
+        method: c.req.method,
+      },
+    }),
+    onResBindings: (c: Context) => ({
+      res: {
+        status: c.res.status,
+      },
+    }),
+    onResLevel: (c: Context) => {
+      if (c.req.path === '/health') return 'trace';
+      const status = c.res.status;
+      if (status >= 500) return 'error';
+      if (status >= 400) return 'warn';
+      return 'info';
+    },
+  },
 });
