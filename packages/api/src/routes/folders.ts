@@ -260,15 +260,12 @@ const foldersRoute = new Hono<Env>()
       const oldPath = folder.path;
       const escapedOldPath = escapeLike(oldPath);
 
-      // パスが変わる場合は配下のフォルダ・ブックマークも一括更新
+      // パスが変わる場合、子フォルダのパス衝突を事前チェック
       if (oldPath !== newPath) {
-        // 配下のフォルダの path と parentPath を更新
-        await db
-          .update(folders)
-          .set({
-            path: sql`${newPath} || substring(${folders.path} from ${oldPath.length + 1})`,
-            parentPath: sql`${newPath} || substring(${folders.parentPath} from ${oldPath.length + 1})`,
-          })
+        // 配下のフォルダを取得
+        const childFolders = await db
+          .select({ path: folders.path })
+          .from(folders)
           .where(
             and(
               eq(folders.userId, userId),
@@ -276,24 +273,29 @@ const foldersRoute = new Hono<Env>()
             ),
           );
 
-        // 配下のブックマークの folderPath を更新
-        await db
-          .update(bookmarks)
-          .set({
-            folderPath: sql`${newPath} || substring(${bookmarks.folderPath} from ${oldPath.length + 1})`,
-          })
-          .where(
-            and(
-              eq(bookmarks.userId, userId),
-              sql`${bookmarks.folderPath} LIKE ${escapedOldPath + '/%'} ESCAPE '\\'`,
-            ),
+        if (childFolders.length > 0) {
+          // 移動後のパスを計算
+          const newChildPaths = childFolders.map(
+            (child) => newPath + child.path.substring(oldPath.length),
           );
 
-        // 直下のブックマーク（folderPath が oldPath と完全一致）も更新
-        await db
-          .update(bookmarks)
-          .set({ folderPath: newPath })
-          .where(and(eq(bookmarks.userId, userId), eq(bookmarks.folderPath, oldPath)));
+          // 衝突チェック: 移動後のパスが既存フォルダと重複しないか
+          const conflicting = await db
+            .select({ id: folders.id })
+            .from(folders)
+            .where(
+              and(
+                eq(folders.userId, userId),
+                sql`${folders.path} IN ${newChildPaths}`,
+                isNull(folders.deletedAt),
+              ),
+            )
+            .limit(1);
+
+          if (conflicting.length > 0) {
+            return c.json({ error: 'このフォルダはすでに登録されています' }, 409);
+          }
+        }
       }
 
       // 移動時に position を再設定
@@ -315,16 +317,55 @@ const foldersRoute = new Hono<Env>()
       }
 
       try {
-        const [updated] = await db
-          .update(folders)
-          .set({
-            name: newName,
-            path: newPath,
-            parentPath: newParentPath,
-            position: newPosition,
-          })
-          .where(eq(folders.id, folderId))
-          .returning();
+        const [updated] = await db.transaction(async (tx) => {
+          // パスが変わる場合は配下のフォルダ・ブックマークも一括更新
+          if (oldPath !== newPath) {
+            // 配下のフォルダの path と parentPath を更新
+            await tx
+              .update(folders)
+              .set({
+                path: sql`${newPath} || substring(${folders.path} from ${oldPath.length + 1})`,
+                parentPath: sql`${newPath} || substring(${folders.parentPath} from ${oldPath.length + 1})`,
+              })
+              .where(
+                and(
+                  eq(folders.userId, userId),
+                  sql`${folders.path} LIKE ${escapedOldPath + '/%'} ESCAPE '\\'`,
+                ),
+              );
+
+            // 配下のブックマークの folderPath を更新
+            await tx
+              .update(bookmarks)
+              .set({
+                folderPath: sql`${newPath} || substring(${bookmarks.folderPath} from ${oldPath.length + 1})`,
+              })
+              .where(
+                and(
+                  eq(bookmarks.userId, userId),
+                  sql`${bookmarks.folderPath} LIKE ${escapedOldPath + '/%'} ESCAPE '\\'`,
+                ),
+              );
+
+            // 直下のブックマーク（folderPath が oldPath と完全一致）も更新
+            await tx
+              .update(bookmarks)
+              .set({ folderPath: newPath })
+              .where(and(eq(bookmarks.userId, userId), eq(bookmarks.folderPath, oldPath)));
+          }
+
+          // 移動対象フォルダ自体を更新
+          return tx
+            .update(folders)
+            .set({
+              name: newName,
+              path: newPath,
+              parentPath: newParentPath,
+              position: newPosition,
+            })
+            .where(eq(folders.id, folderId))
+            .returning();
+        });
 
         return c.json(updated);
       } catch (err) {
