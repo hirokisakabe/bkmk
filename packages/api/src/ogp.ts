@@ -140,33 +140,12 @@ export function isTweetUrl(targetUrl: string): boolean {
   }
 }
 
-/**
- * oEmbed レスポンスの html フィールドから blockquote 内のテキストを抽出する。
- */
-function extractTweetText(html: string): string | null {
-  const blockquoteMatch = html.match(/<blockquote[^>]*>([\s\S]*?)<\/blockquote>/i);
-  if (!blockquoteMatch) return null;
-
-  const blockquoteContent = blockquoteMatch[1];
-  // <p> タグ内のテキストを抽出（リンクのテキストも含む）
-  const paragraphs: string[] = [];
-  const pRegex = /<p[^>]*>([\s\S]*?)<\/p>/gi;
-  let match;
-  while ((match = pRegex.exec(blockquoteContent)) !== null) {
-    // HTML タグを除去してテキストのみ取得
-    const text = match[1].replace(/<[^>]+>/g, '').trim();
-    if (text) {
-      paragraphs.push(text);
-    }
-  }
-
-  return paragraphs.length > 0 ? paragraphs.join('\n') : null;
-}
-
-async function fetchTweetOembedMetadata(targetUrl: string): Promise<OgpMetadata | null> {
+async function fetchTweetMetadata(targetUrl: string): Promise<OgpMetadata | null> {
   try {
-    const oembedUrl = `https://publish.twitter.com/oembed?url=${encodeURIComponent(targetUrl)}`;
-    const response = await fetch(oembedUrl, {
+    const url = new URL(targetUrl);
+    // pathname: /user/status/123 → FxTwitter API URL に変換
+    const apiUrl = `https://api.fxtwitter.com${url.pathname}`;
+    const response = await fetch(apiUrl, {
       signal: AbortSignal.timeout(10_000),
     });
 
@@ -175,15 +154,15 @@ async function fetchTweetOembedMetadata(targetUrl: string): Promise<OgpMetadata 
     }
 
     const data = (await response.json()) as {
-      html?: string;
-      author_name?: string;
+      tweet?: {
+        text?: string;
+        author?: { name?: string };
+      };
     };
 
-    const description = data.html ? extractTweetText(data.html) : null;
-
     return {
-      title: data.author_name ?? null,
-      description,
+      title: data.tweet?.author?.name ?? null,
+      description: data.tweet?.text ?? null,
       imageUrl: null,
       faviconUrl: 'https://x.com/favicon.ico',
     };
@@ -207,7 +186,7 @@ export async function fetchOgpMetadata(targetUrl: string): Promise<OgpMetadata> 
   }
 
   if (isTweetUrl(targetUrl)) {
-    const oembedResult = await fetchTweetOembedMetadata(targetUrl);
+    const oembedResult = await fetchTweetMetadata(targetUrl);
     if (oembedResult) {
       return oembedResult;
     }
