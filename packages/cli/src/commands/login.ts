@@ -17,7 +17,7 @@ export async function loginCommand(): Promise<void> {
     const apiUrl = getApiUrl();
     const res = await fetch(`${apiUrl}/auth/sign-in/email`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Origin: apiUrl },
       body: JSON.stringify({ email, password }),
     });
 
