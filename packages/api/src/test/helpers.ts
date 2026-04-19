@@ -1,8 +1,11 @@
 import { Hono } from 'hono';
+import type { Env as HonoPinoEnv } from 'hono-pino';
+import { PinoLogger } from 'hono-pino';
+import pino from 'pino';
 
 import type { auth } from '../auth.js';
 
-type Env = {
+type Env = HonoPinoEnv & {
   Variables: {
     user: typeof auth.$Infer.Session.user;
     session: typeof auth.$Infer.Session.session;
@@ -40,6 +43,7 @@ export function createTestApp(path: string, route: Hono<Env>): Hono<Env> {
   app.use('*', async (c, next) => {
     c.set('user', TEST_USER);
     c.set('session', TEST_SESSION);
+    c.set('logger', new PinoLogger(pino({ level: 'silent' })));
     await next();
   });
 

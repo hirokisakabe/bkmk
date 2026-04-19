@@ -1,20 +1,27 @@
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
+import type { Env as HonoPinoEnv } from 'hono-pino';
 
 import { auth } from './auth.js';
+import { logger, rootLogger } from './logger.js';
 import { bookmarksRoute } from './routes/bookmarks.js';
 import { foldersRoute } from './routes/folders.js';
 import { searchRoute } from './routes/search.js';
 import { trashRoute } from './routes/trash.js';
 import { userRoute } from './routes/user.js';
 
-const app = new Hono<{
-  Variables: {
-    user: typeof auth.$Infer.Session.user | null;
-    session: typeof auth.$Infer.Session.session | null;
-  };
-}>();
+const app = new Hono<
+  HonoPinoEnv & {
+    Variables: {
+      user: typeof auth.$Infer.Session.user | null;
+      session: typeof auth.$Infer.Session.session | null;
+    };
+  }
+>();
+
+// Logger middleware
+app.use(logger);
 
 // Auth routes
 app.on(['POST', 'GET'], '/auth/*', (c) => {
@@ -56,6 +63,6 @@ routes.get('/*', serveStatic({ path: './public/index.html' }));
 
 const port = Number(process.env.PORT) || 3000;
 
-serve({ fetch: routes.fetch, port }, () => {
-  console.log(`Server is running on http://localhost:${port}`);
+serve({ fetch: routes.fetch, port }, (info) => {
+  rootLogger.info(`Server is running on http://localhost:${info.port}`);
 });

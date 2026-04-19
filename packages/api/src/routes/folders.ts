@@ -7,8 +7,9 @@ import type { auth } from '../auth.js';
 import { db } from '../db/index.js';
 import { bookmarks, folders } from '../db/schema.js';
 import { validationHook } from '../validation-hook.js';
+import type { Env as HonoPinoEnv } from 'hono-pino';
 
-type Env = {
+type Env = HonoPinoEnv & {
   Variables: {
     user: typeof auth.$Infer.Session.user;
     session: typeof auth.$Infer.Session.session;
