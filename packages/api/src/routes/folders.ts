@@ -15,7 +15,8 @@ type Env = {
   };
 };
 
-const VALID_SEGMENT = /^[a-zA-Z0-9\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF._-]+$/;
+const VALID_SEGMENT =
+  /^[a-zA-Z0-9\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF._\- \p{Emoji_Presentation}\p{Extended_Pictographic}]+$/u;
 const MAX_NAME_LENGTH = 255;
 
 function validateSegments(segments: string[]): string | null {
@@ -24,7 +25,7 @@ function validateSegments(segments: string[]): string | null {
       return 'Each path segment must be 1-255 characters';
     }
     if (!VALID_SEGMENT.test(seg)) {
-      return 'Path segments may only contain alphanumeric, CJK, dot, hyphen, or underscore characters';
+      return 'Path segments may only contain alphanumeric, CJK, emoji, dot, hyphen, underscore, or space characters';
     }
   }
   return null;

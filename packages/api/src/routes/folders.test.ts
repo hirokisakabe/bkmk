@@ -104,6 +104,48 @@ describe('POST /api/folders', () => {
     expect(res.status).toBe(400);
   });
 
+  it('空白を含むフォルダ名を作成できる', async () => {
+    const folderWithSpaces = {
+      ...mockFolder,
+      name: 'Twenty One Pilots',
+      path: '/Twenty One Pilots',
+    };
+    vi.mocked(db.delete).mockReturnValueOnce(mockQueryChain([]) as never);
+    vi.mocked(db.update).mockReturnValueOnce(mockQueryChain([]) as never);
+    vi.mocked(db.insert).mockReturnValue(mockQueryChain([folderWithSpaces]) as never);
+
+    const res = await app.request('/api/folders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: '/Twenty One Pilots' }),
+    });
+
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.name).toBe('Twenty One Pilots');
+  });
+
+  it('絵文字を含むフォルダ名を作成できる', async () => {
+    const folderWithEmoji = {
+      ...mockFolder,
+      name: 'Linux 📝',
+      path: '/Linux 📝',
+    };
+    vi.mocked(db.delete).mockReturnValueOnce(mockQueryChain([]) as never);
+    vi.mocked(db.update).mockReturnValueOnce(mockQueryChain([]) as never);
+    vi.mocked(db.insert).mockReturnValue(mockQueryChain([folderWithEmoji]) as never);
+
+    const res = await app.request('/api/folders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: '/Linux 📝' }),
+    });
+
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.name).toBe('Linux 📝');
+  });
+
   it('存在しない親フォルダで404を返す', async () => {
     // 親フォルダ検索 → 見つからない
     vi.mocked(db.select).mockReturnValue(mockQueryChain([]) as never);
