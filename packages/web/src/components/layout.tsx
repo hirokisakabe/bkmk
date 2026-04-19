@@ -1,7 +1,9 @@
 import {
   closestCenter,
+  type CollisionDetection,
   DndContext,
   type DragEndEvent,
+  pointerWithin,
   PointerSensor,
   useSensor,
   useSensors,
@@ -10,6 +12,17 @@ import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { FolderTree } from './folder-tree';
+
+const collisionDetection: CollisionDetection = (args) => {
+  const activeType = args.active.data.current?.type;
+
+  if (activeType === 'bookmark') {
+    const pointerCollisions = pointerWithin(args);
+    if (pointerCollisions.length > 0) return pointerCollisions;
+  }
+
+  return closestCenter(args);
+};
 
 export function Layout({
   children,
@@ -56,7 +69,7 @@ export function Layout({
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCenter}
+      collisionDetection={collisionDetection}
       onDragEnd={onDragEnd ?? (() => {})}
     >
       <div className="flex h-screen">
