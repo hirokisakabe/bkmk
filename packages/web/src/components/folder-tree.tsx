@@ -2,7 +2,7 @@ import { useDndContext, useDroppable } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import * as ContextMenu from '@radix-ui/react-context-menu';
-import { useState } from 'react';
+import { type MouseEvent, useState } from 'react';
 
 import { useDeleteFolder } from '../hooks/use-delete-folder';
 import { getChildFolders, useAllFolders } from '../hooks/use-folders';
@@ -51,35 +51,34 @@ export function FolderTree({
 
   return (
     <nav className="flex-1">
-      <ContextMenu.Root>
-        <ContextMenu.Trigger asChild>
-          <button
-            ref={rootDropRef}
-            type="button"
-            className={`flex w-full items-center rounded px-2 py-1.5 text-left text-sm ${
-              isRootDropTarget
-                ? 'ring-2 ring-blue-400 bg-blue-50'
-                : selectedFolder === null
-                  ? 'bg-blue-100 font-semibold text-blue-800'
-                  : 'text-gray-700 hover:bg-gray-200'
-            }`}
-            onClick={() => onSelectFolder(null)}
-          >
-            <span className="w-5 shrink-0" />
-            すべて
-          </button>
-        </ContextMenu.Trigger>
-        <ContextMenu.Portal>
-          <ContextMenu.Content className="min-w-[160px] rounded-md border border-gray-200 bg-white py-1 shadow-lg">
-            <ContextMenu.Item
-              className="cursor-default px-3 py-1.5 text-sm text-gray-700 outline-none hover:bg-gray-100 data-[highlighted]:bg-gray-100"
-              onSelect={() => setDialogState({ type: 'create', parentPath: null })}
-            >
-              新しいフォルダ
-            </ContextMenu.Item>
-          </ContextMenu.Content>
-        </ContextMenu.Portal>
-      </ContextMenu.Root>
+      <div className="group/header flex items-center">
+        <button
+          ref={rootDropRef}
+          type="button"
+          className={`flex flex-1 items-center rounded px-2 py-1.5 text-left text-sm ${
+            isRootDropTarget
+              ? 'ring-2 ring-blue-400 bg-blue-50'
+              : selectedFolder === null
+                ? 'bg-blue-100 font-semibold text-blue-800'
+                : 'text-gray-700 hover:bg-gray-200'
+          }`}
+          onClick={() => onSelectFolder(null)}
+        >
+          <span className="w-5 shrink-0" />
+          すべて
+        </button>
+        <button
+          type="button"
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-gray-400 opacity-0 group-hover/header:opacity-100 hover:bg-gray-200 hover:text-gray-600"
+          onClick={(e: MouseEvent) => {
+            e.stopPropagation();
+            setDialogState({ type: 'create', parentPath: null });
+          }}
+          aria-label="新しいフォルダを作成"
+        >
+          <PlusIcon />
+        </button>
+      </div>
 
       <button
         type="button"
@@ -318,6 +317,14 @@ function ChevronIcon({ expanded }: { expanded: boolean }) {
       fill="currentColor"
     >
       <path d="M4.5 2l4 4-4 4V2z" />
+    </svg>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M8 3v10M3 8h10" />
     </svg>
   );
 }
