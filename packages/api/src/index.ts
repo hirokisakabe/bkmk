@@ -7,6 +7,7 @@ import { bookmarksRoute } from './routes/bookmarks.js';
 import { foldersRoute } from './routes/folders.js';
 import { searchRoute } from './routes/search.js';
 import { trashRoute } from './routes/trash.js';
+import { userRoute } from './routes/user.js';
 
 const app = new Hono<{
   Variables: {
@@ -40,7 +41,8 @@ const routes = app
   .route('/api/folders', foldersRoute)
   .route('/api/bookmarks', bookmarksRoute)
   .route('/api/trash', trashRoute)
-  .route('/api/search', searchRoute);
+  .route('/api/search', searchRoute)
+  .route('/api/user', userRoute);
 
 export type AppType = typeof routes;
 
