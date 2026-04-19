@@ -27,14 +27,12 @@ export async function mvCommand(id: string, newPath: string, options: MvOptions)
   }
 
   // ブックマークとして見つからなかった場合、フォルダとして移動を試みる
-  // newPath から parentPath と name を算出
-  const segments = newPath.split('/').filter(Boolean);
-  const name = segments[segments.length - 1];
-  const parentPath = segments.length <= 1 ? null : '/' + segments.slice(0, -1).join('/');
+  // newPath を移動先の親パスとして扱う（フォルダ名は保持）
+  const parentPath = newPath === '/' ? null : newPath;
 
   const folderRes = await client.api.folders[':id'].$patch({
     param: { id },
-    json: { name, parentPath },
+    json: { parentPath },
   });
 
   if (folderRes.ok) {
