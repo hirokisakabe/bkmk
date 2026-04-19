@@ -1,6 +1,7 @@
 import { useDraggable } from '@dnd-kit/core';
 import { SortableContext, useSortable, rectSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import * as ContextMenu from '@radix-ui/react-context-menu';
 import { useEffect, useRef, useState } from 'react';
 
 import { useBookmarks, useBookmarksPaginated } from '../hooks/use-bookmarks';
@@ -9,6 +10,7 @@ import { UNCATEGORIZED_FOLDER } from '../lib/constants';
 import { useSettings } from '../lib/settings-store';
 import type { Bookmark } from '../types';
 import { AddBookmarkForm } from './add-bookmark-form';
+import { MoveBookmarkDialog } from './folder-dialogs';
 
 export function BookmarkList({
   folderPath,
@@ -284,74 +286,97 @@ function BookmarkCard({
   dragHandleProps?: Record<string, unknown>;
 }) {
   const [imageError, setImageError] = useState(false);
+  const [moveDialogOpen, setMoveDialogOpen] = useState(false);
   const displayTitle = bookmark.title || bookmark.url;
   const showImage = bookmark.imageUrl && !imageError;
 
   return (
-    <div className="group relative flex h-full flex-col overflow-hidden rounded-lg border border-gray-200 transition-colors hover:border-gray-300 hover:bg-gray-50">
-      <a
-        href={bookmark.url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex flex-1 flex-col"
-      >
-        <div className="aspect-[1.91/1] w-full overflow-hidden bg-gray-100">
-          {showImage ? (
-            <img
-              src={bookmark.imageUrl!}
-              alt=""
-              className="h-full w-full object-cover"
-              onError={() => setImageError(true)}
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-gray-300">
-              <ImagePlaceholderIcon />
-            </div>
-          )}
-        </div>
-        <div className="flex flex-1 flex-col p-3">
-          <div className="mb-1 flex min-h-[2.5rem] items-center gap-1.5">
-            {bookmark.faviconUrl && (
-              <img
-                src={bookmark.faviconUrl}
-                alt=""
-                className="h-4 w-4 shrink-0"
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                }}
-              />
+    <>
+      <ContextMenu.Root>
+        <ContextMenu.Trigger asChild>
+          <div className="group relative flex h-full flex-col overflow-hidden rounded-lg border border-gray-200 transition-colors hover:border-gray-300 hover:bg-gray-50">
+            <a
+              href={bookmark.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex flex-1 flex-col"
+            >
+              <div className="aspect-[1.91/1] w-full overflow-hidden bg-gray-100">
+                {showImage ? (
+                  <img
+                    src={bookmark.imageUrl!}
+                    alt=""
+                    className="h-full w-full object-cover"
+                    onError={() => setImageError(true)}
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-gray-300">
+                    <ImagePlaceholderIcon />
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-1 flex-col p-3">
+                <div className="mb-1 flex min-h-[2.5rem] items-center gap-1.5">
+                  {bookmark.faviconUrl && (
+                    <img
+                      src={bookmark.faviconUrl}
+                      alt=""
+                      className="h-4 w-4 shrink-0"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
+                  )}
+                  <h3 className="line-clamp-2 text-sm font-medium text-gray-900">{displayTitle}</h3>
+                </div>
+                {bookmark.description && (
+                  <p className="line-clamp-2 text-xs text-gray-500">{bookmark.description}</p>
+                )}
+                <p className="mt-auto truncate text-xs text-gray-400">{bookmark.url}</p>
+              </div>
+            </a>
+            {dragHandleProps && (
+              <button
+                type="button"
+                className="absolute top-1 right-1 cursor-grab rounded bg-black/50 p-1 text-white opacity-100 transition-opacity hover:bg-black/70 active:cursor-grabbing md:opacity-0 md:group-hover:opacity-100"
+                aria-label="並び替え"
+                {...dragHandleProps}
+              >
+                <GripIcon />
+              </button>
             )}
-            <h3 className="line-clamp-2 text-sm font-medium text-gray-900">{displayTitle}</h3>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                onDelete();
+              }}
+              className="absolute top-1 left-1 rounded bg-black/50 p-1 text-white opacity-100 transition-opacity hover:bg-black/70 md:opacity-0 md:group-hover:opacity-100"
+              aria-label="削除"
+            >
+              <TrashIcon />
+            </button>
           </div>
-          {bookmark.description && (
-            <p className="line-clamp-2 text-xs text-gray-500">{bookmark.description}</p>
-          )}
-          <p className="mt-auto truncate text-xs text-gray-400">{bookmark.url}</p>
-        </div>
-      </a>
-      {dragHandleProps && (
-        <button
-          type="button"
-          className="absolute top-1 right-1 cursor-grab rounded bg-black/50 p-1 text-white opacity-100 transition-opacity hover:bg-black/70 active:cursor-grabbing md:opacity-0 md:group-hover:opacity-100"
-          aria-label="並び替え"
-          {...dragHandleProps}
-        >
-          <GripIcon />
-        </button>
-      )}
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          e.preventDefault();
-          onDelete();
-        }}
-        className="absolute top-1 left-1 rounded bg-black/50 p-1 text-white opacity-100 transition-opacity hover:bg-black/70 md:opacity-0 md:group-hover:opacity-100"
-        aria-label="削除"
-      >
-        <TrashIcon />
-      </button>
-    </div>
+        </ContextMenu.Trigger>
+        <ContextMenu.Portal>
+          <ContextMenu.Content className="min-w-[160px] rounded-md border border-gray-200 bg-white py-1 shadow-lg">
+            <ContextMenu.Item
+              className="cursor-default px-3 py-1.5 text-sm text-gray-700 outline-none hover:bg-gray-100 data-[highlighted]:bg-gray-100"
+              onSelect={() => setMoveDialogOpen(true)}
+            >
+              移動
+            </ContextMenu.Item>
+          </ContextMenu.Content>
+        </ContextMenu.Portal>
+      </ContextMenu.Root>
+
+      <MoveBookmarkDialog
+        open={moveDialogOpen}
+        onOpenChange={setMoveDialogOpen}
+        bookmark={bookmark}
+      />
+    </>
   );
 }
 
