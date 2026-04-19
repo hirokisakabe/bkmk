@@ -300,14 +300,18 @@ describe('fetchOgpMetadata', () => {
     });
   });
 
-  it('Twitter URLの場合はoEmbed APIからメタデータを取得する', async () => {
-    const oembedResponse = {
-      author_name: 'Test User',
-      html: '<blockquote class="twitter-tweet"><p lang="ja" dir="ltr">これはテストツイートです</p>&mdash; Test User (@testuser) <a href="https://twitter.com/testuser/status/123">January 1, 2024</a></blockquote>',
+  it('Twitter URLの場合はFxTwitter APIからメタデータを取得する', async () => {
+    const fxResponse = {
+      code: 200,
+      message: 'OK',
+      tweet: {
+        text: 'これはテストツイートです',
+        author: { name: 'Test User' },
+      },
     };
 
     vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
-      new Response(JSON.stringify(oembedResponse), {
+      new Response(JSON.stringify(fxResponse), {
         headers: { 'content-type': 'application/json' },
       }),
     );
@@ -321,14 +325,18 @@ describe('fetchOgpMetadata', () => {
     });
   });
 
-  it('twitter.com URLの場合もoEmbed APIからメタデータを取得する', async () => {
-    const oembedResponse = {
-      author_name: 'Another User',
-      html: '<blockquote class="twitter-tweet"><p lang="en" dir="ltr">Hello world!</p>&mdash; Another User (@another) <a href="https://twitter.com/another/status/456">January 2, 2024</a></blockquote>',
+  it('twitter.com URLの場合もFxTwitter APIからメタデータを取得する', async () => {
+    const fxResponse = {
+      code: 200,
+      message: 'OK',
+      tweet: {
+        text: 'Hello world!',
+        author: { name: 'Another User' },
+      },
     };
 
     vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
-      new Response(JSON.stringify(oembedResponse), {
+      new Response(JSON.stringify(fxResponse), {
         headers: { 'content-type': 'application/json' },
       }),
     );
@@ -342,7 +350,7 @@ describe('fetchOgpMetadata', () => {
     });
   });
 
-  it('Twitter oEmbed APIが失敗した場合は通常のOGP取得にフォールバックする', async () => {
+  it('FxTwitter APIが失敗した場合は通常のOGP取得にフォールバックする', async () => {
     const html = `
       <html>
         <head>
@@ -370,7 +378,7 @@ describe('fetchOgpMetadata', () => {
     });
   });
 
-  it('Twitter oEmbed APIがエラーの場合は通常のOGP取得にフォールバックする', async () => {
+  it('FxTwitter APIがエラーの場合は通常のOGP取得にフォールバックする', async () => {
     const html = `
       <html>
         <head><title>X</title></head>
