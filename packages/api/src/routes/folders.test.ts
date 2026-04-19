@@ -49,6 +49,8 @@ describe('GET /api/folders', () => {
 
 describe('POST /api/folders', () => {
   it('フォルダを作成する', async () => {
+    // ソフトデリート済みレコードの物理削除
+    vi.mocked(db.delete).mockReturnValueOnce(mockQueryChain([]) as never);
     // 既存フォルダの position シフト
     vi.mocked(db.update).mockReturnValueOnce(mockQueryChain([]) as never);
     // insert
@@ -96,6 +98,24 @@ describe('POST /api/folders', () => {
     });
 
     expect(res.status).toBe(404);
+  });
+
+  it('ソフトデリート済みの同一パスフォルダを物理削除してから新規作成する', async () => {
+    // ソフトデリート済みレコードの物理削除
+    vi.mocked(db.delete).mockReturnValueOnce(mockQueryChain([]) as never);
+    // 既存フォルダの position シフト
+    vi.mocked(db.update).mockReturnValueOnce(mockQueryChain([]) as never);
+    // insert
+    vi.mocked(db.insert).mockReturnValue(mockQueryChain([mockFolder]) as never);
+
+    const res = await app.request('/api/folders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: '/work' }),
+    });
+
+    expect(res.status).toBe(201);
+    expect(db.delete).toHaveBeenCalled();
   });
 });
 

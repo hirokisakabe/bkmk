@@ -1,5 +1,5 @@
 import { zValidator } from '@hono/zod-validator';
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 
@@ -129,6 +129,17 @@ const bookmarksRoute = new Hono<Env>()
         );
 
       const position = 0;
+
+      // ソフトデリート済みの同一 URL レコードがあれば物理削除
+      await db
+        .delete(bookmarks)
+        .where(
+          and(
+            eq(bookmarks.userId, userId),
+            eq(bookmarks.url, body.url),
+            isNotNull(bookmarks.deletedAt),
+          ),
+        );
 
       // OGP メタデータを取得
       const ogp = await fetchOgpMetadata(body.url);
