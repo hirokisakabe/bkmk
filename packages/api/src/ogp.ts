@@ -156,7 +156,7 @@ async function fetchTweetMetadata(targetUrl: string): Promise<OgpMetadata | null
     const data = (await response.json()) as {
       tweet?: {
         text?: string;
-        author?: { name?: string };
+        author?: { name?: string; avatar_url?: string };
         media?: {
           photos?: { url: string }[];
         };
@@ -166,7 +166,7 @@ async function fetchTweetMetadata(targetUrl: string): Promise<OgpMetadata | null
     return {
       title: data.tweet?.author?.name ?? null,
       description: data.tweet?.text ?? null,
-      imageUrl: data.tweet?.media?.photos?.[0]?.url ?? null,
+      imageUrl: data.tweet?.media?.photos?.[0]?.url ?? data.tweet?.author?.avatar_url ?? null,
       faviconUrl: 'https://x.com/favicon.ico',
     };
   } catch {
