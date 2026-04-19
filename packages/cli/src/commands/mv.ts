@@ -7,6 +7,9 @@ interface MvOptions {
 export async function mvCommand(id: string, newPath: string, options: MvOptions): Promise<void> {
   const client = createClient();
 
+  // 末尾スラッシュを正規化（例: "/foo/" → "/foo"）
+  newPath = newPath.replace(/\/+$/, '') || '/';
+
   // ブックマークとして移動を試みる
   const bookmarkRes = await client.api.bookmarks[':id'].$patch({
     param: { id },

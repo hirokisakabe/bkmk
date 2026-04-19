@@ -7,6 +7,9 @@ interface MkdirOptions {
 export async function mkdirCommand(folderPath: string, options: MkdirOptions): Promise<void> {
   const client = createClient();
 
+  // 末尾スラッシュを正規化（例: "/foo/" → "/foo"）
+  folderPath = folderPath.replace(/\/+$/, '') || '/';
+
   const res = await client.api.folders.$post({
     json: { path: folderPath },
   });
