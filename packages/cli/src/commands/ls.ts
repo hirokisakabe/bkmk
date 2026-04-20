@@ -3,6 +3,7 @@ import { createClient } from '../client.js';
 interface LsOptions {
   deep?: boolean;
   json?: boolean;
+  limit?: number;
 }
 
 export async function lsCommand(folderPath: string | undefined, options: LsOptions): Promise<void> {
@@ -29,6 +30,7 @@ export async function lsCommand(folderPath: string | undefined, options: LsOptio
       query: {
         folder: folderPath,
         deep: options.deep ? 'true' : undefined,
+        limit: options.limit !== undefined ? String(options.limit) : undefined,
       },
     }),
   ]);

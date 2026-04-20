@@ -32,6 +32,7 @@ program
   .argument('[path]', 'Folder path')
   .option('--deep', 'Recursive listing')
   .option('--json', 'Output as JSON')
+  .option('--limit <number>', 'Maximum number of bookmarks to display', parseInt)
   .action(lsCommand);
 
 program
