@@ -104,6 +104,68 @@ describe('lsCommand', () => {
     expect(errorSpy).toHaveBeenCalledWith('Folder not found: /nonexistent');
   });
 
+  it('passes limit to bookmarks API query', async () => {
+    mockFoldersGet.mockResolvedValue({ ok: true, json: async () => [] });
+    mockBookmarksGet.mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: [], nextCursor: null }),
+    });
+
+    await lsCommand(undefined, { limit: 5 });
+
+    expect(mockBookmarksGet).toHaveBeenCalledWith({
+      query: { folder: undefined, deep: undefined, limit: '5' },
+    });
+  });
+
+  it('handles paginated response with limit option', async () => {
+    mockFoldersGet.mockResolvedValue({
+      ok: true,
+      json: async () => [{ id: 'f1', name: 'work', path: '/work', parentPath: null }],
+    });
+    mockBookmarksGet.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: [{ id: 'bm-1', title: 'Example', url: 'https://example.com', folderPath: null }],
+        nextCursor: 'abc123',
+      }),
+    });
+
+    await lsCommand(undefined, { limit: 1 });
+
+    expect(consoleSpy).toHaveBeenCalledWith('  /work/');
+    expect(consoleSpy).toHaveBeenCalledWith('  bm-1  Example');
+  });
+
+  it('outputs JSON with limit option', async () => {
+    const folders = [{ id: 'f1', name: 'work', path: '/work' }];
+    const bookmarks = [{ id: 'bm-1', title: 'Example', url: 'https://example.com' }];
+
+    mockFoldersGet.mockResolvedValue({ ok: true, json: async () => folders });
+    mockBookmarksGet.mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: bookmarks, nextCursor: null }),
+    });
+
+    await lsCommand(undefined, { json: true, limit: 10 });
+
+    expect(consoleSpy).toHaveBeenCalledWith(JSON.stringify({ folders, bookmarks }, null, 2));
+  });
+
+  it('works with limit and deep options combined', async () => {
+    mockFoldersGet.mockResolvedValue({ ok: true, json: async () => [] });
+    mockBookmarksGet.mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: [], nextCursor: null }),
+    });
+
+    await lsCommand('/work', { deep: true, limit: 3 });
+
+    expect(mockBookmarksGet).toHaveBeenCalledWith({
+      query: { folder: '/work', deep: 'true', limit: '3' },
+    });
+  });
+
   it('preserves root path when trailing slash is stripped', async () => {
     mockFoldersGet.mockResolvedValue({ ok: true, json: async () => [] });
     mockBookmarksGet.mockResolvedValue({ ok: true, json: async () => [] });
