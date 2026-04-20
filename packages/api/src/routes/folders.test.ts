@@ -40,10 +40,22 @@ describe('GET /api/folders', () => {
   });
 
   it('parent パラメータでフィルタできる', async () => {
-    vi.mocked(db.select).mockReturnValue(mockQueryChain([]) as never);
+    vi.mocked(db.select)
+      .mockReturnValueOnce(mockQueryChain([{ id: 'folder-1' }]) as never) // 親フォルダ存在確認
+      .mockReturnValueOnce(mockQueryChain([]) as never); // 子フォルダ取得
 
     const res = await app.request('/api/folders?parent=/work');
     expect(res.status).toBe(200);
+  });
+
+  it('存在しない親フォルダを指定すると 404 を返す', async () => {
+    vi.mocked(db.select).mockReturnValueOnce(mockQueryChain([]) as never); // 親フォルダ存在確認 → 空
+
+    const res = await app.request('/api/folders?parent=/nonexistent');
+    expect(res.status).toBe(404);
+
+    const body = await res.json();
+    expect(body).toEqual({ error: 'Folder not found' });
   });
 
   it('all=true で全フォルダを返す', async () => {

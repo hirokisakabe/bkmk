@@ -63,6 +63,25 @@ const bookmarksRoute = new Hono<Env>()
       const folderPath = folder ?? null;
       const isDeep = deep === 'true';
 
+      // フォルダが指定されている場合、存在確認
+      if (folderPath !== null) {
+        const [folder] = await db
+          .select({ id: folders.id })
+          .from(folders)
+          .where(
+            and(
+              eq(folders.userId, userId),
+              eq(folders.path, folderPath),
+              isNull(folders.deletedAt),
+            ),
+          )
+          .limit(1);
+
+        if (!folder) {
+          return c.json({ error: 'Folder not found' }, 404);
+        }
+      }
+
       const conditions = [eq(bookmarks.userId, userId), isNull(bookmarks.deletedAt)];
 
       if (isDeep && folderPath !== null) {

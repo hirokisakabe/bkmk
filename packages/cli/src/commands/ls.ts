@@ -33,6 +33,11 @@ export async function lsCommand(folderPath: string | undefined, options: LsOptio
     }),
   ]);
 
+  if (foldersRes.status === 404 || bookmarksRes.status === 404) {
+    console.error(`Folder not found: ${folderPath}`);
+    process.exit(1);
+  }
+
   if (!foldersRes.ok || !bookmarksRes.ok) {
     console.error('Failed to fetch items');
     process.exit(1);

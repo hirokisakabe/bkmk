@@ -78,6 +78,25 @@ const foldersRoute = new Hono<Env>()
 
       const parentPath = parent ?? null;
 
+      // 親フォルダが指定されている場合、存在確認
+      if (parentPath !== null) {
+        const [parentFolder] = await db
+          .select({ id: folders.id })
+          .from(folders)
+          .where(
+            and(
+              eq(folders.userId, userId),
+              eq(folders.path, parentPath),
+              isNull(folders.deletedAt),
+            ),
+          )
+          .limit(1);
+
+        if (!parentFolder) {
+          return c.json({ error: 'Folder not found' }, 404);
+        }
+      }
+
       const result = await db
         .select()
         .from(folders)
