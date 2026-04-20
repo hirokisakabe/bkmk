@@ -22,7 +22,7 @@ export function useReorderBookmark() {
       });
 
       queryClient.setQueriesData<Bookmark[]>({ queryKey: ['bookmarks'] }, (old) => {
-        if (!old) return old;
+        if (!old || !Array.isArray(old)) return old;
         const item = old.find((b) => b.id === id);
         if (!item) return old;
 

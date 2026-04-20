@@ -22,7 +22,7 @@ export function useReorderFolder() {
       });
 
       queryClient.setQueriesData<Folder[]>({ queryKey: ['folders'] }, (old) => {
-        if (!old) return old;
+        if (!old || !Array.isArray(old)) return old;
         const item = old.find((f) => f.id === id);
         if (!item) return old;
 
