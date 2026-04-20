@@ -94,6 +94,16 @@ describe('lsCommand', () => {
     });
   });
 
+  it('shows folder not found when API returns 404', async () => {
+    const errorSpy = vi.spyOn(console, 'error');
+    mockFoldersGet.mockResolvedValue({ ok: false, status: 404 });
+    mockBookmarksGet.mockResolvedValue({ ok: false, status: 404 });
+
+    await expect(lsCommand('/nonexistent', {})).rejects.toThrow('process.exit');
+
+    expect(errorSpy).toHaveBeenCalledWith('Folder not found: /nonexistent');
+  });
+
   it('preserves root path when trailing slash is stripped', async () => {
     mockFoldersGet.mockResolvedValue({ ok: true, json: async () => [] });
     mockBookmarksGet.mockResolvedValue({ ok: true, json: async () => [] });

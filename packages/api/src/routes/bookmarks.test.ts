@@ -59,14 +59,28 @@ describe('GET /api/bookmarks', () => {
   });
 
   it('folder パラメータでフィルタできる', async () => {
-    vi.mocked(db.select).mockReturnValue(mockQueryChain([mockBookmark]) as never);
+    vi.mocked(db.select)
+      .mockReturnValueOnce(mockQueryChain([{ id: 'folder-1' }]) as never) // フォルダ存在確認
+      .mockReturnValueOnce(mockQueryChain([mockBookmark]) as never); // ブックマーク取得
 
     const res = await app.request('/api/bookmarks?folder=/work');
     expect(res.status).toBe(200);
   });
 
+  it('存在しないフォルダを指定すると 404 を返す', async () => {
+    vi.mocked(db.select).mockReturnValueOnce(mockQueryChain([]) as never); // フォルダ存在確認 → 空
+
+    const res = await app.request('/api/bookmarks?folder=/nonexistent');
+    expect(res.status).toBe(404);
+
+    const body = await res.json();
+    expect(body).toEqual({ error: 'Folder not found' });
+  });
+
   it('deep=true でサブフォルダも含める', async () => {
-    vi.mocked(db.select).mockReturnValue(mockQueryChain([mockBookmark]) as never);
+    vi.mocked(db.select)
+      .mockReturnValueOnce(mockQueryChain([{ id: 'folder-1' }]) as never) // フォルダ存在確認
+      .mockReturnValueOnce(mockQueryChain([mockBookmark]) as never); // ブックマーク取得
 
     const res = await app.request('/api/bookmarks?folder=/work&deep=true');
     expect(res.status).toBe(200);
