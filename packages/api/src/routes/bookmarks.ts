@@ -318,12 +318,13 @@ const bookmarksRoute = new Hono<Env>()
         }
       }
 
-      // フォルダ移動時に position を再設定
+      // フォルダ移動時に position を再設定（先頭に配置）
       let newPosition = bookmark.position;
       if (body.folderPath !== undefined && body.folderPath !== bookmark.folderPath) {
-        const maxPos = await db
-          .select({ max: sql<number>`coalesce(max(${bookmarks.position}), -1)` })
-          .from(bookmarks)
+        // 移動先フォルダ内の既存アイテムの position を +1 シフト
+        await db
+          .update(bookmarks)
+          .set({ position: sql`${bookmarks.position} + 1` })
           .where(
             and(
               eq(bookmarks.userId, userId),
@@ -333,7 +334,7 @@ const bookmarksRoute = new Hono<Env>()
               isNull(bookmarks.deletedAt),
             ),
           );
-        newPosition = (maxPos[0]?.max ?? -1) + 1;
+        newPosition = 0;
       }
 
       const updateData: Record<string, unknown> = { position: newPosition };
