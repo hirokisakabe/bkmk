@@ -1,5 +1,11 @@
 # @bkmk/cli
 
+## 0.1.0
+
+### Minor Changes
+
+- 3eafefb: ls コマンドに --limit オプションを追加し、取得件数を制限できるようにした
+
 ## 0.0.4
 
 ### Patch Changes
