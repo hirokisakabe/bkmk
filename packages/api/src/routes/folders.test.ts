@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createTestApp, mockQueryChain, TEST_USER } from '../test/helpers.js';
 
@@ -16,6 +16,10 @@ import { db } from '../db/index.js';
 import { foldersRoute } from './folders.js';
 
 const app = createTestApp('/api/folders', foldersRoute);
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 const mockFolder = {
   id: 'folder-1',
@@ -331,15 +335,15 @@ describe('PATCH /api/folders/:id', () => {
     vi.mocked(db.select).mockReturnValueOnce(mockQueryChain([parentFolder]) as never);
     // 子フォルダ取得（配下なし）
     vi.mocked(db.select).mockReturnValueOnce(mockQueryChain([]) as never);
-    // position 取得
-    vi.mocked(db.select).mockReturnValueOnce(mockQueryChain([{ max: 0 }]) as never);
+    // 移動先フォルダ内の既存アイテムの position を +1 シフト
+    vi.mocked(db.update).mockReturnValueOnce(mockQueryChain([]) as never);
 
     const updatedFolder = {
       ...sourceFolder,
       name: 'a',
       path: '/x/a',
       parentPath: '/x',
-      position: 1,
+      position: 0,
     };
     vi.mocked(db.transaction).mockImplementation(async (fn) => {
       const tx = {
@@ -388,10 +392,10 @@ describe('PATCH /api/folders/:id', () => {
     vi.mocked(db.select).mockReturnValueOnce(mockQueryChain([childFolder]) as never);
     // 子フォルダ衝突チェック（衝突なし）
     vi.mocked(db.select).mockReturnValueOnce(mockQueryChain([]) as never);
-    // position 取得
-    vi.mocked(db.select).mockReturnValueOnce(mockQueryChain([{ max: 0 }]) as never);
+    // 移動先フォルダ内の既存アイテムの position を +1 シフト
+    vi.mocked(db.update).mockReturnValueOnce(mockQueryChain([]) as never);
 
-    const updatedFolder = { ...sourceFolder, path: '/x/a', parentPath: '/x', position: 1 };
+    const updatedFolder = { ...sourceFolder, path: '/x/a', parentPath: '/x', position: 0 };
     vi.mocked(db.transaction).mockImplementation(async (fn) => {
       const tx = {
         update: () => mockQueryChain([updatedFolder]),

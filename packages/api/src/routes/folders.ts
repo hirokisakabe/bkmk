@@ -312,12 +312,13 @@ const foldersRoute = new Hono<Env>()
         }
       }
 
-      // 移動時に position を再設定
+      // 移動時に position を再設定（先頭に配置）
       let newPosition = folder.position;
       if (newParentPath !== folder.parentPath) {
-        const maxPos = await db
-          .select({ max: sql<number>`coalesce(max(${folders.position}), -1)` })
-          .from(folders)
+        // 移動先フォルダ内の既存アイテムの position を +1 シフト
+        await db
+          .update(folders)
+          .set({ position: sql`${folders.position} + 1` })
           .where(
             and(
               eq(folders.userId, userId),
@@ -327,7 +328,7 @@ const foldersRoute = new Hono<Env>()
               isNull(folders.deletedAt),
             ),
           );
-        newPosition = (maxPos[0]?.max ?? -1) + 1;
+        newPosition = 0;
       }
 
       try {
