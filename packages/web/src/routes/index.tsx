@@ -1,4 +1,5 @@
 import { type DragEndEvent } from '@dnd-kit/core';
+import { useQueryClient } from '@tanstack/react-query';
 import { createRoute } from '@tanstack/react-router';
 
 import { BookmarkList } from '../components/bookmark-list';
@@ -9,6 +10,8 @@ import { Layout } from '../components/layout';
 import { SearchResults } from '../components/search-results';
 import { requireAuth } from '../lib/auth-guard';
 import { UNCATEGORIZED_FOLDER } from '../lib/constants';
+import { resolveBookmarkReorderTarget } from '../lib/dnd-reorder';
+import type { Bookmark } from '../types';
 import { rootRoute } from './__root';
 
 interface IndexSearch {
@@ -30,6 +33,7 @@ export const indexRoute = createRoute({
 function IndexPage() {
   const { folder, q } = indexRoute.useSearch();
 
+  const queryClient = useQueryClient();
   const reorderBookmark = useReorderBookmark();
   const reorderFolder = useReorderFolder();
   const moveBookmark = useMoveBookmark();
@@ -45,10 +49,13 @@ function IndexPage() {
     if (activeData.type === 'bookmark' && overData.type === 'bookmark') {
       if (reorderBookmark.isPending) return;
       if (activeData.bookmark.folderPath !== overData.bookmark.folderPath) return;
-      reorderBookmark.mutate({
-        id: activeData.bookmark.id,
-        position: overData.bookmark.position,
-      });
+      const cached = queryClient.getQueryData<Bookmark[]>([
+        'bookmarks',
+        { folder: activeData.bookmark.folderPath, deep: false },
+      ]);
+      const target = resolveBookmarkReorderTarget(cached, String(active.id), String(over.id));
+      if (!target) return;
+      reorderBookmark.mutate(target);
     } else if (
       activeData.type === 'bookmark' &&
       (overData.type === 'folder' || overData.type === 'folder-root')
