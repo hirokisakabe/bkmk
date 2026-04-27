@@ -1,28 +1,9 @@
-import {
-  closestCenter,
-  type CollisionDetection,
-  DndContext,
-  type DragEndEvent,
-  pointerWithin,
-  PointerSensor,
-  useSensor,
-  useSensors,
-} from '@dnd-kit/core';
+import { DndContext, type DragEndEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
+import { collisionDetection } from '../lib/dnd-collision';
 import { FolderTree } from './folder-tree';
-
-const collisionDetection: CollisionDetection = (args) => {
-  const activeType = args.active.data.current?.type;
-
-  if (activeType === 'bookmark') {
-    const pointerCollisions = pointerWithin(args);
-    if (pointerCollisions.length > 0) return pointerCollisions;
-  }
-
-  return closestCenter(args);
-};
 
 export function Layout({
   children,
