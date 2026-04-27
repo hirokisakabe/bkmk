@@ -37,7 +37,3 @@ bkmk trash                              # ゴミ箱一覧
 bkmk restore <id>                       # 復元
 bkmk rm <id> --force                    # 完全削除
 ```
-
-## ライセンス
-
-[MIT](./LICENSE)
