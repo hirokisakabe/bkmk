@@ -162,6 +162,27 @@ describe('POST /api/folders', () => {
     expect(body.name).toBe('Linux 📝');
   });
 
+  it('アクセント付きラテン文字を含むフォルダ名を作成できる', async () => {
+    const folderWithAccent = {
+      ...mockFolder,
+      name: 'fhána',
+      path: '/fhána',
+    };
+    vi.mocked(db.delete).mockReturnValueOnce(mockQueryChain([]) as never);
+    vi.mocked(db.update).mockReturnValueOnce(mockQueryChain([]) as never);
+    vi.mocked(db.insert).mockReturnValue(mockQueryChain([folderWithAccent]) as never);
+
+    const res = await app.request('/api/folders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: '/fhána' }),
+    });
+
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.name).toBe('fhána');
+  });
+
   it('空白のみのフォルダ名で400を返す', async () => {
     const res = await app.request('/api/folders', {
       method: 'POST',
