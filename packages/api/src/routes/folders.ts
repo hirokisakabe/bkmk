@@ -18,7 +18,7 @@ type Env = HonoPinoEnv & {
 };
 
 const VALID_SEGMENT =
-  /^[a-zA-Z0-9\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF._\- \p{Emoji_Presentation}\p{Extended_Pictographic}]+$/u;
+  /^[a-zA-Z0-9\u00C0-\u024F\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF._\- \p{Emoji_Presentation}\p{Extended_Pictographic}]+$/u;
 const MAX_NAME_LENGTH = 255;
 
 function validateSegments(segments: string[]): string | null {
