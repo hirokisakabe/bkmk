@@ -1,9 +1,9 @@
 import { PGlite } from '@electric-sql/pglite';
-import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { drizzle, type PgliteDatabase } from 'drizzle-orm/pglite';
+import { migrate } from 'drizzle-orm/pglite/migrator';
 
 import * as schema from '../db/schema.js';
 import { createTestApp, TEST_USER } from '../test/helpers.js';
@@ -21,31 +21,10 @@ vi.mock('../db/index.js', () => ({
   },
 }));
 
-type MigrationJournal = {
-  entries: Array<{
-    tag: string;
-  }>;
-};
-
-async function applyMigrations(client: PGlite) {
+async function applyMigrations() {
   const testDir = dirname(fileURLToPath(import.meta.url));
   const drizzleDir = resolve(testDir, '../../../../drizzle');
-  const journal = JSON.parse(
-    await readFile(resolve(drizzleDir, 'meta/_journal.json'), 'utf8'),
-  ) as MigrationJournal;
-
-  for (const entry of journal.entries) {
-    const file = `${entry.tag}.sql`;
-    const sql = await readFile(resolve(drizzleDir, file), 'utf8');
-    const statements = sql
-      .split('--> statement-breakpoint')
-      .map((statement) => statement.trim())
-      .filter(Boolean);
-
-    for (const statement of statements) {
-      await client.exec(statement);
-    }
-  }
+  await migrate(testDb.db!, { migrationsFolder: drizzleDir });
 }
 
 describe('GET /api/bookmarks integration', () => {
@@ -55,7 +34,7 @@ describe('GET /api/bookmarks integration', () => {
   beforeAll(async () => {
     client = new PGlite();
     testDb.db = drizzle({ client, schema });
-    await applyMigrations(client);
+    await applyMigrations();
 
     const { bookmarksRoute } = await import('./bookmarks.js');
     app = createTestApp('/api/bookmarks', bookmarksRoute);
