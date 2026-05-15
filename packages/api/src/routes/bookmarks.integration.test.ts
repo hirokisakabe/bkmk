@@ -5,11 +5,13 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { drizzle, type PgliteDatabase } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 
-import * as schema from '../db/schema.js';
+import { bookmarks, folders, user } from '../db/schema.js';
 import { createTestApp, TEST_USER } from '../test/helpers.js';
 
+const testSchema = { bookmarks, folders, user };
+
 const testDb = vi.hoisted(() => ({
-  db: undefined as PgliteDatabase<typeof schema> | undefined,
+  db: undefined as PgliteDatabase<typeof testSchema> | undefined,
 }));
 
 vi.mock('../db/index.js', () => ({
@@ -33,7 +35,7 @@ describe('GET /api/bookmarks integration', () => {
 
   beforeAll(async () => {
     client = new PGlite();
-    testDb.db = drizzle({ client, schema });
+    testDb.db = drizzle({ client, schema: testSchema });
     await applyMigrations();
 
     const { bookmarksRoute } = await import('./bookmarks.js');
@@ -47,13 +49,13 @@ describe('GET /api/bookmarks integration', () => {
   it('deep=true のカーソルページネーションで同一 position のブックマークを重複・欠落なく取得できる', async () => {
     const now = new Date('2024-01-01T00:00:00.000Z');
 
-    await testDb.db!.insert(schema.user).values({
+    await testDb.db!.insert(user).values({
       ...TEST_USER,
       createdAt: now,
       updatedAt: now,
     });
 
-    await testDb.db!.insert(schema.folders).values([
+    await testDb.db!.insert(folders).values([
       {
         id: '00000000-0000-0000-0000-000000000101',
         userId: TEST_USER.id,
@@ -88,7 +90,7 @@ describe('GET /api/bookmarks integration', () => {
       '00000000-0000-0000-0000-000000000005',
     ];
 
-    await testDb.db!.insert(schema.bookmarks).values([
+    await testDb.db!.insert(bookmarks).values([
       {
         id: expectedIds[2],
         userId: TEST_USER.id,
