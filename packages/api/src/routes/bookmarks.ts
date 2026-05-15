@@ -129,7 +129,10 @@ const bookmarksRoute = new Hono<Env>()
         .select()
         .from(bookmarks)
         .where(and(...conditions))
-        .orderBy(isAllFolder ? desc(bookmarks.createdAt) : bookmarks.position);
+        .orderBy(
+          isAllFolder ? desc(bookmarks.createdAt) : bookmarks.position,
+          isAllFolder ? desc(bookmarks.id) : bookmarks.id,
+        );
 
       // limit 未指定時は全件返却（後方互換）
       if (limit === undefined) {
