@@ -21,13 +21,21 @@ vi.mock('../db/index.js', () => ({
   },
 }));
 
-const migrationFiles = ['0000_sweet_karma.sql', '0001_narrow_agent_zero.sql'];
+type MigrationJournal = {
+  entries: Array<{
+    tag: string;
+  }>;
+};
 
 async function applyMigrations(client: PGlite) {
   const testDir = dirname(fileURLToPath(import.meta.url));
   const drizzleDir = resolve(testDir, '../../../../drizzle');
+  const journal = JSON.parse(
+    await readFile(resolve(drizzleDir, 'meta/_journal.json'), 'utf8'),
+  ) as MigrationJournal;
 
-  for (const file of migrationFiles) {
+  for (const entry of journal.entries) {
+    const file = `${entry.tag}.sql`;
     const sql = await readFile(resolve(drizzleDir, file), 'utf8');
     const statements = sql
       .split('--> statement-breakpoint')
@@ -146,6 +154,7 @@ describe('GET /api/bookmarks integration', () => {
 
     const fetchedIds: string[] = [];
     let cursor: string | null = null;
+    const pageLengths: number[] = [];
 
     do {
       const params = new URLSearchParams({
@@ -166,11 +175,13 @@ describe('GET /api/bookmarks integration', () => {
       };
 
       fetchedIds.push(...body.data.map((bookmark) => bookmark.id));
+      pageLengths.push(body.data.length);
       cursor = body.nextCursor;
     } while (cursor);
 
+    expect(pageLengths).toEqual([2, 2, 1]);
     expect(fetchedIds).toHaveLength(expectedIds.length);
     expect(new Set(fetchedIds).size).toBe(expectedIds.length);
-    expect(fetchedIds.toSorted()).toEqual(expectedIds);
+    expect(fetchedIds).toEqual(expectedIds);
   });
 });
