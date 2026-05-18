@@ -42,6 +42,19 @@ describe('collisionDetection', () => {
     expect(dndKit.closestCenter).not.toHaveBeenCalled();
   });
 
+  it('bookmarkドラッグ時はfolder drop targetのpointerWithin結果も返す', () => {
+    const pointerCollisions: ReturnType<typeof collisionDetection> = [{ id: 'folder-1' }];
+    const centerCollisions: ReturnType<typeof collisionDetection> = [{ id: 'bookmark-1' }];
+    dndKit.pointerWithin.mockReturnValue(pointerCollisions);
+    dndKit.closestCenter.mockReturnValue(centerCollisions);
+
+    const result = collisionDetection(createArgs('bookmark'));
+
+    expect(result).toBe(pointerCollisions);
+    expect(dndKit.pointerWithin).toHaveBeenCalledTimes(1);
+    expect(dndKit.closestCenter).not.toHaveBeenCalled();
+  });
+
   it('bookmarkドラッグ時にpointerWithinが空ならbookmarkのみでclosestCenterを呼ぶ', () => {
     const bookmarkContainer = makeContainer('bookmark-1', 'bookmark');
     const folderContainer = makeContainer('folder-1', 'folder');
