@@ -4,7 +4,8 @@ export const collisionDetection: CollisionDetection = (args) => {
   const activeType = args.active.data.current?.type;
 
   if (activeType === 'bookmark') {
-    return pointerWithin(args);
+    const pointerCollisions = pointerWithin(args);
+    return pointerCollisions.length > 0 ? pointerCollisions : closestCenter(args);
   }
 
   return closestCenter(args);

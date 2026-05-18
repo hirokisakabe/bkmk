@@ -30,6 +30,7 @@ export function useReorderFolder() {
         return old
           .map((f) => {
             if (f.id === id) return { ...f, position };
+            if (f.parentPath !== item.parentPath) return f;
             if (oldPosition < position) {
               if (f.position > oldPosition && f.position <= position) {
                 return { ...f, position: f.position - 1 };

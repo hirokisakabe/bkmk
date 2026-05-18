@@ -58,11 +58,11 @@ function IndexPage() {
       reorderBookmark.mutate(target);
     } else if (
       activeData.type === 'bookmark' &&
-      (overData.type === 'folder' || overData.type === 'folder-root')
+      (overData.type === 'folder' || overData.type === 'folder-uncategorized')
     ) {
       if (moveBookmark.isPending) return;
       const targetPath: string | null =
-        overData.type === 'folder-root' ? null : overData.folder.path;
+        overData.type === 'folder-uncategorized' ? null : overData.folder.path;
       if (activeData.bookmark.folderPath === targetPath) return;
       moveBookmark.mutate({
         id: activeData.bookmark.id,
