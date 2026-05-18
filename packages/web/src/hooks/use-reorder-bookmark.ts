@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { client } from '../lib/api-client';
+import { applyBookmarkReorder } from '../lib/dnd-reorder';
 import type { Bookmark } from '../types';
 
 export function useReorderBookmark() {
@@ -23,27 +24,7 @@ export function useReorderBookmark() {
 
       queryClient.setQueriesData<Bookmark[]>({ queryKey: ['bookmarks'] }, (old) => {
         if (!old || !Array.isArray(old)) return old;
-        const item = old.find((b) => b.id === id);
-        if (!item) return old;
-
-        const oldPosition = item.position;
-        const targetFolderPath = item.folderPath;
-        return old
-          .map((b) => {
-            if (b.id === id) return { ...b, position };
-            if (b.folderPath !== targetFolderPath) return b;
-            if (oldPosition < position) {
-              if (b.position > oldPosition && b.position <= position) {
-                return { ...b, position: b.position - 1 };
-              }
-            } else {
-              if (b.position >= position && b.position < oldPosition) {
-                return { ...b, position: b.position + 1 };
-              }
-            }
-            return b;
-          })
-          .sort((a, b) => a.position - b.position);
+        return applyBookmarkReorder(old, id, position);
       });
 
       return { previousQueries };

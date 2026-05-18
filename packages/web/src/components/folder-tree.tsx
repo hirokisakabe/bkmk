@@ -81,6 +81,7 @@ export function FolderTree({
       <button
         ref={uncategorizedDropRef}
         type="button"
+        data-testid="folder-drop-target-uncategorized"
         className={`flex min-h-[44px] w-full items-center rounded px-2 py-1.5 text-left text-sm ${
           isUncategorizedDropTarget
             ? 'ring-2 ring-blue-400 bg-blue-50'
@@ -231,6 +232,7 @@ function SortableFolderTreeNode({
                   : 'text-gray-700 hover:bg-gray-200'
             }`}
             style={{ paddingLeft: `${8 + depth * 12}px` }}
+            data-testid={`folder-drop-target-${folder.id}`}
           >
             <button
               type="button"
@@ -257,6 +259,8 @@ function SortableFolderTreeNode({
             <button
               type="button"
               className="ml-auto flex h-11 w-11 shrink-0 cursor-grab items-center justify-center text-gray-300 opacity-100 hover:text-gray-500 active:cursor-grabbing md:h-6 md:w-4 md:opacity-0 md:group-hover:opacity-100"
+              aria-label={`${folder.name}を並び替え`}
+              data-testid={`folder-drag-handle-${folder.id}`}
               {...attributes}
               {...listeners}
             >

@@ -29,11 +29,49 @@ export function resolveBookmarkMoveTarget(
   return { id: activeData.bookmark.id, folderPath: targetPath };
 }
 
+export function applyBookmarkReorder(
+  bookmarks: Bookmark[],
+  id: string,
+  position: number,
+): Bookmark[] {
+  const item = bookmarks.find((b) => b.id === id);
+  if (!item) return bookmarks;
+
+  const oldPosition = item.position;
+  if (oldPosition === position) return bookmarks;
+
+  const targetFolderPath = item.folderPath;
+  const reorderedInFolder = bookmarks
+    .filter((b) => b.folderPath === targetFolderPath)
+    .map((b) => {
+      if (b.id === id) return { ...b, position };
+      if (oldPosition < position) {
+        if (b.position > oldPosition && b.position <= position) {
+          return { ...b, position: b.position - 1 };
+        }
+      } else {
+        if (b.position >= position && b.position < oldPosition) {
+          return { ...b, position: b.position + 1 };
+        }
+      }
+      return b;
+    })
+    .sort((a, b) => a.position - b.position);
+
+  let nextFolderIndex = 0;
+  return bookmarks.map((b) => {
+    if (b.folderPath !== targetFolderPath) return b;
+    return reorderedInFolder[nextFolderIndex++];
+  });
+}
+
 export function applyFolderReorder(folders: Folder[], id: string, position: number): Folder[] {
   const item = folders.find((f) => f.id === id);
   if (!item) return folders;
 
   const oldPosition = item.position;
+  if (oldPosition === position) return folders;
+
   return folders
     .map((f) => {
       if (f.id === id) return { ...f, position };
