@@ -164,6 +164,10 @@ export async function setupMocks(page: Page) {
                   : b.folderPath === targetFolder,
               );
         filtered.sort((a, b) => a.position - b.position);
+        if (url.searchParams.has('limit')) {
+          await route.fulfill({ json: { data: filtered, nextCursor: null } });
+          return;
+        }
         await route.fulfill({ json: filtered });
       }
     },
