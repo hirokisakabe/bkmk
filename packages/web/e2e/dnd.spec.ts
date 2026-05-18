@@ -105,21 +105,25 @@ test('deep表示ではブックマークの並び替えハンドルを表示せ�
   await expect(page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[0].id}`)).toHaveCount(0);
   await expect(page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[2].id}`)).toHaveCount(0);
 
-  const patchRequest = page
-    .waitForRequest(
-      (req) => req.method() === 'PATCH' && new URL(req.url()).pathname.startsWith('/api/bookmarks'),
-      { timeout: 500 },
-    )
-    .then(() => true)
-    .catch(() => false);
+  const bookmarkPatchRequests: string[] = [];
+  page.on('request', (req) => {
+    if (req.method() === 'PATCH' && new URL(req.url()).pathname.startsWith('/api/bookmarks')) {
+      bookmarkPatchRequests.push(req.url());
+    }
+  });
 
   await dragTo(
     page,
     page.getByTestId(`bookmark-card-${BOOKMARKS[0].id}`),
     page.getByTestId(`bookmark-card-${BOOKMARKS[2].id}`),
   );
+  await dragTo(
+    page,
+    page.getByTestId(`bookmark-card-${BOOKMARKS[0].id}`),
+    page.getByTestId(`bookmark-card-${BOOKMARKS[1].id}`),
+  );
 
-  await expect(patchRequest).resolves.toBe(false);
+  expect(bookmarkPatchRequests).toEqual([]);
   await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText([
     'Alpha',
     'Gamma',
