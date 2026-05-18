@@ -183,6 +183,27 @@ describe('POST /api/folders', () => {
     expect(body.name).toBe('fhána');
   });
 
+  it('アンパサンドを含むフォルダ名を作成できる', async () => {
+    const folderWithAmpersand = {
+      ...mockFolder,
+      name: 'HIKAKIN & SEIKIN',
+      path: '/HIKAKIN & SEIKIN',
+    };
+    vi.mocked(db.delete).mockReturnValueOnce(mockQueryChain([]) as never);
+    vi.mocked(db.update).mockReturnValueOnce(mockQueryChain([]) as never);
+    vi.mocked(db.insert).mockReturnValue(mockQueryChain([folderWithAmpersand]) as never);
+
+    const res = await app.request('/api/folders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: '/HIKAKIN & SEIKIN' }),
+    });
+
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.name).toBe('HIKAKIN & SEIKIN');
+  });
+
   it('空白のみのフォルダ名で400を返す', async () => {
     const res = await app.request('/api/folders', {
       method: 'POST',
