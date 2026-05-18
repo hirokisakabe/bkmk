@@ -69,7 +69,7 @@ export function FolderTree({
         </button>
         <button
           type="button"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded text-gray-400 opacity-0 group-hover/header:opacity-100 hover:bg-gray-200 hover:text-gray-600 md:h-6 md:w-6"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded text-gray-400 opacity-100 hover:bg-gray-200 hover:text-gray-600 md:h-6 md:w-6 md:opacity-0 md:group-hover/header:opacity-100"
           onClick={(e: MouseEvent) => {
             e.stopPropagation();
             setDialogState({ type: 'create', parentPath: null });
@@ -255,7 +255,7 @@ function SortableFolderTreeNode({
 
             <button
               type="button"
-              className="ml-auto flex h-11 w-11 shrink-0 cursor-grab items-center justify-center text-gray-300 opacity-0 group-hover:opacity-100 hover:text-gray-500 active:cursor-grabbing md:h-6 md:w-4"
+              className="ml-auto flex h-11 w-11 shrink-0 cursor-grab items-center justify-center text-gray-300 opacity-100 hover:text-gray-500 active:cursor-grabbing md:h-6 md:w-4 md:opacity-0 md:group-hover:opacity-100"
               {...attributes}
               {...listeners}
             >

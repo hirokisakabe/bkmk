@@ -66,7 +66,9 @@ export function Layout({
       <div className="flex h-dvh">
         <aside
           className={`fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col overflow-y-auto border-r border-gray-200 bg-gray-50 p-4 transition-transform duration-300 md:static md:translate-x-0 ${
-            sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+            sidebarOpen
+              ? 'translate-x-0'
+              : '-translate-x-full pointer-events-none md:pointer-events-auto'
           }`}
         >
           <div className="mb-4 flex items-center justify-between">
