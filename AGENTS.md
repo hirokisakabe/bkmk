@@ -22,6 +22,7 @@ pnpm test                 # 全パッケージテスト実行
 pnpm --filter @bkmk/api test             # API テストのみ
 pnpm --filter @bkmk/web test             # Web テストのみ
 npx vitest run src/routes/folders.test.ts # 単一ファイル（パッケージ内で実行）
+pnpm --filter @bkmk/web test:e2e         # E2E テスト（Playwright / Chromium）
 
 # データベース（要 DATABASE_URL）
 pnpm db:generate          # Drizzle マイグレーション生成
@@ -31,7 +32,7 @@ pnpm db:studio            # Drizzle Studio 起動
 
 ## CI
 
-PR 作成時に knip → lint → format:check → typecheck → test が実行される。加えて Docker ビルドテストも別ジョブで実行される。コミット前にこれらが通ることを確認すること。
+PR 作成時に knip → lint → format:check → typecheck → test → e2e（Playwright）が実行される。加えて Docker ビルドテストも別ジョブで実行される。コミット前にこれらが通ることを確認すること。
 
 ## Changesets
 

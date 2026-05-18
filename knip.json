@@ -3,7 +3,12 @@
   "ignoreDependencies": ["vitest"],
   "workspaces": {
     "packages/api": {
-      "ignoreDependencies": ["pino-pretty"]
+      "ignoreDependencies": ["pino-pretty", "tsx"],
+      "ignoreBinaries": ["tsx"]
+    },
+    "packages/cli": {
+      "ignoreDependencies": ["tsx"],
+      "ignoreBinaries": ["tsx"]
     }
   }
 }
