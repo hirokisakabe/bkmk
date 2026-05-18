@@ -10,7 +10,10 @@ export const collisionDetection: CollisionDetection = (args) => {
     const bookmarkOnly = args.droppableContainers.filter(
       (c) => c.data.current?.type === 'bookmark',
     );
-    return closestCenter({ ...args, droppableContainers: bookmarkOnly });
+    const bookmarkCollisions = closestCenter({ ...args, droppableContainers: bookmarkOnly });
+    if (bookmarkCollisions.length > 0) return bookmarkCollisions;
+
+    return closestCenter(args);
   }
 
   return closestCenter(args);
