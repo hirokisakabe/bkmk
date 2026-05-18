@@ -177,30 +177,56 @@ describe('DnD mutation hooks', () => {
 
     const { queryClient, Wrapper } = createWrapper();
     const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
-    const moved = makeBookmark('a', 0, '/source');
+    const moved = makeBookmark('a', 1, '/source');
+    const sourceAfterMoved = makeBookmark('c', 2, '/source');
     const targetExisting = makeBookmark('b', 0, '/target');
 
-    queryClient.setQueryData<Bookmark[]>(bookmarkKey('/source'), [moved]);
+    queryClient.setQueryData<Bookmark[]>(bookmarkKey('/source'), [
+      makeBookmark('before', 0, '/source'),
+      moved,
+      sourceAfterMoved,
+    ]);
     queryClient.setQueryData<Bookmark[]>(bookmarkKey('/target'), [targetExisting]);
-    queryClient.setQueryData<Bookmark[]>(bookmarkKey(null, true), [moved, targetExisting]);
+    queryClient.setQueryData<Bookmark[]>(bookmarkKey(null, true), [
+      makeBookmark('before', 0, '/source'),
+      moved,
+      sourceAfterMoved,
+      targetExisting,
+    ]);
 
     const { result } = renderHook(() => useMoveBookmark(), { wrapper: Wrapper });
     const mutation = act(() => result.current.mutateAsync({ id: 'a', folderPath: '/target' }));
     await patchStarted;
 
-    expect(queryClient.getQueryData<Bookmark[]>(bookmarkKey('/source'))).toEqual([]);
+    expect(queryClient.getQueryData<Bookmark[]>(bookmarkKey('/source'))?.map((b) => b.id)).toEqual([
+      'before',
+      'c',
+    ]);
+    expect(
+      queryClient.getQueryData<Bookmark[]>(bookmarkKey('/source'))?.find((b) => b.id === 'c'),
+    ).toMatchObject({ folderPath: '/source', position: 1 });
     expect(queryClient.getQueryData<Bookmark[]>(bookmarkKey('/target'))?.map((b) => b.id)).toEqual([
       'a',
       'b',
     ]);
     expect(queryClient.getQueryData<Bookmark[]>(bookmarkKey('/target'))?.[0]).toMatchObject({
       folderPath: '/target',
+      position: 0,
+    });
+    expect(queryClient.getQueryData<Bookmark[]>(bookmarkKey('/target'))?.[1]).toMatchObject({
+      folderPath: '/target',
+      position: 1,
     });
     expect(queryClient.getQueryData<Bookmark[]>(bookmarkKey(null, true))?.map((b) => b.id)).toEqual(
-      ['a', 'b'],
+      ['a', 'before', 'c', 'b'],
     );
     expect(queryClient.getQueryData<Bookmark[]>(bookmarkKey(null, true))?.[0]).toMatchObject({
       folderPath: '/target',
+      position: 0,
+    });
+    expect(queryClient.getQueryData<Bookmark[]>(bookmarkKey(null, true))?.[3]).toMatchObject({
+      folderPath: '/target',
+      position: 1,
     });
 
     resolvePatch();

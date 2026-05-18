@@ -155,7 +155,9 @@ export async function setupMocks(page: Page) {
         const targetFolder = folder ?? null;
         const filtered =
           targetFolder === null
-            ? bookmarks.filter((b) => b.folderPath === null)
+            ? deep
+              ? bookmarks
+              : bookmarks.filter((b) => b.folderPath === null)
             : bookmarks.filter((b) =>
                 deep
                   ? b.folderPath === targetFolder || b.folderPath?.startsWith(targetFolder + '/')

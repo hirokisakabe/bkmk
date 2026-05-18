@@ -21,28 +21,47 @@ export function useMoveBookmark() {
         queryKey: ['bookmarks'],
       });
 
-      queryClient.setQueriesData<Bookmark[]>({ queryKey: ['bookmarks'] }, (old) => {
-        if (!old || !Array.isArray(old)) return old;
-        return old.filter((b) => b.id !== id);
-      });
-
       const movedBookmark = previousQueries
         .flatMap(([, data]) => (Array.isArray(data) ? data : []))
         .find((b) => b.id === id);
 
+      queryClient.setQueriesData<Bookmark[]>({ queryKey: ['bookmarks'] }, (old) => {
+        if (!old || !Array.isArray(old)) return old;
+        return old
+          .filter((b) => b.id !== id)
+          .map((b) => {
+            if (
+              movedBookmark &&
+              b.folderPath === movedBookmark.folderPath &&
+              b.position > movedBookmark.position
+            ) {
+              return { ...b, position: b.position - 1 };
+            }
+            return b;
+          });
+      });
+
       if (movedBookmark) {
-        const updated = { ...movedBookmark, folderPath };
+        const updated = { ...movedBookmark, folderPath, position: 0 };
 
         const targetKey = ['bookmarks', { folder: folderPath, deep: false }];
         const targetData = queryClient.getQueryData<Bookmark[]>(targetKey);
         if (targetData) {
-          queryClient.setQueryData<Bookmark[]>(targetKey, [updated, ...targetData]);
+          queryClient.setQueryData<Bookmark[]>(targetKey, [
+            updated,
+            ...targetData.map((b) => ({ ...b, position: b.position + 1 })),
+          ]);
         }
 
         const allKey = ['bookmarks', { folder: null, deep: true }];
         const allData = queryClient.getQueryData<Bookmark[]>(allKey);
         if (allData) {
-          queryClient.setQueryData<Bookmark[]>(allKey, [updated, ...allData]);
+          queryClient.setQueryData<Bookmark[]>(allKey, [
+            updated,
+            ...allData.map((b) =>
+              b.folderPath === folderPath ? { ...b, position: b.position + 1 } : b,
+            ),
+          ]);
         }
       }
 
