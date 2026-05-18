@@ -83,4 +83,7 @@ test('すべて表示ではブックマークの並び替えハンドルを表�
 
   expect(req.url()).toContain(`/api/bookmarks/${BOOKMARKS[0].id}`);
   expect(body.folderPath).toBe('/folder-b');
+
+  await page.goto('/?folder=/folder-b');
+  await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText(['Alpha']);
 });

@@ -269,7 +269,7 @@ function DraggableBookmarkCard({
     <div
       ref={setNodeRef}
       style={style}
-      className={isDragging ? 'relative z-10 opacity-50' : ''}
+      className={`[touch-action:pan-y] ${isDragging ? 'relative z-10 opacity-50' : ''}`}
       {...attributes}
       {...listeners}
     >
