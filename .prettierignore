@@ -1,0 +1,3 @@
+pnpm-lock.yaml
+packages/web/test-results/
+packages/web/playwright-report/
