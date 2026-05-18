@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
+import { applyFolderReorder } from '../lib/dnd-reorder';
 import { client } from '../lib/api-client';
 import type { Folder } from '../types';
 
@@ -23,26 +24,7 @@ export function useReorderFolder() {
 
       queryClient.setQueriesData<Folder[]>({ queryKey: ['folders'] }, (old) => {
         if (!old || !Array.isArray(old)) return old;
-        const item = old.find((f) => f.id === id);
-        if (!item) return old;
-
-        const oldPosition = item.position;
-        return old
-          .map((f) => {
-            if (f.id === id) return { ...f, position };
-            if (f.parentPath !== item.parentPath) return f;
-            if (oldPosition < position) {
-              if (f.position > oldPosition && f.position <= position) {
-                return { ...f, position: f.position - 1 };
-              }
-            } else {
-              if (f.position >= position && f.position < oldPosition) {
-                return { ...f, position: f.position + 1 };
-              }
-            }
-            return f;
-          })
-          .sort((a, b) => a.position - b.position);
+        return applyFolderReorder(old, id, position);
       });
 
       return { previousQueries };
