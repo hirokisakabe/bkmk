@@ -5,7 +5,12 @@ export const collisionDetection: CollisionDetection = (args) => {
 
   if (activeType === 'bookmark') {
     const pointerCollisions = pointerWithin(args);
-    return pointerCollisions.length > 0 ? pointerCollisions : closestCenter(args);
+    if (pointerCollisions.length > 0) return pointerCollisions;
+
+    const bookmarkOnly = args.droppableContainers.filter(
+      (c) => c.data.current?.type === 'bookmark',
+    );
+    return closestCenter({ ...args, droppableContainers: bookmarkOnly });
   }
 
   return closestCenter(args);
