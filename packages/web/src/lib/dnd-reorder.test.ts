@@ -2,12 +2,17 @@ import { describe, expect, it } from 'vitest';
 
 import type { Bookmark, Folder } from '../types';
 import {
+  applyBookmarkReorder,
   applyFolderReorder,
   resolveBookmarkMoveTarget,
   resolveBookmarkReorderTarget,
 } from './dnd-reorder';
 
-const makeBookmark = (id: string, position: number): Bookmark => ({
+const makeBookmark = (
+  id: string,
+  position: number,
+  folderPath: string | null = null,
+): Bookmark => ({
   id,
   userId: 'u1',
   url: `https://example.com/${id}`,
@@ -15,7 +20,7 @@ const makeBookmark = (id: string, position: number): Bookmark => ({
   description: null,
   imageUrl: null,
   faviconUrl: null,
-  folderPath: null,
+  folderPath,
   position,
   deletedAt: null,
   createdAt: '2024-01-01T00:00:00.000Z',
@@ -72,6 +77,58 @@ describe('resolveBookmarkReorderTarget', () => {
 
   it('同じインデックスの場合はnullを返す', () => {
     expect(resolveBookmarkReorderTarget(bookmarks, 'b', 'b')).toBeNull();
+  });
+});
+
+describe('applyBookmarkReorder', () => {
+  const rootBookmarks = [
+    makeBookmark('a', 0),
+    makeBookmark('b', 1),
+    makeBookmark('c', 2),
+    makeBookmark('d', 3),
+  ];
+
+  const positionsInFolder = (bookmarks: Bookmark[], folderPath: string | null) =>
+    bookmarks.filter((b) => b.folderPath === folderPath).map((b) => b.position);
+
+  it('前から後ろへ移動すると同一フォルダ内のpositionが一意に保たれる', () => {
+    const result = applyBookmarkReorder(rootBookmarks, 'a', 2);
+
+    expect(result.map((b) => `${b.id}:${b.position}`)).toEqual(['b:0', 'c:1', 'a:2', 'd:3']);
+    expect(new Set(positionsInFolder(result, null)).size).toBe(rootBookmarks.length);
+  });
+
+  it('後ろから前へ移動すると同一フォルダ内のpositionが一意に保たれる', () => {
+    const result = applyBookmarkReorder(rootBookmarks, 'd', 1);
+
+    expect(result.map((b) => `${b.id}:${b.position}`)).toEqual(['a:0', 'd:1', 'b:2', 'c:3']);
+    expect(new Set(positionsInFolder(result, null)).size).toBe(rootBookmarks.length);
+  });
+
+  it('同じfolderPathのブックマークだけをシフトし、別フォルダは変えない', () => {
+    const bookmarks = [
+      makeBookmark('a', 0, '/work'),
+      makeBookmark('b', 1, '/work'),
+      makeBookmark('other-a', 0, '/personal'),
+      makeBookmark('other-b', 1, '/personal'),
+    ];
+
+    const result = applyBookmarkReorder(bookmarks, 'a', 1);
+
+    expect(result.find((b) => b.id === 'a')?.position).toBe(1);
+    expect(result.find((b) => b.id === 'b')?.position).toBe(0);
+    expect(result.find((b) => b.id === 'other-a')?.position).toBe(0);
+    expect(result.find((b) => b.id === 'other-b')?.position).toBe(1);
+    expect(new Set(positionsInFolder(result, '/work')).size).toBe(2);
+    expect(new Set(positionsInFolder(result, '/personal')).size).toBe(2);
+  });
+
+  it('同じpositionへの移動はno-opとして元の配列を返す', () => {
+    expect(applyBookmarkReorder(rootBookmarks, 'b', 1)).toBe(rootBookmarks);
+  });
+
+  it('idが見つからない場合はno-opとして元の配列を返す', () => {
+    expect(applyBookmarkReorder(rootBookmarks, 'missing', 1)).toBe(rootBookmarks);
   });
 });
 
@@ -136,6 +193,9 @@ describe('applyFolderReorder', () => {
     expect(result.find((f) => f.id === 'a')?.position).toBe(2);
     expect(result.find((f) => f.id === 'b')?.position).toBe(0);
     expect(result.find((f) => f.id === 'c')?.position).toBe(1);
+    expect(new Set(result.filter((f) => f.parentPath === null).map((f) => f.position)).size).toBe(
+      3,
+    );
   });
 
   it('後ろから前へ移動するとき間のフォルダのpositionが1増える', () => {
@@ -144,6 +204,9 @@ describe('applyFolderReorder', () => {
     expect(result.find((f) => f.id === 'c')?.position).toBe(0);
     expect(result.find((f) => f.id === 'a')?.position).toBe(1);
     expect(result.find((f) => f.id === 'b')?.position).toBe(2);
+    expect(new Set(result.filter((f) => f.parentPath === null).map((f) => f.position)).size).toBe(
+      3,
+    );
   });
 
   it('別parentPathのフォルダはpositionを変えない', () => {
@@ -154,6 +217,11 @@ describe('applyFolderReorder', () => {
     ];
     const result = applyFolderReorder(folders, 'a', 1);
     expect(result.find((f) => f.id === 'child')?.position).toBe(0);
+  });
+
+  it('同じpositionへの移動はno-opとして元の配列を返す', () => {
+    const folders = [makeFolder('a', null, 0), makeFolder('b', null, 1)];
+    expect(applyFolderReorder(folders, 'a', 0)).toBe(folders);
   });
 
   it('idが見つからない場合は元の配列を返す', () => {

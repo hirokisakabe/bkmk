@@ -22,7 +22,7 @@ const MOCK_SESSION = {
   },
 };
 
-const FOLDERS: Folder[] = [
+export const FOLDERS: Folder[] = [
   {
     id: 'f1',
     userId: 'test-user',
@@ -77,6 +77,9 @@ export const BOOKMARKS: Bookmark[] = [
 ];
 
 export async function setupMocks(page: Page) {
+  const folders = FOLDERS.map((folder) => ({ ...folder }));
+  const bookmarks = BOOKMARKS.map((bookmark) => ({ ...bookmark }));
+
   await page.route(
     (url) => url.pathname.includes('/auth/get-session'),
     (route) => route.fulfill({ json: MOCK_SESSION }),
@@ -84,7 +87,7 @@ export async function setupMocks(page: Page) {
 
   await page.route(
     (url) => url.pathname.startsWith('/api/folders'),
-    (route) => route.fulfill({ json: FOLDERS }),
+    (route) => route.fulfill({ json: folders.toSorted((a, b) => a.position - b.position) }),
   );
 
   await page.route(
@@ -97,16 +100,63 @@ export async function setupMocks(page: Page) {
       if (req.method() === 'PATCH' && path.endsWith('/position')) {
         const id = path.split('/').at(-2)!;
         const body = (await req.postDataJSON()) as { position: number };
-        const bk = BOOKMARKS.find((b) => b.id === id);
-        await route.fulfill({ json: { ...bk, ...body } });
+        const bookmark = bookmarks.find((b) => b.id === id);
+        if (!bookmark) {
+          await route.fulfill({ status: 404, json: { error: 'Bookmark not found' } });
+          return;
+        }
+
+        const oldPosition = bookmark.position;
+        const newPosition = body.position;
+        for (const item of bookmarks) {
+          if (item.id === id || item.folderPath !== bookmark.folderPath) continue;
+          if (
+            oldPosition < newPosition &&
+            item.position > oldPosition &&
+            item.position <= newPosition
+          ) {
+            item.position -= 1;
+          } else if (
+            newPosition < oldPosition &&
+            item.position >= newPosition &&
+            item.position < oldPosition
+          ) {
+            item.position += 1;
+          }
+        }
+        bookmark.position = newPosition;
+        await route.fulfill({ json: bookmark });
       } else if (req.method() === 'PATCH') {
         const id = path.split('/').at(-1)!;
         const body = (await req.postDataJSON()) as Partial<Bookmark>;
-        const bk = BOOKMARKS.find((b) => b.id === id);
-        await route.fulfill({ json: { ...bk, ...body } });
+        const bookmark = bookmarks.find((b) => b.id === id);
+        if (!bookmark) {
+          await route.fulfill({ status: 404, json: { error: 'Bookmark not found' } });
+          return;
+        }
+
+        if (body.folderPath !== undefined && body.folderPath !== bookmark.folderPath) {
+          const targetFolderPath = body.folderPath ?? null;
+          for (const item of bookmarks) {
+            if (item.folderPath === targetFolderPath) item.position += 1;
+          }
+          bookmark.folderPath = targetFolderPath;
+          bookmark.position = 0;
+        }
+        await route.fulfill({ json: bookmark });
       } else {
         const folder = url.searchParams.get('folder');
-        const filtered = BOOKMARKS.filter((b) => b.folderPath === (folder ?? null));
+        const deep = url.searchParams.get('deep') === 'true';
+        const targetFolder = folder ?? null;
+        const filtered =
+          targetFolder === null
+            ? bookmarks.filter((b) => b.folderPath === null)
+            : bookmarks.filter((b) =>
+                deep
+                  ? b.folderPath === targetFolder || b.folderPath?.startsWith(targetFolder + '/')
+                  : b.folderPath === targetFolder,
+              );
+        filtered.sort((a, b) => a.position - b.position);
         await route.fulfill({ json: filtered });
       }
     },

@@ -300,6 +300,7 @@ function BookmarkCard({
               target="_blank"
               rel="noopener noreferrer"
               className="flex flex-1 flex-col"
+              data-testid={`bookmark-card-${bookmark.id}`}
             >
               <div className="aspect-[1.91/1] w-full overflow-hidden bg-gray-100">
                 {showImage ? (
@@ -340,6 +341,7 @@ function BookmarkCard({
                 type="button"
                 className="absolute top-0 right-0 flex h-11 w-11 cursor-grab items-center justify-center bg-black/50 text-white opacity-100 transition-opacity hover:bg-black/70 active:cursor-grabbing md:top-1 md:right-1 md:h-auto md:w-auto md:rounded md:p-1 md:opacity-0 md:group-hover:opacity-100"
                 aria-label="並び替え"
+                data-testid={`bookmark-drag-handle-${bookmark.id}`}
                 {...dragHandleProps}
               >
                 <GripIcon />
