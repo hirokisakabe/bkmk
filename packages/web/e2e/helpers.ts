@@ -43,6 +43,16 @@ export const FOLDERS: Folder[] = [
     deletedAt: null,
     createdAt: '2024-01-01T00:00:00.000Z',
   },
+  {
+    id: 'f3',
+    userId: 'test-user',
+    name: 'Folder A Child',
+    path: '/folder-a/child',
+    parentPath: '/folder-a',
+    position: 0,
+    deletedAt: null,
+    createdAt: '2024-01-01T00:00:00.000Z',
+  },
 ];
 
 export const BOOKMARKS: Bookmark[] = [
@@ -70,6 +80,20 @@ export const BOOKMARKS: Bookmark[] = [
     faviconUrl: null,
     folderPath: '/folder-a',
     position: 1,
+    deletedAt: null,
+    createdAt: '2024-01-01T00:00:00.000Z',
+    updatedAt: '2024-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'bk-3',
+    userId: 'test-user',
+    url: 'https://gamma.example.com',
+    title: 'Gamma',
+    description: null,
+    imageUrl: null,
+    faviconUrl: null,
+    folderPath: '/folder-a/child',
+    position: 0,
     deletedAt: null,
     createdAt: '2024-01-01T00:00:00.000Z',
     updatedAt: '2024-01-01T00:00:00.000Z',

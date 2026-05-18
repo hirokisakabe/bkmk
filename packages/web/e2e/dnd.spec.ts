@@ -87,3 +87,42 @@ test('すべて表示ではブックマークの並び替えハンドルを表�
   await page.goto('/?folder=/folder-b');
   await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText(['Alpha']);
 });
+
+test('deep表示ではブックマークの並び替えハンドルを表示せずbookmark上のdropはno-opになる', async ({
+  page,
+}) => {
+  await setupMocks(page);
+
+  await page.goto('/settings');
+  await page.getByLabel('サブフォルダを含む').check();
+
+  await page.goto('/?folder=/folder-a');
+  await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText([
+    'Alpha',
+    'Gamma',
+    'Beta',
+  ]);
+  await expect(page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[0].id}`)).toHaveCount(0);
+  await expect(page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[2].id}`)).toHaveCount(0);
+
+  const patchRequest = page
+    .waitForRequest(
+      (req) => req.method() === 'PATCH' && new URL(req.url()).pathname.startsWith('/api/bookmarks'),
+      { timeout: 500 },
+    )
+    .then(() => true)
+    .catch(() => false);
+
+  await dragTo(
+    page,
+    page.getByTestId(`bookmark-card-${BOOKMARKS[0].id}`),
+    page.getByTestId(`bookmark-card-${BOOKMARKS[2].id}`),
+  );
+
+  await expect(patchRequest).resolves.toBe(false);
+  await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText([
+    'Alpha',
+    'Gamma',
+    'Beta',
+  ]);
+});

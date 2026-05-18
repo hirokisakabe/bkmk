@@ -78,6 +78,12 @@ describe('resolveBookmarkReorderTarget', () => {
   it('同じインデックスの場合はnullを返す', () => {
     expect(resolveBookmarkReorderTarget(bookmarks, 'b', 'b')).toBeNull();
   });
+
+  it('activeとoverのfolderPathが異なる場合はnullを返す', () => {
+    const mixedFolderBookmarks = [makeBookmark('a', 0, '/work'), makeBookmark('b', 0, '/personal')];
+
+    expect(resolveBookmarkReorderTarget(mixedFolderBookmarks, 'a', 'b')).toBeNull();
+  });
 });
 
 describe('applyBookmarkReorder', () => {
@@ -160,6 +166,15 @@ describe('resolveBookmarkMoveTarget', () => {
     ).toBeNull();
   });
 
+  it('通常folderでも既に同じfolderPathならnullを返す（移動不要）', () => {
+    expect(
+      resolveBookmarkMoveTarget(makeActiveData('bk-1', '/work'), {
+        type: 'folder',
+        folder: { path: '/work' },
+      }),
+    ).toBeNull();
+  });
+
   it('bookmark以外のactiveタイプはnullを返す', () => {
     expect(
       resolveBookmarkMoveTarget(
@@ -172,6 +187,12 @@ describe('resolveBookmarkMoveTarget', () => {
   it('folder/folder-uncategorized以外のoverタイプはnullを返す', () => {
     expect(
       resolveBookmarkMoveTarget(makeActiveData('bk-1', null), { type: 'bookmark' }),
+    ).toBeNull();
+  });
+
+  it('bookmark上へのドロップはfolder移動として扱わない', () => {
+    expect(
+      resolveBookmarkMoveTarget(makeActiveData('bk-1', '/work'), { type: 'bookmark' }),
     ).toBeNull();
   });
 });

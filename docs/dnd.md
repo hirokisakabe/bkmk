@@ -120,7 +120,7 @@ DnD のテストは、以下の層でこの policy を守る。
 - `packages/web/e2e/dnd.spec.ts`: 実ブラウザで代表操作を確認する。DnD 後は API request だけでなく、
   DOM 上の表示順や移動後の表示状態も確認する。
 - `packages/web/src/lib/dnd-collision.test.ts`: bookmark drag では pointer target と bookmark target を優先し、
-  folder drop target へ fallback する衝突判定を確認する。
+  pointer が folder drop target 上にない場合は folder 移動に fallback しない衝突判定を確認する。
 
 DnD の操作範囲、feedback、handle 表示、テスト対象を変更する場合は、実装・テストと一緒にこの
 `docs/dnd.md` を更新する。
