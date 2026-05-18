@@ -66,6 +66,7 @@ pnpm モノレポ（Node.js 24+, TypeScript 6, ES modules）。
 - **認証ガード**: `src/lib/auth-guard.ts` + `src/lib/auth-client.ts`（better-auth クライアント）。
 - **設定ストア**: `src/lib/settings-store.ts`。IndexedDB でユーザー設定を永続化。`useSettings` フックで読み書き。
 - **コンポーネント**: `src/components/` — layout, folder-tree, bookmark-list, search-results, add-bookmark-form, folder-dialogs。
+- **DnD 方針**: DnD の操作範囲・feedback・handle 表示・テスト方針を変更する場合は `docs/dnd.md` を確認し、必要に応じて更新する。
 
 ### CLI（@bkmk/cli）
 
