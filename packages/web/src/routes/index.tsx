@@ -11,6 +11,7 @@ import { SearchResults } from '../components/search-results';
 import { requireAuth } from '../lib/auth-guard';
 import { UNCATEGORIZED_FOLDER } from '../lib/constants';
 import { resolveBookmarkMoveTarget, resolveBookmarkReorderTarget } from '../lib/dnd-reorder';
+import { useSettings } from '../lib/settings-store';
 import type { Bookmark, Folder } from '../types';
 import { rootRoute } from './__root';
 
@@ -32,11 +33,20 @@ export const indexRoute = createRoute({
 
 function IndexPage() {
   const { folder, q } = indexRoute.useSearch();
+  const [settings] = useSettings();
 
   const queryClient = useQueryClient();
   const reorderBookmark = useReorderBookmark();
   const reorderFolder = useReorderFolder();
   const moveBookmark = useMoveBookmark();
+
+  const isAllBookmarks = folder === undefined;
+  const isUncategorized = folder === UNCATEGORIZED_FOLDER;
+  const currentFolderPath = isUncategorized ? null : (folder ?? null);
+  const deep = isAllBookmarks
+    ? true
+    : !isUncategorized && folder !== undefined && settings.includeSubfolders;
+  const canReorderBookmarks = !deep && !isAllBookmarks;
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -47,8 +57,10 @@ function IndexPage() {
     if (!activeData || !overData) return;
 
     if (activeData.type === 'bookmark' && overData.type === 'bookmark') {
+      if (!canReorderBookmarks) return;
       if (reorderBookmark.isPending) return;
       if (activeData.bookmark.folderPath !== overData.bookmark.folderPath) return;
+      if (activeData.bookmark.folderPath !== currentFolderPath) return;
       const cached = queryClient.getQueryData<Bookmark[]>([
         'bookmarks',
         { folder: activeData.bookmark.folderPath, deep: false },

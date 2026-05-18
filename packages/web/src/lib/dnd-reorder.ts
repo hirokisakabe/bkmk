@@ -11,6 +11,8 @@ export function resolveBookmarkReorderTarget(
   const newIndex = bookmarks.findIndex((b) => b.id === overId);
   if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return null;
 
+  if (bookmarks[oldIndex].folderPath !== bookmarks[newIndex].folderPath) return null;
+
   return { id: activeId, position: bookmarks[newIndex].position };
 }
 

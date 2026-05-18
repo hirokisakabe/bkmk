@@ -42,6 +42,19 @@ describe('collisionDetection', () => {
     expect(dndKit.closestCenter).not.toHaveBeenCalled();
   });
 
+  it('bookmarkドラッグ時はfolder drop targetのpointerWithin結果も返す', () => {
+    const pointerCollisions: ReturnType<typeof collisionDetection> = [{ id: 'folder-1' }];
+    const centerCollisions: ReturnType<typeof collisionDetection> = [{ id: 'bookmark-1' }];
+    dndKit.pointerWithin.mockReturnValue(pointerCollisions);
+    dndKit.closestCenter.mockReturnValue(centerCollisions);
+
+    const result = collisionDetection(createArgs('bookmark'));
+
+    expect(result).toBe(pointerCollisions);
+    expect(dndKit.pointerWithin).toHaveBeenCalledTimes(1);
+    expect(dndKit.closestCenter).not.toHaveBeenCalled();
+  });
+
   it('bookmarkドラッグ時にpointerWithinが空ならbookmarkのみでclosestCenterを呼ぶ', () => {
     const bookmarkContainer = makeContainer('bookmark-1', 'bookmark');
     const folderContainer = makeContainer('folder-1', 'folder');
@@ -59,17 +72,16 @@ describe('collisionDetection', () => {
     expect(callArgs.droppableContainers).not.toContain(folderContainer);
   });
 
-  it('bookmarkドロッパブルがなければclosestCenter全体にフォールバックする', () => {
+  it('pointer/bookmarkの衝突がなければbookmarkドラッグはdrop targetなしにする', () => {
     const folderContainer = makeContainer('folder-1', 'folder');
     const pointerCollisions: ReturnType<typeof collisionDetection> = [];
-    const folderCollisions: ReturnType<typeof collisionDetection> = [{ id: 'folder-1' }];
     dndKit.pointerWithin.mockReturnValue(pointerCollisions);
-    dndKit.closestCenter.mockReturnValueOnce([]).mockReturnValueOnce(folderCollisions);
+    dndKit.closestCenter.mockReturnValue([]);
 
     const result = collisionDetection(createArgs('bookmark', [folderContainer]));
 
-    expect(result).toBe(folderCollisions);
-    expect(dndKit.closestCenter).toHaveBeenCalledTimes(2);
+    expect(result).toEqual([]);
+    expect(dndKit.closestCenter).toHaveBeenCalledTimes(1);
   });
 
   it('folderドラッグ時はclosestCenterを使う', () => {
