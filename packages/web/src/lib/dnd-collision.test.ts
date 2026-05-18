@@ -14,10 +14,7 @@ const makeContainer = (id: string, type: string) =>
     typeof collisionDetection
   >[0]['droppableContainers'][number];
 
-const createArgs = (
-  type: string,
-  droppableContainers: ReturnType<typeof makeContainer>[] = [],
-) =>
+const createArgs = (type: string, droppableContainers: ReturnType<typeof makeContainer>[] = []) =>
   ({
     active: {
       data: {
@@ -53,9 +50,7 @@ describe('collisionDetection', () => {
     dndKit.pointerWithin.mockReturnValue(pointerCollisions);
     dndKit.closestCenter.mockReturnValue(bookmarkCollisions);
 
-    const result = collisionDetection(
-      createArgs('bookmark', [bookmarkContainer, folderContainer]),
-    );
+    const result = collisionDetection(createArgs('bookmark', [bookmarkContainer, folderContainer]));
 
     expect(result).toBe(bookmarkCollisions);
     expect(dndKit.closestCenter).toHaveBeenCalledTimes(1);
