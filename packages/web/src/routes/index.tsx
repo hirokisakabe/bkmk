@@ -11,7 +11,7 @@ import { SearchResults } from '../components/search-results';
 import { requireAuth } from '../lib/auth-guard';
 import { UNCATEGORIZED_FOLDER } from '../lib/constants';
 import { resolveBookmarkMoveTarget, resolveBookmarkReorderTarget } from '../lib/dnd-reorder';
-import type { Bookmark } from '../types';
+import type { Bookmark, Folder } from '../types';
 import { rootRoute } from './__root';
 
 interface IndexSearch {
@@ -58,7 +58,10 @@ function IndexPage() {
       reorderBookmark.mutate(target);
     } else if (activeData.type === 'bookmark' && overData.type !== 'bookmark') {
       if (moveBookmark.isPending) return;
-      const moveTarget = resolveBookmarkMoveTarget(activeData, overData);
+      const moveTarget = resolveBookmarkMoveTarget(
+        activeData as { type: string; bookmark: Pick<Bookmark, 'id' | 'folderPath'> },
+        overData as { type: string; folder?: Pick<Folder, 'path'> },
+      );
       if (!moveTarget) return;
       moveBookmark.mutate(moveTarget);
     } else if (activeData.type === 'folder' && overData.type === 'folder') {
