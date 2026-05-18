@@ -55,7 +55,7 @@ export function FolderTree({
       <div className="group/header flex items-center">
         <button
           type="button"
-          className={`flex flex-1 items-center rounded px-2 py-1.5 text-left text-sm ${
+          className={`flex min-h-[44px] flex-1 items-center rounded px-2 py-1.5 text-left text-sm ${
             selectedFolder === null
               ? 'bg-blue-100 font-semibold text-blue-800'
               : 'text-gray-700 hover:bg-gray-200'
@@ -67,7 +67,7 @@ export function FolderTree({
         </button>
         <button
           type="button"
-          className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-gray-400 opacity-0 group-hover/header:opacity-100 hover:bg-gray-200 hover:text-gray-600"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded text-gray-400 opacity-100 hover:bg-gray-200 hover:text-gray-600 md:h-6 md:w-6 md:opacity-0 md:group-hover/header:opacity-100"
           onClick={(e: MouseEvent) => {
             e.stopPropagation();
             setDialogState({ type: 'create', parentPath: null });
@@ -81,7 +81,7 @@ export function FolderTree({
       <button
         ref={uncategorizedDropRef}
         type="button"
-        className={`flex w-full items-center rounded px-2 py-1.5 text-left text-sm ${
+        className={`flex min-h-[44px] w-full items-center rounded px-2 py-1.5 text-left text-sm ${
           isUncategorizedDropTarget
             ? 'ring-2 ring-blue-400 bg-blue-50'
             : selectedFolder === UNCATEGORIZED_FOLDER
@@ -223,7 +223,7 @@ function SortableFolderTreeNode({
       <ContextMenu.Root>
         <ContextMenu.Trigger asChild>
           <div
-            className={`group flex items-center rounded text-sm ${
+            className={`group flex min-h-[44px] items-center rounded text-sm ${
               isDropTarget
                 ? 'ring-2 ring-blue-400 bg-blue-50'
                 : isSelected
@@ -234,7 +234,7 @@ function SortableFolderTreeNode({
           >
             <button
               type="button"
-              className="flex h-6 w-5 shrink-0 items-center justify-center text-gray-400"
+              className="flex h-11 w-11 shrink-0 items-center justify-center text-gray-400 md:h-6 md:w-5"
               onClick={(e) => {
                 e.stopPropagation();
                 setExpanded(!expanded);
@@ -245,7 +245,7 @@ function SortableFolderTreeNode({
 
             <button
               type="button"
-              className="flex-1 truncate py-1.5 text-left"
+              className="flex min-h-[44px] flex-1 items-center truncate text-left"
               onClick={() => {
                 onSelectFolder(folder.path);
                 if (!expanded) setExpanded(true);
@@ -256,7 +256,7 @@ function SortableFolderTreeNode({
 
             <button
               type="button"
-              className="ml-auto flex h-6 w-4 shrink-0 cursor-grab items-center justify-center text-gray-300 opacity-0 group-hover:opacity-100 hover:text-gray-500 active:cursor-grabbing"
+              className="ml-auto flex h-11 w-11 shrink-0 cursor-grab items-center justify-center text-gray-300 opacity-100 hover:text-gray-500 active:cursor-grabbing md:h-6 md:w-4 md:opacity-0 md:group-hover:opacity-100"
               {...attributes}
               {...listeners}
             >
