@@ -57,3 +57,30 @@ test('ブックマークを別フォルダへDnD移動すると移動APIが呼�
   await page.goto('/?folder=/folder-b');
   await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText(['Alpha']);
 });
+
+test('すべて表示ではブックマークの並び替えハンドルを表示せずカード本体でフォルダ移動できる', async ({
+  page,
+}) => {
+  await setupMocks(page);
+
+  const patchRequest = page.waitForRequest(
+    (req) =>
+      req.method() === 'PATCH' && /\/api\/bookmarks\/[^/]+$/.test(new URL(req.url()).pathname),
+  );
+
+  await page.goto('/');
+  await expect(page.locator('h3', { hasText: 'Alpha' })).toBeVisible();
+  await expect(page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[0].id}`)).toHaveCount(0);
+
+  await dragTo(
+    page,
+    page.getByTestId(`bookmark-card-${BOOKMARKS[0].id}`),
+    page.getByTestId(`folder-drop-target-${FOLDERS[1].id}`),
+  );
+
+  const req = await patchRequest;
+  const body = (await req.postDataJSON()) as { folderPath: string | null };
+
+  expect(req.url()).toContain(`/api/bookmarks/${BOOKMARKS[0].id}`);
+  expect(body.folderPath).toBe('/folder-b');
+});

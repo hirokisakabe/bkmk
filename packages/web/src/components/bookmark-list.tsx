@@ -266,12 +266,14 @@ function DraggableBookmarkCard({
   };
 
   return (
-    <div ref={setNodeRef} style={style} className={isDragging ? 'relative z-10 opacity-50' : ''}>
-      <BookmarkCard
-        bookmark={bookmark}
-        onDelete={onDelete}
-        dragHandleProps={{ ...attributes, ...listeners }}
-      />
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={isDragging ? 'relative z-10 opacity-50' : ''}
+      {...attributes}
+      {...listeners}
+    >
+      <BookmarkCard bookmark={bookmark} onDelete={onDelete} />
     </div>
   );
 }
