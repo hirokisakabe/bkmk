@@ -22,7 +22,7 @@ const MOCK_SESSION = {
   },
 };
 
-export const FOLDERS: Folder[] = [
+const FOLDERS: Folder[] = [
   {
     id: 'f1',
     userId: 'test-user',
