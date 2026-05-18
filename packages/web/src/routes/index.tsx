@@ -10,8 +10,8 @@ import { Layout } from '../components/layout';
 import { SearchResults } from '../components/search-results';
 import { requireAuth } from '../lib/auth-guard';
 import { UNCATEGORIZED_FOLDER } from '../lib/constants';
-import { resolveBookmarkReorderTarget } from '../lib/dnd-reorder';
-import type { Bookmark } from '../types';
+import { resolveBookmarkMoveTarget, resolveBookmarkReorderTarget } from '../lib/dnd-reorder';
+import type { Bookmark, Folder } from '../types';
 import { rootRoute } from './__root';
 
 interface IndexSearch {
@@ -56,18 +56,14 @@ function IndexPage() {
       const target = resolveBookmarkReorderTarget(cached, String(active.id), String(over.id));
       if (!target) return;
       reorderBookmark.mutate(target);
-    } else if (
-      activeData.type === 'bookmark' &&
-      (overData.type === 'folder' || overData.type === 'folder-root')
-    ) {
+    } else if (activeData.type === 'bookmark' && overData.type !== 'bookmark') {
       if (moveBookmark.isPending) return;
-      const targetPath: string | null =
-        overData.type === 'folder-root' ? null : overData.folder.path;
-      if (activeData.bookmark.folderPath === targetPath) return;
-      moveBookmark.mutate({
-        id: activeData.bookmark.id,
-        folderPath: targetPath,
-      });
+      const moveTarget = resolveBookmarkMoveTarget(
+        activeData as { type: string; bookmark: Pick<Bookmark, 'id' | 'folderPath'> },
+        overData as { type: string; folder?: Pick<Folder, 'path'> },
+      );
+      if (!moveTarget) return;
+      moveBookmark.mutate(moveTarget);
     } else if (activeData.type === 'folder' && overData.type === 'folder') {
       if (reorderFolder.isPending) return;
       if (activeData.folder.parentPath !== overData.folder.parentPath) return;

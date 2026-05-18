@@ -27,12 +27,13 @@ export function FolderTree({
   const [dialogState, setDialogState] = useState<DialogState>(null);
   const deleteFolder = useDeleteFolder();
 
-  const { setNodeRef: rootDropRef, isOver: isOverRoot } = useDroppable({
-    id: 'folder-drop-root',
-    data: { type: 'folder-root', folderPath: null },
+  const { setNodeRef: uncategorizedDropRef, isOver: isOverUncategorized } = useDroppable({
+    id: 'folder-drop-uncategorized',
+    data: { type: 'folder-uncategorized', folderPath: null },
   });
   const { active } = useDndContext();
-  const isRootDropTarget = active?.data.current?.type === 'bookmark' && isOverRoot;
+  const isUncategorizedDropTarget =
+    active?.data.current?.type === 'bookmark' && isOverUncategorized;
 
   const handleDeleteOrMove = (folder: Folder) => {
     if (
@@ -53,14 +54,11 @@ export function FolderTree({
     <nav className="flex-1">
       <div className="group/header flex items-center">
         <button
-          ref={rootDropRef}
           type="button"
           className={`flex min-h-[44px] flex-1 items-center rounded px-2 py-1.5 text-left text-sm ${
-            isRootDropTarget
-              ? 'ring-2 ring-blue-400 bg-blue-50'
-              : selectedFolder === null
-                ? 'bg-blue-100 font-semibold text-blue-800'
-                : 'text-gray-700 hover:bg-gray-200'
+            selectedFolder === null
+              ? 'bg-blue-100 font-semibold text-blue-800'
+              : 'text-gray-700 hover:bg-gray-200'
           }`}
           onClick={() => onSelectFolder(null)}
         >
@@ -81,11 +79,14 @@ export function FolderTree({
       </div>
 
       <button
+        ref={uncategorizedDropRef}
         type="button"
         className={`flex min-h-[44px] w-full items-center rounded px-2 py-1.5 text-left text-sm ${
-          selectedFolder === UNCATEGORIZED_FOLDER
-            ? 'bg-blue-100 font-semibold text-blue-800'
-            : 'text-gray-700 hover:bg-gray-200'
+          isUncategorizedDropTarget
+            ? 'ring-2 ring-blue-400 bg-blue-50'
+            : selectedFolder === UNCATEGORIZED_FOLDER
+              ? 'bg-blue-100 font-semibold text-blue-800'
+              : 'text-gray-700 hover:bg-gray-200'
         }`}
         onClick={() => onSelectFolder(UNCATEGORIZED_FOLDER)}
       >
