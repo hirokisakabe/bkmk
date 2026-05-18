@@ -136,9 +136,14 @@ export async function setupMocks(page: Page) {
         }
 
         if (body.folderPath !== undefined && body.folderPath !== bookmark.folderPath) {
+          const sourceFolderPath = bookmark.folderPath;
+          const oldPosition = bookmark.position;
           const targetFolderPath = body.folderPath ?? null;
           for (const item of bookmarks) {
             if (item.folderPath === targetFolderPath) item.position += 1;
+            if (item.folderPath === sourceFolderPath && item.position > oldPosition) {
+              item.position -= 1;
+            }
           }
           bookmark.folderPath = targetFolderPath;
           bookmark.position = 0;

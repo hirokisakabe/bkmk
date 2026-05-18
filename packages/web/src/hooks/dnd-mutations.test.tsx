@@ -74,7 +74,12 @@ describe('DnD mutation hooks', () => {
       makeBookmark('a', 0, '/work'),
       makeBookmark('b', 1, '/work'),
       makeBookmark('c', 2, '/work'),
+    ]);
+    queryClient.setQueryData<Bookmark[]>(bookmarkKey(null, true), [
+      makeBookmark('a', 0, '/work'),
       makeBookmark('other', 0, '/other'),
+      makeBookmark('b', 1, '/work'),
+      makeBookmark('c', 2, '/work'),
     ]);
 
     const { result } = renderHook(() => useReorderBookmark(), { wrapper: Wrapper });
@@ -83,15 +88,17 @@ describe('DnD mutation hooks', () => {
 
     expect(queryClient.getQueryData<Bookmark[]>(bookmarkKey('/work'))?.map((b) => b.id)).toEqual([
       'b',
-      'other',
       'c',
       'a',
     ]);
     expect(
       queryClient.getQueryData<Bookmark[]>(bookmarkKey('/work'))?.find((b) => b.id === 'b'),
     ).toMatchObject({ folderPath: '/work', position: 0 });
+    expect(queryClient.getQueryData<Bookmark[]>(bookmarkKey(null, true))?.map((b) => b.id)).toEqual(
+      ['b', 'other', 'c', 'a'],
+    );
     expect(
-      queryClient.getQueryData<Bookmark[]>(bookmarkKey('/work'))?.find((b) => b.id === 'other'),
+      queryClient.getQueryData<Bookmark[]>(bookmarkKey(null, true))?.find((b) => b.id === 'other'),
     ).toMatchObject({ folderPath: '/other', position: 0 });
 
     resolvePatch();

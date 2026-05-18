@@ -41,10 +41,10 @@ export function applyBookmarkReorder(
   if (oldPosition === position) return bookmarks;
 
   const targetFolderPath = item.folderPath;
-  return bookmarks
+  const reorderedInFolder = bookmarks
+    .filter((b) => b.folderPath === targetFolderPath)
     .map((b) => {
       if (b.id === id) return { ...b, position };
-      if (b.folderPath !== targetFolderPath) return b;
       if (oldPosition < position) {
         if (b.position > oldPosition && b.position <= position) {
           return { ...b, position: b.position - 1 };
@@ -57,6 +57,12 @@ export function applyBookmarkReorder(
       return b;
     })
     .sort((a, b) => a.position - b.position);
+
+  let nextFolderIndex = 0;
+  return bookmarks.map((b) => {
+    if (b.folderPath !== targetFolderPath) return b;
+    return reorderedInFolder[nextFolderIndex++];
+  });
 }
 
 export function applyFolderReorder(folders: Folder[], id: string, position: number): Folder[] {

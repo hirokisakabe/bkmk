@@ -108,13 +108,14 @@ describe('applyBookmarkReorder', () => {
   it('同じfolderPathのブックマークだけをシフトし、別フォルダは変えない', () => {
     const bookmarks = [
       makeBookmark('a', 0, '/work'),
-      makeBookmark('b', 1, '/work'),
       makeBookmark('other-a', 0, '/personal'),
+      makeBookmark('b', 1, '/work'),
       makeBookmark('other-b', 1, '/personal'),
     ];
 
     const result = applyBookmarkReorder(bookmarks, 'a', 1);
 
+    expect(result.map((b) => b.id)).toEqual(['b', 'other-a', 'a', 'other-b']);
     expect(result.find((b) => b.id === 'a')?.position).toBe(1);
     expect(result.find((b) => b.id === 'b')?.position).toBe(0);
     expect(result.find((b) => b.id === 'other-a')?.position).toBe(0);
