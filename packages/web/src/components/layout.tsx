@@ -14,6 +14,7 @@ export function Layout({
 }) {
   const navigate = useNavigate();
   const location = useRouterState({ select: (s) => s.location });
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const search = location.search as Record<string, unknown>;
   const isOnIndex = location.pathname === '/';
@@ -36,6 +37,7 @@ export function Layout({
         q: query || undefined,
       },
     });
+    setSidebarOpen(false);
   };
 
   const handleSelectFolder = (path: string | null) => {
@@ -43,6 +45,7 @@ export function Layout({
       to: '/',
       search: { folder: path ?? undefined, q: undefined },
     });
+    setSidebarOpen(false);
   };
 
   const selectedFolder = isOnIndex && !isSearching ? (folder ?? null) : null;
@@ -53,28 +56,51 @@ export function Layout({
       collisionDetection={collisionDetection}
       onDragEnd={onDragEnd ?? (() => {})}
     >
-      <div className="flex h-screen">
-        <aside className="flex w-64 shrink-0 flex-col overflow-y-auto border-r border-gray-200 bg-gray-50 p-4">
-          <Link to="/">
-            <h1 className="mb-4 text-lg font-bold">bkmk</h1>
-          </Link>
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/50 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      <div className="flex h-dvh">
+        <aside
+          className={`fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col overflow-y-auto border-r border-gray-200 bg-gray-50 p-4 transition-transform duration-300 md:static md:translate-x-0 ${
+            sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
+        >
+          <div className="mb-4 flex items-center justify-between">
+            <Link to="/" onClick={() => setSidebarOpen(false)}>
+              <h1 className="text-lg font-bold">bkmk</h1>
+            </Link>
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(false)}
+              className="flex h-11 w-11 items-center justify-center rounded text-gray-500 hover:bg-gray-200 md:hidden"
+              aria-label="サイドバーを閉じる"
+            >
+              <CloseIcon />
+            </button>
+          </div>
           <SearchInput
             key={isOnIndex ? (q ?? '') : ''}
             defaultValue={isOnIndex ? (q ?? '') : ''}
             onSearch={handleSearch}
           />
           <FolderTree selectedFolder={selectedFolder} onSelectFolder={handleSelectFolder} />
-          <div className="mt-auto space-y-2">
+          <div className="mt-auto space-y-1">
             <Link
               to="/trash"
-              className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
+              onClick={() => setSidebarOpen(false)}
+              className="flex min-h-[44px] items-center gap-2 rounded px-2 text-sm text-gray-500 hover:bg-gray-200 hover:text-gray-700"
             >
               <TrashIcon />
               ゴミ箱
             </Link>
             <Link
               to="/settings"
-              className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
+              onClick={() => setSidebarOpen(false)}
+              className="flex min-h-[44px] items-center gap-2 rounded px-2 text-sm text-gray-500 hover:bg-gray-200 hover:text-gray-700"
             >
               <SettingsIcon />
               設定
@@ -83,14 +109,30 @@ export function Layout({
               href="https://github.com/hirokisakabe/bkmk"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
+              className="flex min-h-[44px] items-center gap-2 rounded px-2 text-sm text-gray-500 hover:bg-gray-200 hover:text-gray-700"
             >
               <GitHubIcon />
               GitHub
             </a>
           </div>
         </aside>
-        <main className="flex-1 overflow-y-auto p-4">{children}</main>
+
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <div className="flex shrink-0 items-center gap-3 border-b border-gray-200 bg-gray-50 px-2 md:hidden">
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(true)}
+              className="flex h-11 w-11 items-center justify-center rounded text-gray-600 hover:bg-gray-200"
+              aria-label="メニューを開く"
+            >
+              <HamburgerIcon />
+            </button>
+            <Link to="/">
+              <span className="text-base font-bold">bkmk</span>
+            </Link>
+          </div>
+          <main className="flex-1 overflow-y-auto p-4">{children}</main>
+        </div>
       </div>
     </DndContext>
   );
@@ -178,6 +220,30 @@ function GitHubIcon() {
   return (
     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
       <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+      <path
+        fillRule="evenodd"
+        d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
+}
+
+function HamburgerIcon() {
+  return (
+    <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+      <path
+        fillRule="evenodd"
+        d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z"
+        clipRule="evenodd"
+      />
     </svg>
   );
 }
