@@ -257,11 +257,10 @@ describe('applyBookmarkReorder', () => {
             workBookmarks[activeIdx].id,
             newPos,
           );
-          const personalPositions = result
-            .filter((b) => b.folderPath === '/personal')
-            .map((b) => b.position)
-            .sort((a, b) => a - b);
-          expect(personalPositions).toEqual(Array.from({ length: m }, (_, i) => i));
+          for (const orig of personalBookmarks) {
+            const updated = result.find((b) => b.id === orig.id);
+            expect(updated?.position).toBe(orig.position);
+          }
         },
       ),
     );
@@ -426,11 +425,10 @@ describe('applyFolderReorder', () => {
             rootFolders[activeIdx].id,
             newPos,
           );
-          const childPositions = result
-            .filter((f) => f.parentPath === '/parent')
-            .map((f) => f.position)
-            .sort((a, b) => a - b);
-          expect(childPositions).toEqual(Array.from({ length: m }, (_, i) => i));
+          for (const orig of childFolders) {
+            const updated = result.find((f) => f.id === orig.id);
+            expect(updated?.position).toBe(orig.position);
+          }
         },
       ),
     );
