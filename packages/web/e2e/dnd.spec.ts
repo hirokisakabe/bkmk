@@ -130,6 +130,46 @@ test('ブックマークを別フォルダへDnD移動すると移動APIが呼�
   ]);
 });
 
+test('ブックマークをフォルダへドラッグ中はターゲットフォルダのみがハイライトされる', async ({
+  page,
+}) => {
+  await setupMocks(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/?folder=/folder-a');
+  await expect(page.locator('h3', { hasText: 'Alpha' })).toBeVisible();
+
+  const dragHandle = page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[0].id}`);
+  const targetFolder = page.getByTestId(`folder-drop-target-${FOLDERS[1].id}`); // Folder B
+  const otherFolder = page.getByTestId(`folder-drop-target-${FOLDERS[0].id}`); // Folder A
+
+  await dragHandle.waitFor();
+  await targetFolder.waitFor();
+  await otherFolder.waitFor();
+
+  const handleBox = await dragHandle.boundingBox();
+  const targetBox = await targetFolder.boundingBox();
+  if (!handleBox || !targetBox) throw new Error('boundingBox が取得できませんでした');
+
+  const fx = handleBox.x + handleBox.width / 2;
+  const fy = handleBox.y + handleBox.height / 2;
+  const tx = targetBox.x + targetBox.width / 2;
+  const ty = targetBox.y + targetBox.height / 2;
+
+  // ドラッグ開始 → センサー起動（5px 以上移動）
+  await page.mouse.move(fx, fy);
+  await page.mouse.down();
+  await page.mouse.move(fx + 8, fy, { steps: 4 });
+  // ターゲットフォルダへ移動（中間 pointermove を発火してハイライト状態を確実に発生させる）
+  await page.mouse.move(tx, ty, { steps: 10 });
+
+  // mid-drag: ターゲット（Folder B）のみが ring ハイライトされていること
+  await expect(targetFolder).toHaveClass(/ring/);
+  // 他のフォルダ（Folder A）はハイライトされていないこと
+  await expect(otherFolder).not.toHaveClass(/ring/);
+
+  await page.mouse.up();
+});
+
 test('すべて表示ではブックマークの並び替えハンドルを表示せずカード本体でフォルダ移動できる', async ({
   page,
 }) => {
