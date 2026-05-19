@@ -7,6 +7,7 @@ import {
   resolveBookmarkMoveTarget,
   resolveBookmarkReorderTarget,
   resolveCanReorderBookmarks,
+  resolveCanSortBookmarkList,
 } from './dnd-reorder';
 
 const makeBookmark = (
@@ -62,6 +63,34 @@ describe('resolveCanReorderBookmarks', () => {
   it('isAllBookmarks=false かつ deep=true かつ hasSubfolders=false のとき true（末端フォルダ）', () => {
     expect(
       resolveCanReorderBookmarks({ isAllBookmarks: false, deep: true, hasSubfolders: false }),
+    ).toBe(true);
+  });
+});
+
+describe('resolveCanSortBookmarkList', () => {
+  it('undefined のとき false', () => {
+    expect(resolveCanSortBookmarkList(undefined)).toBe(false);
+  });
+
+  it('空配列のとき false', () => {
+    expect(resolveCanSortBookmarkList([])).toBe(false);
+  });
+
+  it('1件のとき false', () => {
+    expect(resolveCanSortBookmarkList([makeBookmark('a', 0)])).toBe(false);
+  });
+
+  it('2件のとき true', () => {
+    expect(resolveCanSortBookmarkList([makeBookmark('a', 0), makeBookmark('b', 1)])).toBe(true);
+  });
+
+  it('3件以上のとき true', () => {
+    expect(
+      resolveCanSortBookmarkList([
+        makeBookmark('a', 0),
+        makeBookmark('b', 1),
+        makeBookmark('c', 2),
+      ]),
     ).toBe(true);
   });
 });
