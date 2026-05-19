@@ -6,7 +6,9 @@ import { useEffect, useRef, useState } from 'react';
 
 import { useBookmarks, useBookmarksPaginated } from '../hooks/use-bookmarks';
 import { useDeleteBookmark } from '../hooks/use-delete-bookmark';
+import { useAllFolders } from '../hooks/use-folders';
 import { UNCATEGORIZED_FOLDER } from '../lib/constants';
+import { resolveCanReorderBookmarks } from '../lib/dnd-reorder';
 import { useSettings } from '../lib/settings-store';
 import type { Bookmark } from '../types';
 import { AddBookmarkForm } from './add-bookmark-form';
@@ -20,6 +22,7 @@ export function BookmarkList({
   folderName: string;
 }) {
   const [settings] = useSettings();
+  const { data: allFolders = [] } = useAllFolders();
   const isUncategorized = folderPath === UNCATEGORIZED_FOLDER;
   const isAllBookmarks = folderPath === null;
   const apiFolderPath = isUncategorized ? null : folderPath;
@@ -27,8 +30,8 @@ export function BookmarkList({
     ? true
     : !isUncategorized && folderPath !== null && settings.includeSubfolders;
 
-  // D&D 可能 = 単一フォルダ直下 & deep=false
-  const canReorder = !deep && !isAllBookmarks;
+  const hasSubfolders = allFolders.some((f) => f.parentPath === folderPath);
+  const canReorder = resolveCanReorderBookmarks({ isAllBookmarks, deep, hasSubfolders });
   const addBookmarkFolderPath = isUncategorized ? null : folderPath;
 
   if (canReorder) {

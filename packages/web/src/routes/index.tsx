@@ -4,13 +4,18 @@ import { createRoute } from '@tanstack/react-router';
 
 import { BookmarkList } from '../components/bookmark-list';
 import { useMoveBookmark } from '../hooks/use-move-bookmark';
+import { useAllFolders } from '../hooks/use-folders';
 import { useReorderBookmark } from '../hooks/use-reorder-bookmark';
 import { useReorderFolder } from '../hooks/use-reorder-folder';
 import { Layout } from '../components/layout';
 import { SearchResults } from '../components/search-results';
 import { requireAuth } from '../lib/auth-guard';
 import { UNCATEGORIZED_FOLDER } from '../lib/constants';
-import { resolveBookmarkMoveTarget, resolveBookmarkReorderTarget } from '../lib/dnd-reorder';
+import {
+  resolveBookmarkMoveTarget,
+  resolveBookmarkReorderTarget,
+  resolveCanReorderBookmarks,
+} from '../lib/dnd-reorder';
 import { useSettings } from '../lib/settings-store';
 import type { Bookmark, Folder } from '../types';
 import { rootRoute } from './__root';
@@ -40,13 +45,15 @@ function IndexPage() {
   const reorderFolder = useReorderFolder();
   const moveBookmark = useMoveBookmark();
 
+  const { data: allFolders = [] } = useAllFolders();
   const isAllBookmarks = folder === undefined;
   const isUncategorized = folder === UNCATEGORIZED_FOLDER;
   const currentFolderPath = isUncategorized ? null : (folder ?? null);
   const deep = isAllBookmarks
     ? true
     : !isUncategorized && folder !== undefined && settings.includeSubfolders;
-  const canReorderBookmarks = !deep && !isAllBookmarks;
+  const hasSubfolders = allFolders.some((f) => f.parentPath === currentFolderPath);
+  const canReorderBookmarks = resolveCanReorderBookmarks({ isAllBookmarks, deep, hasSubfolders });
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -63,7 +70,7 @@ function IndexPage() {
       if (activeData.bookmark.folderPath !== currentFolderPath) return;
       const cached = queryClient.getQueryData<Bookmark[]>([
         'bookmarks',
-        { folder: activeData.bookmark.folderPath, deep: false },
+        { folder: activeData.bookmark.folderPath, deep },
       ]);
       const target = resolveBookmarkReorderTarget(cached, String(active.id), String(over.id));
       if (!target) return;
