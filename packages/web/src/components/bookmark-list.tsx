@@ -70,9 +70,7 @@ function ReorderableBookmarkList({
 }) {
   const { data: bookmarks, isLoading } = useBookmarks(folderPath, deep);
   const deleteBookmark = useDeleteBookmark();
-  // deep=true のとき複数フォルダのブックマークが混在するため、現在のフォルダのみに絞る
-  const currentFolderBookmarks = bookmarks?.filter((b) => b.folderPath === folderPath);
-  const canReorder = resolveCanSortBookmarkList(currentFolderBookmarks);
+  const canReorder = resolveCanSortBookmarkList(bookmarks);
 
   return (
     <div>
@@ -84,12 +82,12 @@ function ReorderableBookmarkList({
 
       <LoadingSkeleton isLoading={isLoading} />
 
-      {!isLoading && currentFolderBookmarks?.length === 0 && <EmptyState />}
+      {!isLoading && bookmarks?.length === 0 && <EmptyState />}
 
-      {!isLoading && currentFolderBookmarks && currentFolderBookmarks.length > 0 && canReorder && (
-        <SortableContext items={currentFolderBookmarks.map((b) => b.id)} strategy={rectSortingStrategy}>
+      {!isLoading && bookmarks && bookmarks.length > 0 && canReorder && (
+        <SortableContext items={bookmarks.map((b) => b.id)} strategy={rectSortingStrategy}>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-            {currentFolderBookmarks.map((bookmark) => (
+            {bookmarks.map((bookmark) => (
               <SortableBookmarkCard
                 key={bookmark.id}
                 bookmark={bookmark}
@@ -100,9 +98,9 @@ function ReorderableBookmarkList({
         </SortableContext>
       )}
 
-      {!isLoading && currentFolderBookmarks && currentFolderBookmarks.length > 0 && !canReorder && (
+      {!isLoading && bookmarks && bookmarks.length > 0 && !canReorder && (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-          {currentFolderBookmarks.map((bookmark) => (
+          {bookmarks.map((bookmark) => (
             <DraggableBookmarkCard
               key={bookmark.id}
               bookmark={bookmark}

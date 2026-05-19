@@ -70,12 +70,10 @@ function IndexPage() {
       if (reorderBookmark.isPending) return;
       if (activeData.bookmark.folderPath !== overData.bookmark.folderPath) return;
       if (activeData.bookmark.folderPath !== currentFolderPath) return;
-      const raw = queryClient.getQueryData<Bookmark[]>([
+      const cached = queryClient.getQueryData<Bookmark[]>([
         'bookmarks',
         { folder: activeData.bookmark.folderPath, deep },
       ]);
-      // deep=true のとき複数フォルダが混在するため同一フォルダのみに絞る
-      const cached = raw?.filter((b) => b.folderPath === activeData.bookmark.folderPath);
       const target = resolveBookmarkReorderTarget(cached, String(active.id), String(over.id));
       if (!target) return;
       reorderBookmark.mutate(target);
