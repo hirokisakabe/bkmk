@@ -55,7 +55,12 @@ test('ブックマークを別フォルダへDnD移動すると移動APIが呼�
   await expect(page.locator('h3', { hasText: 'Alpha' })).toBeHidden();
 
   await page.goto('/?folder=/folder-b');
-  await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText(['Alpha']);
+  // folder-b には元から Delta/Epsilon があるため Alpha は先頭に追加される
+  await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText([
+    'Alpha',
+    'Delta',
+    'Epsilon',
+  ]);
 });
 
 test('すべて表示ではブックマークの並び替えハンドルを表示せずカード本体でフォルダ移動できる', async ({
@@ -85,7 +90,12 @@ test('すべて表示ではブックマークの並び替えハンドルを表�
   expect(body.folderPath).toBe('/folder-b');
 
   await page.goto('/?folder=/folder-b');
-  await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText(['Alpha']);
+  // folder-b には元から Delta/Epsilon があるため Alpha は先頭に追加される
+  await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText([
+    'Alpha',
+    'Delta',
+    'Epsilon',
+  ]);
 });
 
 test('末端フォルダでincludeSubfolders=trueでもdrag handleが表示されDnDソートができる', async ({
