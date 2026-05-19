@@ -140,6 +140,10 @@ test('ブックマークをフォルダへドラッグ中はターゲットフ�
   const targetFolder = page.getByTestId(`folder-drop-target-${FOLDERS[1].id}`); // Folder B
   const otherFolder = page.getByTestId(`folder-drop-target-${FOLDERS[0].id}`); // Folder A
 
+  await dragHandle.waitFor();
+  await targetFolder.waitFor();
+  await otherFolder.waitFor();
+
   const handleBox = await dragHandle.boundingBox();
   const targetBox = await targetFolder.boundingBox();
   if (!handleBox || !targetBox) throw new Error('boundingBox が取得できませんでした');
