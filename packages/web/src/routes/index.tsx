@@ -45,14 +45,16 @@ function IndexPage() {
   const reorderFolder = useReorderFolder();
   const moveBookmark = useMoveBookmark();
 
-  const { data: allFolders = [] } = useAllFolders();
+  const { data: allFolders = [], isLoading: isFoldersLoading } = useAllFolders();
   const isAllBookmarks = folder === undefined;
   const isUncategorized = folder === UNCATEGORIZED_FOLDER;
   const currentFolderPath = isUncategorized ? null : (folder ?? null);
   const deep = isAllBookmarks
     ? true
     : !isUncategorized && folder !== undefined && settings.includeSubfolders;
-  const hasSubfolders = allFolders.some((f) => f.parentPath === currentFolderPath);
+  // deep=true のときフォルダ一覧未取得中は保守的に「サブフォルダあり」とみなしソートを抑制する
+  const hasSubfolders =
+    deep && isFoldersLoading ? true : allFolders.some((f) => f.parentPath === currentFolderPath);
   const canReorderBookmarks = resolveCanReorderBookmarks({ isAllBookmarks, deep, hasSubfolders });
 
   const handleDragEnd = (event: DragEndEvent) => {

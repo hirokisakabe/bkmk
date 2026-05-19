@@ -22,7 +22,7 @@ export function BookmarkList({
   folderName: string;
 }) {
   const [settings] = useSettings();
-  const { data: allFolders = [] } = useAllFolders();
+  const { data: allFolders = [], isLoading: isFoldersLoading } = useAllFolders();
   const isUncategorized = folderPath === UNCATEGORIZED_FOLDER;
   const isAllBookmarks = folderPath === null;
   const apiFolderPath = isUncategorized ? null : folderPath;
@@ -30,7 +30,9 @@ export function BookmarkList({
     ? true
     : !isUncategorized && folderPath !== null && settings.includeSubfolders;
 
-  const hasSubfolders = allFolders.some((f) => f.parentPath === folderPath);
+  // deep=true のときフォルダ一覧未取得中は保守的に「サブフォルダあり」とみなしソートを抑制する
+  const hasSubfolders =
+    deep && isFoldersLoading ? true : allFolders.some((f) => f.parentPath === folderPath);
   const canReorder = resolveCanReorderBookmarks({ isAllBookmarks, deep, hasSubfolders });
   const addBookmarkFolderPath = isUncategorized ? null : folderPath;
 
