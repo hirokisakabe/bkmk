@@ -130,7 +130,9 @@ test('ブックマークを別フォルダへDnD移動すると移動APIが呼�
   ]);
 });
 
-test('ブックマークをフォルダへドラッグ中はターゲットフォルダのみがハイライトされる', async ({ page }) => {
+test('ブックマークをフォルダへドラッグ中はターゲットフォルダのみがハイライトされる', async ({
+  page,
+}) => {
   await setupMocks(page);
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('/?folder=/folder-a');
