@@ -295,48 +295,112 @@ test.describe('フォルダ内3件ソート（deep=false）全パターン', () 
 
   test('1番目を3番目の位置へ移動すると B,C,A になる', async ({ page }) => {
     const { bk1, bk3 } = await setup3Bookmarks(page);
-    await dragTo(page, page.getByTestId(`bookmark-drag-handle-${bk1.id}`), page.getByTestId(`bookmark-drag-handle-${bk3.id}`));
-    await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText(['SortB', 'SortC', 'SortA']);
+    await dragTo(
+      page,
+      page.getByTestId(`bookmark-drag-handle-${bk1.id}`),
+      page.getByTestId(`bookmark-drag-handle-${bk3.id}`),
+    );
+    await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText([
+      'SortB',
+      'SortC',
+      'SortA',
+    ]);
   });
 
   test('3番目を1番目の位置へ移動すると C,A,B になる', async ({ page }) => {
     const { bk1, bk3 } = await setup3Bookmarks(page);
-    await dragTo(page, page.getByTestId(`bookmark-drag-handle-${bk3.id}`), page.getByTestId(`bookmark-drag-handle-${bk1.id}`));
-    await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText(['SortC', 'SortA', 'SortB']);
+    await dragTo(
+      page,
+      page.getByTestId(`bookmark-drag-handle-${bk3.id}`),
+      page.getByTestId(`bookmark-drag-handle-${bk1.id}`),
+    );
+    await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText([
+      'SortC',
+      'SortA',
+      'SortB',
+    ]);
   });
 
   test('1番目を2番目の位置へ移動すると B,A,C になる', async ({ page }) => {
     const { bk1, bk2 } = await setup3Bookmarks(page);
-    await dragTo(page, page.getByTestId(`bookmark-drag-handle-${bk1.id}`), page.getByTestId(`bookmark-drag-handle-${bk2.id}`));
-    await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText(['SortB', 'SortA', 'SortC']);
+    await dragTo(
+      page,
+      page.getByTestId(`bookmark-drag-handle-${bk1.id}`),
+      page.getByTestId(`bookmark-drag-handle-${bk2.id}`),
+    );
+    await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText([
+      'SortB',
+      'SortA',
+      'SortC',
+    ]);
   });
 
   test('2番目を1番目の位置へ移動すると B,A,C になる', async ({ page }) => {
     const { bk1, bk2 } = await setup3Bookmarks(page);
-    await dragTo(page, page.getByTestId(`bookmark-drag-handle-${bk2.id}`), page.getByTestId(`bookmark-drag-handle-${bk1.id}`));
-    await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText(['SortB', 'SortA', 'SortC']);
+    await dragTo(
+      page,
+      page.getByTestId(`bookmark-drag-handle-${bk2.id}`),
+      page.getByTestId(`bookmark-drag-handle-${bk1.id}`),
+    );
+    await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText([
+      'SortB',
+      'SortA',
+      'SortC',
+    ]);
   });
 
   test('2番目を3番目の位置へ移動すると A,C,B になる', async ({ page }) => {
     const { bk2, bk3 } = await setup3Bookmarks(page);
-    await dragTo(page, page.getByTestId(`bookmark-drag-handle-${bk2.id}`), page.getByTestId(`bookmark-drag-handle-${bk3.id}`));
-    await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText(['SortA', 'SortC', 'SortB']);
+    await dragTo(
+      page,
+      page.getByTestId(`bookmark-drag-handle-${bk2.id}`),
+      page.getByTestId(`bookmark-drag-handle-${bk3.id}`),
+    );
+    await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText([
+      'SortA',
+      'SortC',
+      'SortB',
+    ]);
   });
 
   test('3番目を2番目の位置へ移動すると A,C,B になる', async ({ page }) => {
     const { bk2, bk3 } = await setup3Bookmarks(page);
-    await dragTo(page, page.getByTestId(`bookmark-drag-handle-${bk3.id}`), page.getByTestId(`bookmark-drag-handle-${bk2.id}`));
-    await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText(['SortA', 'SortC', 'SortB']);
+    await dragTo(
+      page,
+      page.getByTestId(`bookmark-drag-handle-${bk3.id}`),
+      page.getByTestId(`bookmark-drag-handle-${bk2.id}`),
+    );
+    await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText([
+      'SortA',
+      'SortC',
+      'SortB',
+    ]);
   });
 
   test('連続ソート: 1→3移動後にさらに2番目を1番目に移動', async ({ page }) => {
     const { bk1, bk2, bk3 } = await setup3Bookmarks(page);
     // 1回目: A→C で B,C,A
-    await dragTo(page, page.getByTestId(`bookmark-drag-handle-${bk1.id}`), page.getByTestId(`bookmark-drag-handle-${bk3.id}`));
-    await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText(['SortB', 'SortC', 'SortA']);
+    await dragTo(
+      page,
+      page.getByTestId(`bookmark-drag-handle-${bk1.id}`),
+      page.getByTestId(`bookmark-drag-handle-${bk3.id}`),
+    );
+    await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText([
+      'SortB',
+      'SortC',
+      'SortA',
+    ]);
     // 2回目: C→B で C,B,A
-    await dragTo(page, page.getByTestId(`bookmark-drag-handle-${bk3.id}`), page.getByTestId(`bookmark-drag-handle-${bk2.id}`));
-    await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText(['SortC', 'SortB', 'SortA']);
+    await dragTo(
+      page,
+      page.getByTestId(`bookmark-drag-handle-${bk3.id}`),
+      page.getByTestId(`bookmark-drag-handle-${bk2.id}`),
+    );
+    await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText([
+      'SortC',
+      'SortB',
+      'SortA',
+    ]);
   });
 });
 
@@ -366,19 +430,43 @@ test.describe('フォルダ内3件ソート（deep=true 混在キャッシュ）
 
   test('1番目を3番目の位置へ移動すると B,C,A になる', async ({ page }) => {
     const { bk1, bk3 } = await setup3BookmarksMixed(page);
-    await dragTo(page, page.getByTestId(`bookmark-drag-handle-${bk1.id}`), page.getByTestId(`bookmark-drag-handle-${bk3.id}`));
-    await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText(['MixB', 'MixC', 'MixA']);
+    await dragTo(
+      page,
+      page.getByTestId(`bookmark-drag-handle-${bk1.id}`),
+      page.getByTestId(`bookmark-drag-handle-${bk3.id}`),
+    );
+    await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText([
+      'MixB',
+      'MixC',
+      'MixA',
+    ]);
   });
 
   test('3番目を1番目の位置へ移動すると C,A,B になる', async ({ page }) => {
     const { bk1, bk3 } = await setup3BookmarksMixed(page);
-    await dragTo(page, page.getByTestId(`bookmark-drag-handle-${bk3.id}`), page.getByTestId(`bookmark-drag-handle-${bk1.id}`));
-    await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText(['MixC', 'MixA', 'MixB']);
+    await dragTo(
+      page,
+      page.getByTestId(`bookmark-drag-handle-${bk3.id}`),
+      page.getByTestId(`bookmark-drag-handle-${bk1.id}`),
+    );
+    await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText([
+      'MixC',
+      'MixA',
+      'MixB',
+    ]);
   });
 
   test('隣同士の入れ替えが正しく動く', async ({ page }) => {
     const { bk1, bk2 } = await setup3BookmarksMixed(page);
-    await dragTo(page, page.getByTestId(`bookmark-drag-handle-${bk1.id}`), page.getByTestId(`bookmark-drag-handle-${bk2.id}`));
-    await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText(['MixB', 'MixA', 'MixC']);
+    await dragTo(
+      page,
+      page.getByTestId(`bookmark-drag-handle-${bk1.id}`),
+      page.getByTestId(`bookmark-drag-handle-${bk2.id}`),
+    );
+    await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText([
+      'MixB',
+      'MixA',
+      'MixC',
+    ]);
   });
 });

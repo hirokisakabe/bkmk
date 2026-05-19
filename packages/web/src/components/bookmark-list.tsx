@@ -87,7 +87,10 @@ function ReorderableBookmarkList({
       {!isLoading && currentFolderBookmarks?.length === 0 && <EmptyState />}
 
       {!isLoading && currentFolderBookmarks && currentFolderBookmarks.length > 0 && canReorder && (
-        <SortableContext items={currentFolderBookmarks.map((b) => b.id)} strategy={rectSortingStrategy}>
+        <SortableContext
+          items={currentFolderBookmarks.map((b) => b.id)}
+          strategy={rectSortingStrategy}
+        >
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
             {currentFolderBookmarks.map((bookmark) => (
               <SortableBookmarkCard
