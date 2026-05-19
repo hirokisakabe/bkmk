@@ -122,7 +122,12 @@ test('ブックマークを別フォルダへDnD移動すると移動APIが呼�
   await expect(page.locator('h3', { hasText: 'Alpha' })).toBeHidden();
 
   await page.goto('/?folder=/folder-b');
-  await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText(['Alpha']);
+  // folder-b には元から Delta/Epsilon があるため Alpha は先頭に追加される
+  await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText([
+    'Alpha',
+    'Delta',
+    'Epsilon',
+  ]);
 });
 
 test('すべて表示ではブックマークの並び替えハンドルを表示せずカード本体でフォルダ移動できる', async ({
@@ -152,7 +157,44 @@ test('すべて表示ではブックマークの並び替えハンドルを表�
   expect(body.folderPath).toBe('/folder-b');
 
   await page.goto('/?folder=/folder-b');
-  await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText(['Alpha']);
+  // folder-b には元から Delta/Epsilon があるため Alpha は先頭に追加される
+  await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText([
+    'Alpha',
+    'Delta',
+    'Epsilon',
+  ]);
+});
+
+test('末端フォルダでincludeSubfolders=trueでもdrag handleが表示されDnDソートができる', async ({
+  page,
+}) => {
+  await setupMocks(page);
+
+  await page.goto('/settings');
+  await page.getByLabel('サブフォルダを含む').check();
+
+  const patchRequest = page.waitForRequest(
+    (req) => req.method() === 'PATCH' && req.url().includes('/position'),
+  );
+
+  // folder-b はサブフォルダを持たない末端フォルダ
+  await page.goto('/?folder=/folder-b');
+  await expect(page.locator('h3', { hasText: 'Delta' })).toBeVisible();
+  await expect(page.locator('h3', { hasText: 'Epsilon' })).toBeVisible();
+
+  // drag handle が表示されていること
+  await expect(page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[3].id}`)).toBeVisible();
+  await expect(page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[4].id}`)).toBeVisible();
+
+  await dragTo(
+    page,
+    page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[3].id}`),
+    page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[4].id}`),
+  );
+
+  const req = await patchRequest;
+  expect(req.url()).toContain(`/api/bookmarks/${BOOKMARKS[3].id}/position`);
+  await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText(['Epsilon', 'Delta']);
 });
 
 test('deep表示ではブックマークの並び替えハンドルを表示せずbookmark上のdropはno-opになる', async ({

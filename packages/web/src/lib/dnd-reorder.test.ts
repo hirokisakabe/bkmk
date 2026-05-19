@@ -6,6 +6,7 @@ import {
   applyFolderReorder,
   resolveBookmarkMoveTarget,
   resolveBookmarkReorderTarget,
+  resolveCanReorderBookmarks,
 } from './dnd-reorder';
 
 const makeBookmark = (
@@ -25,6 +26,44 @@ const makeBookmark = (
   deletedAt: null,
   createdAt: '2024-01-01T00:00:00.000Z',
   updatedAt: '2024-01-01T00:00:00.000Z',
+});
+
+describe('resolveCanReorderBookmarks', () => {
+  it('isAllBookmarks=true のとき常に false', () => {
+    expect(
+      resolveCanReorderBookmarks({ isAllBookmarks: true, deep: false, hasSubfolders: false }),
+    ).toBe(false);
+    expect(
+      resolveCanReorderBookmarks({ isAllBookmarks: true, deep: false, hasSubfolders: true }),
+    ).toBe(false);
+    expect(
+      resolveCanReorderBookmarks({ isAllBookmarks: true, deep: true, hasSubfolders: false }),
+    ).toBe(false);
+    expect(
+      resolveCanReorderBookmarks({ isAllBookmarks: true, deep: true, hasSubfolders: true }),
+    ).toBe(false);
+  });
+
+  it('isAllBookmarks=false かつ deep=false のとき true', () => {
+    expect(
+      resolveCanReorderBookmarks({ isAllBookmarks: false, deep: false, hasSubfolders: false }),
+    ).toBe(true);
+    expect(
+      resolveCanReorderBookmarks({ isAllBookmarks: false, deep: false, hasSubfolders: true }),
+    ).toBe(true);
+  });
+
+  it('isAllBookmarks=false かつ deep=true かつ hasSubfolders=true のとき false（サブフォルダあり）', () => {
+    expect(
+      resolveCanReorderBookmarks({ isAllBookmarks: false, deep: true, hasSubfolders: true }),
+    ).toBe(false);
+  });
+
+  it('isAllBookmarks=false かつ deep=true かつ hasSubfolders=false のとき true（末端フォルダ）', () => {
+    expect(
+      resolveCanReorderBookmarks({ isAllBookmarks: false, deep: true, hasSubfolders: false }),
+    ).toBe(true);
+  });
 });
 
 describe('resolveBookmarkReorderTarget', () => {

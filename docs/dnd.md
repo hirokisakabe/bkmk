@@ -13,19 +13,25 @@ drag 中の feedback 方針を明文化する。DnD の実装やテストを変�
 
 ## 操作一覧
 
-| 操作                              | 現時点の DnD 対象 | drag 中 feedback                                                                                                                                     | drop 後の意味                                                                     |
-| --------------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| bookmark の同一フォルダ内ソート   | 対象              | bookmark card を半透明にし、同一 `SortableContext` 内で周囲の card を押し出して drop 後の順序を preview する                                         | 同じ `folderPath` 内の `position` を更新する                                      |
-| bookmark の folder 移動           | 対象              | bookmark card を半透明にし、folder tree 側の drop target を ring / background で highlight する。bookmark list 側では reorder preview として扱わない | bookmark の `folderPath` を drop 先 folder に変更し、移動先 folder の先頭へ入れる |
-| folder の同一階層内ソート         | 対象              | folder row を半透明にし、同じ `parentPath` の `SortableContext` 内で周囲の row を押し出して drop 後の順序を preview する                             | 同じ `parentPath` 内の `position` を更新する                                      |
-| folder の階層移動                 | 対象外            | DnD feedback は出さない。階層移動は context menu の「移動」ダイアログで扱う                                                                          | DnD では変更しない                                                                |
-| `すべて` 表示での bookmark ソート | 対象外            | ソート用 drag handle は表示しない。bookmark の folder 移動 DnD を許可する場合も、feedback は folder tree の drop target highlight に寄せる           | flat list の global order は変更しない                                            |
-| deep 表示での bookmark ソート     | 対象外            | ソート用 drag handle は表示しない。bookmark の folder 移動 DnD を許可する場合も、feedback は folder tree の drop target highlight に寄せる           | 複数 folder をまたぐ flat list の順序は変更しない                                 |
+| 操作                                                              | 現時点の DnD 対象 | drag 中 feedback                                                                                                                                     | drop 後の意味                                                                     |
+| ----------------------------------------------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| bookmark の同一フォルダ内ソート                                   | 対象              | bookmark card を半透明にし、同一 `SortableContext` 内で周囲の card を押し出して drop 後の順序を preview する                                         | 同じ `folderPath` 内の `position` を更新する                                      |
+| bookmark の folder 移動                                           | 対象              | bookmark card を半透明にし、folder tree 側の drop target を ring / background で highlight する。bookmark list 側では reorder preview として扱わない | bookmark の `folderPath` を drop 先 folder に変更し、移動先 folder の先頭へ入れる |
+| folder の同一階層内ソート                                         | 対象              | folder row を半透明にし、同じ `parentPath` の `SortableContext` 内で周囲の row を押し出して drop 後の順序を preview する                             | 同じ `parentPath` 内の `position` を更新する                                      |
+| folder の階層移動                                                 | 対象外            | DnD feedback は出さない。階層移動は context menu の「移動」ダイアログで扱う                                                                          | DnD では変更しない                                                                |
+| `すべて` 表示での bookmark ソート                                 | 対象外            | ソート用 drag handle は表示しない。bookmark の folder 移動 DnD を許可する場合も、feedback は folder tree の drop target highlight に寄せる           | flat list の global order は変更しない                                            |
+| deep 表示かつサブフォルダあり folder での bookmark ソート         | 対象外            | ソート用 drag handle は表示しない。bookmark の folder 移動 DnD を許可する場合も、feedback は folder tree の drop target highlight に寄せる           | 複数 folder をまたぐ flat list の順序は変更しない                                 |
+| deep 表示かつ末端フォルダ（サブフォルダなし）での bookmark ソート | 対象              | bookmark card を半透明にし、同一 `SortableContext` 内で周囲の card を押し出して drop 後の順序を preview する                                         | 同じ `folderPath` 内の `position` を更新する                                      |
 
 ## bookmark ソート
 
-bookmark のソートは、単一 folder を表示していて、かつ deep 表示ではない場合だけ DnD 対象にする。
-この条件は `canReorder = !deep && !isAllBookmarks` に対応する。
+bookmark のソートは、以下の条件をすべて満たす場合に DnD 対象にする。
+
+- `すべて` 表示でない（`isAllBookmarks = false`）
+- deep 表示でない、**または** deep 表示でもサブフォルダを持たない末端フォルダである
+
+この条件は `resolveCanReorderBookmarks({ isAllBookmarks, deep, hasSubfolders })` に対応し、
+`!isAllBookmarks && !(deep && hasSubfolders)` で評価する。
 
 同一フォルダ内ソートでは、active bookmark と over bookmark の `folderPath` が同じ場合だけ
 `position` 更新を実行する。異なる `folderPath` の bookmark 同士を over しても、ソートとしては
@@ -77,8 +83,13 @@ flat な `すべて` 表示では、異なる `folderPath` の bookmark 同士�
 この表示で自由ソートを許可すると、global order を編集しているのか、folder 内 order を編集しているのかが
 曖昧になるためである。
 
-deep 表示でも同じ理由で、flat list の bookmark ソートは許可しない。deep 表示は複数 folder の bookmark を
-同じ list に混ぜて表示するため、異なる folder グループ間の drag を folder 内 `position` 更新として表現できない。
+deep 表示でサブフォルダが存在する場合も同様で、flat list の bookmark ソートは許可しない。deep 表示は
+複数 folder の bookmark を同じ list に混ぜて表示するため、異なる folder グループ間の drag を
+folder 内 `position` 更新として表現できない。
+
+ただし、deep 表示でもサブフォルダを持たない末端フォルダの場合は、API が返す bookmark がすべて
+同じ `folderPath` に属するため、同一フォルダ内ソートとして扱うことができる。この場合は
+ソート用 drag handle を表示し、DnD ソートを許可する。
 
 将来 `すべて` / deep 表示で bookmark ソートを許可する場合は、global order ではなく folder グループ内
 order として扱う。つまり表示を folder ごとの group に寄せ、同一 group 内の DnD だけを各 folder の
@@ -103,7 +114,7 @@ bookmark を drag している間は folder row / `未分類` row の hover feed
 ## 意図的に対象外にする操作
 
 - `すべて` 表示の flat list で、異なる `folderPath` の bookmark 同士を自由にソートすること。
-- deep 表示の flat list で、異なる `folderPath` の bookmark 同士を自由にソートすること。
+- deep 表示かつサブフォルダあり folder の flat list で、異なる `folderPath` の bookmark 同士を自由にソートすること。
 - DnD による folder の階層移動。
 - bookmark を bookmark 上へ drop したときに、異なる `folderPath` への移動として扱うこと。
 - folder を bookmark 上へ drop して folder 階層や bookmark 所属を変更すること。
