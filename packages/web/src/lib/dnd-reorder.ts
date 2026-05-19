@@ -1,5 +1,17 @@
 import type { Bookmark, Folder } from '../types';
 
+export function resolveCanReorderBookmarks({
+  isAllBookmarks,
+  deep,
+  hasSubfolders,
+}: {
+  isAllBookmarks: boolean;
+  deep: boolean;
+  hasSubfolders: boolean;
+}): boolean {
+  return !isAllBookmarks && !(deep && hasSubfolders);
+}
+
 export function resolveBookmarkReorderTarget(
   bookmarks: Bookmark[] | undefined,
   activeId: string,
