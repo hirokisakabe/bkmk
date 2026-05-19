@@ -37,9 +37,7 @@ describe('collisionDetection', () => {
     dndKit.pointerWithin.mockReturnValue(bookmarkCollisions);
     dndKit.closestCenter.mockReturnValue([]);
 
-    const result = collisionDetection(
-      createArgs('bookmark', [bookmarkContainer, folderContainer]),
-    );
+    const result = collisionDetection(createArgs('bookmark', [bookmarkContainer, folderContainer]));
 
     expect(result).toBe(bookmarkCollisions);
     // 1回目はブックマークのみで pointerWithin が呼ばれる
@@ -57,9 +55,7 @@ describe('collisionDetection', () => {
     dndKit.pointerWithin.mockReturnValueOnce([]).mockReturnValueOnce(folderCollisions);
     dndKit.closestCenter.mockReturnValue([]);
 
-    const result = collisionDetection(
-      createArgs('bookmark', [bookmarkContainer, folderContainer]),
-    );
+    const result = collisionDetection(createArgs('bookmark', [bookmarkContainer, folderContainer]));
 
     expect(result).toBe(folderCollisions);
     expect(dndKit.closestCenter).not.toHaveBeenCalled();
@@ -72,9 +68,7 @@ describe('collisionDetection', () => {
     dndKit.pointerWithin.mockReturnValue([]);
     dndKit.closestCenter.mockReturnValue(bookmarkCollisions);
 
-    const result = collisionDetection(
-      createArgs('bookmark', [bookmarkContainer, folderContainer]),
-    );
+    const result = collisionDetection(createArgs('bookmark', [bookmarkContainer, folderContainer]));
 
     expect(result).toBe(bookmarkCollisions);
     expect(dndKit.closestCenter).toHaveBeenCalledTimes(1);
