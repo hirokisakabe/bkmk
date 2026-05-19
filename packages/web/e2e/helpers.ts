@@ -111,7 +111,44 @@ export async function setupMocks(page: Page) {
 
   await page.route(
     (url) => url.pathname.startsWith('/api/folders'),
-    (route) => route.fulfill({ json: folders.toSorted((a, b) => a.position - b.position) }),
+    async (route) => {
+      const req = route.request();
+      const url = new URL(req.url());
+      const path = url.pathname;
+
+      if (req.method() === 'PATCH' && path.endsWith('/position')) {
+        const id = path.split('/').at(-2)!;
+        const body = (await req.postDataJSON()) as { position: number };
+        const folder = folders.find((f) => f.id === id);
+        if (!folder) {
+          await route.fulfill({ status: 404, json: { error: 'Folder not found' } });
+          return;
+        }
+        const oldPosition = folder.position;
+        const newPosition = body.position;
+        for (const item of folders) {
+          if (item.id === id || item.parentPath !== folder.parentPath) continue;
+          if (
+            oldPosition < newPosition &&
+            item.position > oldPosition &&
+            item.position <= newPosition
+          ) {
+            item.position -= 1;
+          } else if (
+            newPosition < oldPosition &&
+            item.position >= newPosition &&
+            item.position < oldPosition
+          ) {
+            item.position += 1;
+          }
+        }
+        folder.position = newPosition;
+        await route.fulfill({ json: folder });
+        return;
+      }
+
+      await route.fulfill({ json: folders.toSorted((a, b) => a.position - b.position) });
+    },
   );
 
   await page.route(

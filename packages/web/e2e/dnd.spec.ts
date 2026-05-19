@@ -2,6 +2,65 @@ import { expect, test } from '@playwright/test';
 
 import { BOOKMARKS, FOLDERS, dragTo, setupMocks } from './helpers';
 
+test('同一階層のフォルダをDnDソートすると並び替えAPIが呼ばれる', async ({ page }) => {
+  await setupMocks(page);
+
+  const patchRequest = page.waitForRequest(
+    (req) =>
+      req.method() === 'PATCH' &&
+      /\/api\/folders\/[^/]+\/position$/.test(new URL(req.url()).pathname),
+  );
+
+  await page.goto('/');
+  await expect(page.getByTestId(`folder-drag-handle-${FOLDERS[0].id}`)).toBeVisible();
+  await expect(page.getByTestId(`folder-drag-handle-${FOLDERS[1].id}`)).toBeVisible();
+
+  // Folder A (pos=0) → Folder B (pos=1) へドラッグ（同一階層ソート）
+  await dragTo(
+    page,
+    page.getByTestId(`folder-drag-handle-${FOLDERS[0].id}`),
+    page.getByTestId(`folder-drag-handle-${FOLDERS[1].id}`),
+  );
+
+  const req = await patchRequest;
+  const body = (await req.postDataJSON()) as { position: number };
+
+  expect(req.url()).toContain(`/api/folders/${FOLDERS[0].id}/position`);
+  expect(body.position).toBe(FOLDERS[1].position);
+
+  // Folder B が Folder A より上に表示される
+  const boxA = await page.getByTestId(`folder-drop-target-${FOLDERS[0].id}`).boundingBox();
+  const boxB = await page.getByTestId(`folder-drop-target-${FOLDERS[1].id}`).boundingBox();
+  expect(boxB!.y).toBeLessThan(boxA!.y);
+});
+
+test('別階層のフォルダへDnDしても並び替えAPIは呼ばれない', async ({ page }) => {
+  await setupMocks(page);
+
+  // folder-a/child を選択すると folder-a (f1) が展開され f3 が表示される
+  await page.goto(`/?folder=${encodeURIComponent('/folder-a/child')}`);
+  await expect(page.getByTestId(`folder-drag-handle-${FOLDERS[2].id}`)).toBeVisible(); // f3: Folder A Child
+  await expect(page.getByTestId(`folder-drag-handle-${FOLDERS[1].id}`)).toBeVisible(); // f2: Folder B
+
+  const folderPatchRequests: string[] = [];
+  page.on('request', (req) => {
+    if (req.method() === 'PATCH' && new URL(req.url()).pathname.startsWith('/api/folders')) {
+      folderPatchRequests.push(req.url());
+    }
+  });
+
+  // f3 (parentPath='/folder-a') → f2 (parentPath=null) へドラッグ（別階層: no-op）
+  await dragTo(
+    page,
+    page.getByTestId(`folder-drag-handle-${FOLDERS[2].id}`),
+    page.getByTestId(`folder-drag-handle-${FOLDERS[1].id}`),
+  );
+
+  expect(folderPatchRequests).toEqual([]);
+  // f3 は f1 配下のまま残っている
+  await expect(page.getByTestId(`folder-drag-handle-${FOLDERS[2].id}`)).toBeVisible();
+});
+
 test('同一フォルダ内でブックマークをDnDソートすると並び替えAPIが呼ばれる', async ({ page }) => {
   await setupMocks(page);
 
