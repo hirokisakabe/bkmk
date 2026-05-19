@@ -1,3 +1,4 @@
+import * as fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
 import type { Bookmark, Folder } from '../types';
@@ -205,6 +206,65 @@ describe('applyBookmarkReorder', () => {
   it('idが見つからない場合はno-opとして元の配列を返す', () => {
     expect(applyBookmarkReorder(rootBookmarks, 'missing', 1)).toBe(rootBookmarks);
   });
+
+  it('並べ替え後も同一folderPath内のpositionは{0,...,n-1}を保つ', () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ min: 2, max: 8 }).chain((n) =>
+          fc.record({
+            n: fc.constant(n),
+            activeIdx: fc.integer({ min: 0, max: n - 1 }),
+            newPos: fc.integer({ min: 0, max: n - 1 }),
+          }),
+        ),
+        ({ n, activeIdx, newPos }) => {
+          const bookmarks = Array.from({ length: n }, (_, i) =>
+            makeBookmark(`bk-${i}`, i, '/work'),
+          );
+          const result = applyBookmarkReorder(bookmarks, bookmarks[activeIdx].id, newPos);
+          const positions = result
+            .filter((b) => b.folderPath === '/work')
+            .map((b) => b.position)
+            .sort((a, b) => a - b);
+          expect(positions).toEqual(Array.from({ length: n }, (_, i) => i));
+        },
+      ),
+    );
+  });
+
+  it('別folderPathのpositionは変化しない', () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ min: 2, max: 5 }).chain((n) =>
+          fc.integer({ min: 2, max: 5 }).chain((m) =>
+            fc.record({
+              n: fc.constant(n),
+              m: fc.constant(m),
+              activeIdx: fc.integer({ min: 0, max: n - 1 }),
+              newPos: fc.integer({ min: 0, max: n - 1 }),
+            }),
+          ),
+        ),
+        ({ n, m, activeIdx, newPos }) => {
+          const workBookmarks = Array.from({ length: n }, (_, i) =>
+            makeBookmark(`work-${i}`, i, '/work'),
+          );
+          const personalBookmarks = Array.from({ length: m }, (_, i) =>
+            makeBookmark(`personal-${i}`, i, '/personal'),
+          );
+          const result = applyBookmarkReorder(
+            [...workBookmarks, ...personalBookmarks],
+            workBookmarks[activeIdx].id,
+            newPos,
+          );
+          for (const orig of personalBookmarks) {
+            const updated = result.find((b) => b.id === orig.id);
+            expect(updated?.position).toBe(orig.position);
+          }
+        },
+      ),
+    );
+  });
 });
 
 describe('resolveBookmarkMoveTarget', () => {
@@ -317,5 +377,60 @@ describe('applyFolderReorder', () => {
   it('idが見つからない場合は元の配列を返す', () => {
     const folders = [makeFolder('a', null, 0)];
     expect(applyFolderReorder(folders, 'missing', 1)).toBe(folders);
+  });
+
+  it('並べ替え後も同一parentPath内のpositionは{0,...,n-1}を保つ', () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ min: 2, max: 8 }).chain((n) =>
+          fc.record({
+            n: fc.constant(n),
+            activeIdx: fc.integer({ min: 0, max: n - 1 }),
+            newPos: fc.integer({ min: 0, max: n - 1 }),
+          }),
+        ),
+        ({ n, activeIdx, newPos }) => {
+          const folders = Array.from({ length: n }, (_, i) => makeFolder(`f${i}`, null, i));
+          const result = applyFolderReorder(folders, folders[activeIdx].id, newPos);
+          const positions = result
+            .filter((f) => f.parentPath === null)
+            .map((f) => f.position)
+            .sort((a, b) => a - b);
+          expect(positions).toEqual(Array.from({ length: n }, (_, i) => i));
+        },
+      ),
+    );
+  });
+
+  it('別parentPathのpositionは変化しない', () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ min: 2, max: 5 }).chain((n) =>
+          fc.integer({ min: 2, max: 5 }).chain((m) =>
+            fc.record({
+              n: fc.constant(n),
+              m: fc.constant(m),
+              activeIdx: fc.integer({ min: 0, max: n - 1 }),
+              newPos: fc.integer({ min: 0, max: n - 1 }),
+            }),
+          ),
+        ),
+        ({ n, m, activeIdx, newPos }) => {
+          const rootFolders = Array.from({ length: n }, (_, i) => makeFolder(`root${i}`, null, i));
+          const childFolders = Array.from({ length: m }, (_, i) =>
+            makeFolder(`child${i}`, '/parent', i),
+          );
+          const result = applyFolderReorder(
+            [...rootFolders, ...childFolders],
+            rootFolders[activeIdx].id,
+            newPos,
+          );
+          for (const orig of childFolders) {
+            const updated = result.find((f) => f.id === orig.id);
+            expect(updated?.position).toBe(orig.position);
+          }
+        },
+      ),
+    );
   });
 });
