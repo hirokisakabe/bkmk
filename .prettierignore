@@ -2,3 +2,4 @@ pnpm-lock.yaml
 .pnpm-store/
 packages/web/test-results/
 packages/web/playwright-report/
+packages/web/dev-dist/
