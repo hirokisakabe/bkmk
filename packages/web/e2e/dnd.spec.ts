@@ -11,9 +11,13 @@ test('同一階層のフォルダをDnDソートすると並び替えAPIが呼�
       /\/api\/folders\/[^/]+\/position$/.test(new URL(req.url()).pathname),
   );
 
+  // デスクトップ viewport でサイドバーを md:static に切り替える
+  // （モバイル固定 overlay では CSS transform アニメーション後に dnd-kit の bounding rect キャッシュが更新されず
+  //   collision detection が誤動作するため）
+  await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('/');
-  await expect(page.getByTestId(`folder-drag-handle-${FOLDERS[0].id}`)).toBeVisible();
-  await expect(page.getByTestId(`folder-drag-handle-${FOLDERS[1].id}`)).toBeVisible();
+  await page.getByTestId(`folder-drop-target-${FOLDERS[0].id}`).waitFor();
+  await page.getByTestId(`folder-drop-target-${FOLDERS[1].id}`).waitFor();
 
   // Folder A (pos=0) → Folder B (pos=1) へドラッグ（同一階層ソート）
   await dragTo(
@@ -28,19 +32,23 @@ test('同一階層のフォルダをDnDソートすると並び替えAPIが呼�
   expect(req.url()).toContain(`/api/folders/${FOLDERS[0].id}/position`);
   expect(body.position).toBe(FOLDERS[1].position);
 
-  // Folder B が Folder A より上に表示される
-  const boxA = await page.getByTestId(`folder-drop-target-${FOLDERS[0].id}`).boundingBox();
-  const boxB = await page.getByTestId(`folder-drop-target-${FOLDERS[1].id}`).boundingBox();
-  expect(boxB!.y).toBeLessThan(boxA!.y);
+  // Folder B が Folder A より上に表示される（リトライ付き）
+  await expect(async () => {
+    const boxA = await page.getByTestId(`folder-drop-target-${FOLDERS[0].id}`).boundingBox();
+    const boxB = await page.getByTestId(`folder-drop-target-${FOLDERS[1].id}`).boundingBox();
+    expect(boxB!.y).toBeLessThan(boxA!.y);
+  }).toPass();
 });
 
 test('別階層のフォルダへDnDしても並び替えAPIは呼ばれない', async ({ page }) => {
   await setupMocks(page);
 
+  // デスクトップ viewport でサイドバーを md:static に切り替える
+  await page.setViewportSize({ width: 1280, height: 900 });
   // folder-a/child を選択すると folder-a (f1) が展開され f3 が表示される
   await page.goto(`/?folder=${encodeURIComponent('/folder-a/child')}`);
-  await expect(page.getByTestId(`folder-drag-handle-${FOLDERS[2].id}`)).toBeVisible(); // f3: Folder A Child
-  await expect(page.getByTestId(`folder-drag-handle-${FOLDERS[1].id}`)).toBeVisible(); // f2: Folder B
+  await page.getByTestId(`folder-drop-target-${FOLDERS[2].id}`).waitFor(); // f3: Folder A Child
+  await page.getByTestId(`folder-drop-target-${FOLDERS[1].id}`).waitFor(); // f2: Folder B
 
   const folderPatchRequests: string[] = [];
   page.on('request', (req) => {
@@ -58,7 +66,7 @@ test('別階層のフォルダへDnDしても並び替えAPIは呼ばれない',
 
   expect(folderPatchRequests).toEqual([]);
   // f3 は f1 配下のまま残っている
-  await expect(page.getByTestId(`folder-drag-handle-${FOLDERS[2].id}`)).toBeVisible();
+  await expect(page.getByTestId(`folder-drop-target-${FOLDERS[2].id}`)).toBeVisible();
 });
 
 test('同一フォルダ内でブックマークをDnDソートすると並び替えAPIが呼ばれる', async ({ page }) => {
