@@ -86,7 +86,11 @@ describe('resolveCanSortBookmarkList', () => {
 
   it('3件以上のとき true', () => {
     expect(
-      resolveCanSortBookmarkList([makeBookmark('a', 0), makeBookmark('b', 1), makeBookmark('c', 2)]),
+      resolveCanSortBookmarkList([
+        makeBookmark('a', 0),
+        makeBookmark('b', 1),
+        makeBookmark('c', 2),
+      ]),
     ).toBe(true);
   });
 });
