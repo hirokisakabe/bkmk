@@ -8,7 +8,7 @@ import { useBookmarks, useBookmarksPaginated } from '../hooks/use-bookmarks';
 import { useDeleteBookmark } from '../hooks/use-delete-bookmark';
 import { useAllFolders } from '../hooks/use-folders';
 import { UNCATEGORIZED_FOLDER } from '../lib/constants';
-import { resolveCanReorderBookmarks } from '../lib/dnd-reorder';
+import { resolveCanReorderBookmarks, resolveCanSortBookmarkList } from '../lib/dnd-reorder';
 import { useSettings } from '../lib/settings-store';
 import type { Bookmark } from '../types';
 import { AddBookmarkForm } from './add-bookmark-form';
@@ -70,7 +70,7 @@ function ReorderableBookmarkList({
 }) {
   const { data: bookmarks, isLoading } = useBookmarks(folderPath, deep);
   const deleteBookmark = useDeleteBookmark();
-  const canReorder = bookmarks && bookmarks.length > 1;
+  const canReorder = resolveCanSortBookmarkList(bookmarks);
 
   return (
     <div>

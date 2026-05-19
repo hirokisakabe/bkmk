@@ -12,6 +12,10 @@ export function resolveCanReorderBookmarks({
   return !isAllBookmarks && !(deep && hasSubfolders);
 }
 
+export function resolveCanSortBookmarkList(bookmarks: Bookmark[] | undefined): boolean {
+  return !!bookmarks && bookmarks.length > 1;
+}
+
 export function resolveBookmarkReorderTarget(
   bookmarks: Bookmark[] | undefined,
   activeId: string,
