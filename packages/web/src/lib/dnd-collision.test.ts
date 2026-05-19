@@ -94,4 +94,19 @@ describe('collisionDetection', () => {
     expect(dndKit.pointerWithin).not.toHaveBeenCalled();
     expect(dndKit.closestCenter).toHaveBeenCalledTimes(1);
   });
+
+  it('folderドラッグ時はbookmarkドラッグと異なりコンテナを絞り込まずclosestCenterを使う', () => {
+    // folder sort は同一 parentPath 内の SortableContext 全体を対象にするため
+    // bookmark 用フィルタリングを行わず全コンテナで closestCenter を呼ぶ
+    const bookmarkContainer = makeContainer('bookmark-1', 'bookmark');
+    const folderContainer = makeContainer('folder-1', 'folder');
+    dndKit.closestCenter.mockReturnValue([{ id: 'folder-1' }]);
+
+    collisionDetection(createArgs('folder', [bookmarkContainer, folderContainer]));
+
+    expect(dndKit.closestCenter).toHaveBeenCalledTimes(1);
+    const passedContainers = dndKit.closestCenter.mock.calls[0][0].droppableContainers;
+    expect(passedContainers).toContain(bookmarkContainer);
+    expect(passedContainers).toContain(folderContainer);
+  });
 });
