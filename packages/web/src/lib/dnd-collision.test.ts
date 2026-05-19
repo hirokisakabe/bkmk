@@ -29,41 +29,52 @@ describe('collisionDetection', () => {
     vi.clearAllMocks();
   });
 
-  it('bookmarkドラッグ時はpointerWithinに結果があればそれを返す', () => {
-    const pointerCollisions: ReturnType<typeof collisionDetection> = [{ id: 'bookmark-1' }];
-    const centerCollisions: ReturnType<typeof collisionDetection> = [{ id: 'folder-1' }];
-    dndKit.pointerWithin.mockReturnValue(pointerCollisions);
-    dndKit.closestCenter.mockReturnValue(centerCollisions);
+  it('bookmarkドラッグ時にポインタがブックマーク上にあればそのブックマークを返す', () => {
+    const folderContainer = makeContainer('folder-1', 'folder');
+    const bookmarkContainer = makeContainer('bookmark-1', 'bookmark');
+    const bookmarkCollisions: ReturnType<typeof collisionDetection> = [{ id: 'bookmark-1' }];
+    // ブックマークを先にチェックしてヒット、フォルダは確認されない
+    dndKit.pointerWithin.mockReturnValue(bookmarkCollisions);
+    dndKit.closestCenter.mockReturnValue([]);
 
-    const result = collisionDetection(createArgs('bookmark'));
+    const result = collisionDetection(
+      createArgs('bookmark', [bookmarkContainer, folderContainer]),
+    );
 
-    expect(result).toBe(pointerCollisions);
-    expect(dndKit.pointerWithin).toHaveBeenCalledTimes(1);
+    expect(result).toBe(bookmarkCollisions);
+    // 1回目はブックマークのみで pointerWithin が呼ばれる
+    const firstCallContainers = dndKit.pointerWithin.mock.calls[0][0].droppableContainers;
+    expect(firstCallContainers).toEqual([bookmarkContainer]);
+    expect(firstCallContainers).not.toContain(folderContainer);
     expect(dndKit.closestCenter).not.toHaveBeenCalled();
   });
 
-  it('bookmarkドラッグ時はfolder drop targetのpointerWithin結果も返す', () => {
-    const pointerCollisions: ReturnType<typeof collisionDetection> = [{ id: 'folder-1' }];
-    const centerCollisions: ReturnType<typeof collisionDetection> = [{ id: 'bookmark-1' }];
-    dndKit.pointerWithin.mockReturnValue(pointerCollisions);
-    dndKit.closestCenter.mockReturnValue(centerCollisions);
+  it('bookmarkドラッグ時にブックマーク上になくフォルダ上ならフォルダを返す', () => {
+    const folderContainer = makeContainer('folder-1', 'folder');
+    const bookmarkContainer = makeContainer('bookmark-1', 'bookmark');
+    const folderCollisions: ReturnType<typeof collisionDetection> = [{ id: 'folder-1' }];
+    // 1回目（ブックマーク）: 空 / 2回目（フォルダ）: ヒット
+    dndKit.pointerWithin.mockReturnValueOnce([]).mockReturnValueOnce(folderCollisions);
+    dndKit.closestCenter.mockReturnValue([]);
 
-    const result = collisionDetection(createArgs('bookmark'));
+    const result = collisionDetection(
+      createArgs('bookmark', [bookmarkContainer, folderContainer]),
+    );
 
-    expect(result).toBe(pointerCollisions);
-    expect(dndKit.pointerWithin).toHaveBeenCalledTimes(1);
+    expect(result).toBe(folderCollisions);
     expect(dndKit.closestCenter).not.toHaveBeenCalled();
   });
 
   it('bookmarkドラッグ時にpointerWithinが空ならbookmarkのみでclosestCenterを呼ぶ', () => {
     const bookmarkContainer = makeContainer('bookmark-1', 'bookmark');
     const folderContainer = makeContainer('folder-1', 'folder');
-    const pointerCollisions: ReturnType<typeof collisionDetection> = [];
     const bookmarkCollisions: ReturnType<typeof collisionDetection> = [{ id: 'bookmark-1' }];
-    dndKit.pointerWithin.mockReturnValue(pointerCollisions);
+    dndKit.pointerWithin.mockReturnValue([]);
     dndKit.closestCenter.mockReturnValue(bookmarkCollisions);
 
-    const result = collisionDetection(createArgs('bookmark', [bookmarkContainer, folderContainer]));
+    const result = collisionDetection(
+      createArgs('bookmark', [bookmarkContainer, folderContainer]),
+    );
 
     expect(result).toBe(bookmarkCollisions);
     expect(dndKit.closestCenter).toHaveBeenCalledTimes(1);
@@ -72,16 +83,14 @@ describe('collisionDetection', () => {
     expect(callArgs.droppableContainers).not.toContain(folderContainer);
   });
 
-  it('pointer/bookmarkの衝突がなければbookmarkドラッグはdrop targetなしにする', () => {
+  it('ブックマークコンテナがなければ空配列を返す', () => {
     const folderContainer = makeContainer('folder-1', 'folder');
-    const pointerCollisions: ReturnType<typeof collisionDetection> = [];
-    dndKit.pointerWithin.mockReturnValue(pointerCollisions);
+    dndKit.pointerWithin.mockReturnValue([]);
     dndKit.closestCenter.mockReturnValue([]);
 
     const result = collisionDetection(createArgs('bookmark', [folderContainer]));
 
     expect(result).toEqual([]);
-    expect(dndKit.closestCenter).toHaveBeenCalledTimes(1);
   });
 
   it('folderドラッグ時はclosestCenterを使う', () => {
@@ -121,11 +130,11 @@ describe('collisionDetection（実座標データ / @dnd-kit/core 非モック�
     bottom: t + h,
   });
 
-  const makeRealContainer = (id: string, type: string) =>
+  const makeRealContainer = (id: string, type: string, rect?: ReturnType<typeof makeRect>) =>
     ({
       id,
       data: { current: { type } },
-      rect: { current: null },
+      rect: { current: rect ?? null },
       node: { current: null },
       disabled: false,
     }) as unknown as Parameters<typeof collisionDetection>[0]['droppableContainers'][number];
@@ -164,11 +173,64 @@ describe('collisionDetection（実座標データ / @dnd-kit/core 非モック�
       ]),
       droppableContainers: [
         makeRealContainer('folder-1', 'folder'),
-        makeRealContainer('bookmark-2', 'bookmark'),
+        makeRealContainer('bookmark-2', 'bookmark', makeRect(0, 150, 200, 40)),
       ],
       pointerCoordinates: { x: 55, y: 165 },
     } as unknown as Parameters<typeof collisionDetection>[0]);
     expect(result[0]?.id).toBe('bookmark-2');
     expect(result.map((r) => r.id)).not.toContain('folder-1');
+  });
+
+  it('ポインタがアイテム右端の15px以内なら次のアイテムを返す（右端 = 後ろに挿入の意図）', () => {
+    // 横並び2アイテム: bk1=[0,200], gap=16, bk2=[216,416]
+    const bk1 = makeRealContainer('bookmark-1', 'bookmark', makeRect(0, 0, 200, 40));
+    const bk2 = makeRealContainer('bookmark-2', 'bookmark', makeRect(216, 0, 200, 40));
+
+    // pointer at bk1 right-5px = x:195, within right-15px zone (195 > 200-15=185)
+    const result = collisionDetection({
+      active: { id: 'active-b', data: { current: { type: 'bookmark' } } },
+      collisionRect: makeRect(195, 15, 10, 10),
+      droppableRects: new Map([
+        ['bookmark-1', makeRect(0, 0, 200, 40)],
+        ['bookmark-2', makeRect(216, 0, 200, 40)],
+      ]),
+      droppableContainers: [bk1, bk2],
+      pointerCoordinates: { x: 195, y: 20 },
+    } as unknown as Parameters<typeof collisionDetection>[0]);
+
+    expect(result[0]?.id).toBe('bookmark-2');
+  });
+
+  it('ポインタがアイテム右端から16px以上内側なら現在のアイテムを返す（左端 = 前に挿入の意図）', () => {
+    const bk1 = makeRealContainer('bookmark-1', 'bookmark', makeRect(0, 0, 200, 40));
+    const bk2 = makeRealContainer('bookmark-2', 'bookmark', makeRect(216, 0, 200, 40));
+
+    // pointer at bk1 right-20px = x:180, outside right-15px zone (180 < 185)
+    const result = collisionDetection({
+      active: { id: 'active-b', data: { current: { type: 'bookmark' } } },
+      collisionRect: makeRect(180, 15, 10, 10),
+      droppableRects: new Map([
+        ['bookmark-1', makeRect(0, 0, 200, 40)],
+        ['bookmark-2', makeRect(216, 0, 200, 40)],
+      ]),
+      droppableContainers: [bk1, bk2],
+      pointerCoordinates: { x: 180, y: 20 },
+    } as unknown as Parameters<typeof collisionDetection>[0]);
+
+    expect(result[0]?.id).toBe('bookmark-1');
+  });
+
+  it('最後のアイテムの右端付近にドロップした場合は最後のアイテムを返す（次がないため）', () => {
+    const bk1 = makeRealContainer('bookmark-1', 'bookmark', makeRect(0, 0, 200, 40));
+
+    const result = collisionDetection({
+      active: { id: 'active-b', data: { current: { type: 'bookmark' } } },
+      collisionRect: makeRect(195, 15, 10, 10),
+      droppableRects: new Map([['bookmark-1', makeRect(0, 0, 200, 40)]]),
+      droppableContainers: [bk1],
+      pointerCoordinates: { x: 195, y: 20 },
+    } as unknown as Parameters<typeof collisionDetection>[0]);
+
+    expect(result[0]?.id).toBe('bookmark-1');
   });
 });
