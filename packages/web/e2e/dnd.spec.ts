@@ -273,3 +273,112 @@ test('deep表示ではブックマークの並び替えハンドルを表示せ�
     'Beta',
   ]);
 });
+
+// ---- ソートずれ回帰テスト: フォルダ内3件の様々なパターン ----
+// deep=false（デフォルト）で A,B,C の3件をソートする全パターンを検証する。
+// 「意図より1〜2件ずれる」症状が残っていれば以下のいずれかが失敗する。
+
+test.describe('フォルダ内3件ソート（deep=false）全パターン', () => {
+  async function setup3Bookmarks(page: Parameters<typeof setupMocks>[0]) {
+    const bk1 = makeBookmark('sort-a', 'SortA', '/sort-folder', 0);
+    const bk2 = makeBookmark('sort-b', 'SortB', '/sort-folder', 1);
+    const bk3 = makeBookmark('sort-c', 'SortC', '/sort-folder', 2);
+    await setupMocks(page, [bk1, bk2, bk3]);
+    await page.goto('/?folder=/sort-folder');
+    await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText([
+      'SortA',
+      'SortB',
+      'SortC',
+    ]);
+    return { bk1, bk2, bk3 };
+  }
+
+  test('1番目を3番目の位置へ移動すると B,C,A になる', async ({ page }) => {
+    const { bk1, bk3 } = await setup3Bookmarks(page);
+    await dragTo(page, page.getByTestId(`bookmark-drag-handle-${bk1.id}`), page.getByTestId(`bookmark-drag-handle-${bk3.id}`));
+    await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText(['SortB', 'SortC', 'SortA']);
+  });
+
+  test('3番目を1番目の位置へ移動すると C,A,B になる', async ({ page }) => {
+    const { bk1, bk3 } = await setup3Bookmarks(page);
+    await dragTo(page, page.getByTestId(`bookmark-drag-handle-${bk3.id}`), page.getByTestId(`bookmark-drag-handle-${bk1.id}`));
+    await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText(['SortC', 'SortA', 'SortB']);
+  });
+
+  test('1番目を2番目の位置へ移動すると B,A,C になる', async ({ page }) => {
+    const { bk1, bk2 } = await setup3Bookmarks(page);
+    await dragTo(page, page.getByTestId(`bookmark-drag-handle-${bk1.id}`), page.getByTestId(`bookmark-drag-handle-${bk2.id}`));
+    await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText(['SortB', 'SortA', 'SortC']);
+  });
+
+  test('2番目を1番目の位置へ移動すると B,A,C になる', async ({ page }) => {
+    const { bk1, bk2 } = await setup3Bookmarks(page);
+    await dragTo(page, page.getByTestId(`bookmark-drag-handle-${bk2.id}`), page.getByTestId(`bookmark-drag-handle-${bk1.id}`));
+    await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText(['SortB', 'SortA', 'SortC']);
+  });
+
+  test('2番目を3番目の位置へ移動すると A,C,B になる', async ({ page }) => {
+    const { bk2, bk3 } = await setup3Bookmarks(page);
+    await dragTo(page, page.getByTestId(`bookmark-drag-handle-${bk2.id}`), page.getByTestId(`bookmark-drag-handle-${bk3.id}`));
+    await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText(['SortA', 'SortC', 'SortB']);
+  });
+
+  test('3番目を2番目の位置へ移動すると A,C,B になる', async ({ page }) => {
+    const { bk2, bk3 } = await setup3Bookmarks(page);
+    await dragTo(page, page.getByTestId(`bookmark-drag-handle-${bk3.id}`), page.getByTestId(`bookmark-drag-handle-${bk2.id}`));
+    await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText(['SortA', 'SortC', 'SortB']);
+  });
+
+  test('連続ソート: 1→3移動後にさらに2番目を1番目に移動', async ({ page }) => {
+    const { bk1, bk2, bk3 } = await setup3Bookmarks(page);
+    // 1回目: A→C で B,C,A
+    await dragTo(page, page.getByTestId(`bookmark-drag-handle-${bk1.id}`), page.getByTestId(`bookmark-drag-handle-${bk3.id}`));
+    await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText(['SortB', 'SortC', 'SortA']);
+    // 2回目: C→B で C,B,A
+    await dragTo(page, page.getByTestId(`bookmark-drag-handle-${bk3.id}`), page.getByTestId(`bookmark-drag-handle-${bk2.id}`));
+    await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText(['SortC', 'SortB', 'SortA']);
+  });
+});
+
+// deep=true かつ混在キャッシュ状態での同一フォルダ内ソート全パターン
+test.describe('フォルダ内3件ソート（deep=true 混在キャッシュ）全パターン', () => {
+  async function setup3BookmarksMixed(page: Parameters<typeof setupMocks>[0]) {
+    const bk1 = makeBookmark('mix-a', 'MixA', '/mix-folder', 0);
+    const bk2 = makeBookmark('mix-b', 'MixB', '/mix-folder', 1);
+    const bk3 = makeBookmark('mix-c', 'MixC', '/mix-folder', 2);
+    // サブフォルダのブックマーク（position が重複）
+    const bkX = makeBookmark('mix-x', 'MixX', '/mix-folder/sub', 0);
+    const bkY = makeBookmark('mix-y', 'MixY', '/mix-folder/sub', 1);
+    const bkZ = makeBookmark('mix-z', 'MixZ', '/mix-folder/sub', 2);
+    await setupMocks(page, [bk1, bk2, bk3, bkX, bkY, bkZ]);
+    await page.goto('/settings');
+    await page.getByLabel('サブフォルダを含む').check();
+    await page.goto('/?folder=/mix-folder');
+    // FOLDERS にサブフォルダが含まれないため hasSubfolders=false → ソート可能
+    // 同一フォルダのブックマークのみ表示される
+    await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText([
+      'MixA',
+      'MixB',
+      'MixC',
+    ]);
+    return { bk1, bk2, bk3 };
+  }
+
+  test('1番目を3番目の位置へ移動すると B,C,A になる', async ({ page }) => {
+    const { bk1, bk3 } = await setup3BookmarksMixed(page);
+    await dragTo(page, page.getByTestId(`bookmark-drag-handle-${bk1.id}`), page.getByTestId(`bookmark-drag-handle-${bk3.id}`));
+    await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText(['MixB', 'MixC', 'MixA']);
+  });
+
+  test('3番目を1番目の位置へ移動すると C,A,B になる', async ({ page }) => {
+    const { bk1, bk3 } = await setup3BookmarksMixed(page);
+    await dragTo(page, page.getByTestId(`bookmark-drag-handle-${bk3.id}`), page.getByTestId(`bookmark-drag-handle-${bk1.id}`));
+    await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText(['MixC', 'MixA', 'MixB']);
+  });
+
+  test('隣同士の入れ替えが正しく動く', async ({ page }) => {
+    const { bk1, bk2 } = await setup3BookmarksMixed(page);
+    await dragTo(page, page.getByTestId(`bookmark-drag-handle-${bk1.id}`), page.getByTestId(`bookmark-drag-handle-${bk2.id}`));
+    await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText(['MixB', 'MixA', 'MixC']);
+  });
+});
