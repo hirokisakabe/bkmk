@@ -128,9 +128,31 @@ export const BOOKMARKS: Bookmark[] = [
   },
 ];
 
-export async function setupMocks(page: Page) {
+export function makeBookmark(
+  id: string,
+  title: string,
+  folderPath: string | null,
+  position: number,
+): Bookmark {
+  return {
+    id,
+    userId: 'test-user',
+    url: `https://${id}.example.com`,
+    title,
+    description: null,
+    imageUrl: null,
+    faviconUrl: null,
+    folderPath,
+    position,
+    deletedAt: null,
+    createdAt: '2024-01-01T00:00:00.000Z',
+    updatedAt: '2024-01-01T00:00:00.000Z',
+  };
+}
+
+export async function setupMocks(page: Page, extraBookmarks: Bookmark[] = []) {
   const folders = FOLDERS.map((folder) => ({ ...folder }));
-  const bookmarks = BOOKMARKS.map((bookmark) => ({ ...bookmark }));
+  const bookmarks = [...BOOKMARKS.map((bookmark) => ({ ...bookmark })), ...extraBookmarks];
 
   await page.route(
     (url) => url.pathname.includes('/auth/get-session'),
