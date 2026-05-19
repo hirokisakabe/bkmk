@@ -153,6 +153,35 @@ describe('resolveBookmarkReorderTarget', () => {
 
     expect(resolveBookmarkReorderTarget(mixedFolderBookmarks, 'a', 'b')).toBeNull();
   });
+
+  it('deep=true の複数フォルダ混在キャッシュをfolderPathでフィルタリングした後も正しいpositionを返す', () => {
+    // deep=true で返ってくる複数フォルダ混在データ。
+    // 各フォルダで position は 0 から独立して採番されるため値が重複する。
+    // handleDragEnd では folderPath でフィルタリングしてから渡すことで正確なインデックス計算を保証する。
+    const mixedCache = [
+      makeBookmark('a', 0, '/work'),
+      makeBookmark('x', 0, '/work/sub'), // サブフォルダ・position 重複
+      makeBookmark('b', 1, '/work'),
+      makeBookmark('y', 1, '/work/sub'), // サブフォルダ・position 重複
+      makeBookmark('c', 2, '/work'),
+    ];
+    const filtered = mixedCache.filter((bk) => bk.folderPath === '/work');
+
+    expect(resolveBookmarkReorderTarget(filtered, 'a', 'c')).toEqual({ id: 'a', position: 2 });
+    expect(resolveBookmarkReorderTarget(filtered, 'c', 'a')).toEqual({ id: 'c', position: 0 });
+  });
+
+  it('deep=true の複数フォルダ混在キャッシュをフィルタリングせずに渡すとサブフォルダへのoverはnullを返す', () => {
+    // フィルタリングなしの場合、over がサブフォルダのブックマーク（position 重複）になると
+    // folderPath 不一致で null が返り何もしない（「元に戻る」症状）
+    const mixedCache = [
+      makeBookmark('a', 0, '/work'),
+      makeBookmark('x', 0, '/work/sub'),
+      makeBookmark('b', 1, '/work'),
+    ];
+
+    expect(resolveBookmarkReorderTarget(mixedCache, 'a', 'x')).toBeNull();
+  });
 });
 
 describe('applyBookmarkReorder', () => {

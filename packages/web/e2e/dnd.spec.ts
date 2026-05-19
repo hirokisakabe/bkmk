@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { BOOKMARKS, FOLDERS, dragTo, setupMocks } from './helpers';
+import { BOOKMARKS, FOLDERS, dragTo, makeBookmark, setupMocks } from './helpers';
 
 test('同一階層のフォルダをDnDソートすると並び替えAPIが呼ばれる', async ({ page }) => {
   await setupMocks(page);
@@ -195,6 +195,40 @@ test('末端フォルダでincludeSubfolders=trueでもdrag handleが表示さ�
   const req = await patchRequest;
   expect(req.url()).toContain(`/api/bookmarks/${BOOKMARKS[3].id}/position`);
   await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText(['Epsilon', 'Delta']);
+});
+
+test('includeSubfolders=true で複数フォルダ混在キャッシュでも同一フォルダのブックマークのみ表示・ソートできる', async ({
+  page,
+}) => {
+  // /gap-folder に bk-1(pos=0), bk-2(pos=1)
+  // /gap-folder/sub に bk-x(pos=0), bk-y(pos=1) ← position が重複
+  // FOLDERS にはサブフォルダが含まれないため hasSubfolders=false → canReorderBookmarks=true
+  // deep=true のキャッシュには 4 件が混在するが、SortableContext には同一フォルダ 2 件のみ渡すべき
+  const bk1 = makeBookmark('bk-gap-1', 'GapA', '/gap-folder', 0);
+  const bk2 = makeBookmark('bk-gap-2', 'GapB', '/gap-folder', 1);
+  const bkX = makeBookmark('bk-gap-x', 'GapX', '/gap-folder/sub', 0);
+  const bkY = makeBookmark('bk-gap-y', 'GapY', '/gap-folder/sub', 1);
+  await setupMocks(page, [bk1, bk2, bkX, bkY]);
+
+  await page.goto('/settings');
+  await page.getByLabel('サブフォルダを含む').check();
+
+  await page.goto('/?folder=/gap-folder');
+
+  // 同一フォルダのブックマークのみ表示される（GapX/GapY は /gap-folder/sub なので表示されない）
+  await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText(['GapA', 'GapB']);
+
+  // drag handle が表示される
+  await expect(page.getByTestId(`bookmark-drag-handle-${bk1.id}`)).toBeVisible();
+
+  // GapA → GapB の位置にドラッグ → 正しく入れ替わる
+  await dragTo(
+    page,
+    page.getByTestId(`bookmark-drag-handle-${bk1.id}`),
+    page.getByTestId(`bookmark-drag-handle-${bk2.id}`),
+  );
+
+  await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText(['GapB', 'GapA']);
 });
 
 test('deep表示ではブックマークの並び替えハンドルを表示せずbookmark上のdropはno-opになる', async ({
