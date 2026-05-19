@@ -110,3 +110,65 @@ describe('collisionDetection', () => {
     expect(passedContainers).toContain(folderContainer);
   });
 });
+
+describe('collisionDetection（実座標データ / @dnd-kit/core 非モック）', () => {
+  const makeRect = (l: number, t: number, w: number, h: number) => ({
+    left: l,
+    top: t,
+    width: w,
+    height: h,
+    right: l + w,
+    bottom: t + h,
+  });
+
+  const makeRealContainer = (id: string, type: string) =>
+    ({
+      id,
+      data: { current: { type } },
+      rect: { current: null },
+      node: { current: null },
+      disabled: false,
+    }) as unknown as Parameters<typeof collisionDetection>[0]['droppableContainers'][number];
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    const actual = await vi.importActual<typeof import('@dnd-kit/core')>('@dnd-kit/core');
+    dndKit.closestCenter.mockImplementation(actual.closestCenter);
+    dndKit.pointerWithin.mockImplementation(actual.pointerWithin);
+  });
+
+  it('ポインタがフォルダ矩形内にある場合、bookmark ドラッグでフォルダが返る', () => {
+    const result = collisionDetection({
+      active: { id: 'b1', data: { current: { type: 'bookmark' } } },
+      collisionRect: makeRect(50, 30, 10, 10),
+      droppableRects: new Map([
+        ['folder-1', makeRect(0, 0, 200, 100)],
+        ['bookmark-2', makeRect(0, 150, 200, 40)],
+      ]),
+      droppableContainers: [
+        makeRealContainer('folder-1', 'folder'),
+        makeRealContainer('bookmark-2', 'bookmark'),
+      ],
+      pointerCoordinates: { x: 55, y: 35 },
+    } as unknown as Parameters<typeof collisionDetection>[0]);
+    expect(result[0]?.id).toBe('folder-1');
+  });
+
+  it('ポインタがフォルダ矩形外にある場合、bookmark ドラッグでブックマークが返る（フォルダは返らない）', () => {
+    const result = collisionDetection({
+      active: { id: 'b1', data: { current: { type: 'bookmark' } } },
+      collisionRect: makeRect(50, 160, 10, 10),
+      droppableRects: new Map([
+        ['folder-1', makeRect(0, 0, 200, 100)],
+        ['bookmark-2', makeRect(0, 150, 200, 40)],
+      ]),
+      droppableContainers: [
+        makeRealContainer('folder-1', 'folder'),
+        makeRealContainer('bookmark-2', 'bookmark'),
+      ],
+      pointerCoordinates: { x: 55, y: 165 },
+    } as unknown as Parameters<typeof collisionDetection>[0]);
+    expect(result[0]?.id).toBe('bookmark-2');
+    expect(result.map((r) => r.id)).not.toContain('folder-1');
+  });
+});
