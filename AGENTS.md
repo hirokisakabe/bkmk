@@ -2,6 +2,23 @@
 
 This file provides guidance to AI coding agents when working with code in this repository.
 
+## ローカル開発セットアップ
+
+初回または DB を作り直したいときの手順。Docker（OrbStack 等）が必要。
+
+```bash
+cp .env.example .env       # ローカル既定値の DATABASE_URL / BETTER_AUTH_SECRET が入っている
+docker compose up -d db    # Postgres 17 を 5432 で起動（healthcheck 完了まで数秒）
+pnpm install
+pnpm db:migrate            # スキーマ適用
+pnpm db:seed               # 固定テストユーザー + サンプル folders/bookmarks を投入（冪等）
+pnpm dev                   # API (3000) + Web (5173) を起動
+```
+
+テストユーザー: `test@example.com` / `password1234`。Web 画面のログインフォームから入れる。
+
+`pnpm db:seed` はテストユーザー自体を delete cascade で消してから作り直し、サンプル folders/bookmarks を transaction で投入する。UI で手動追加したデータも毎回消えるので注意。`DATABASE_URL` が `localhost` 以外を指している場合は安全のため停止する（必要なら `BKMK_SEED_ALLOW_REMOTE=1` で bypass 可）。
+
 ## Commands
 
 ```bash
@@ -27,6 +44,7 @@ pnpm --filter @bkmk/web test:e2e         # E2E テスト（Playwright / Chromium
 # データベース（要 DATABASE_URL）
 pnpm db:generate          # Drizzle マイグレーション生成
 pnpm db:migrate           # マイグレーション適用
+pnpm db:seed              # 固定テストユーザー + サンプル folders/bookmarks を投入
 pnpm db:studio            # Drizzle Studio 起動
 ```
 
@@ -53,7 +71,7 @@ pnpm モノレポ（Node.js 24+, TypeScript 6, ES modules）。
 - **エントリポイント**: `src/index.ts` — Hono アプリ。`/auth/*` を better-auth に委譲し、`/api/*` に認証ミドルウェアを適用。`AppType` をエクスポートして Hono RPC の型共有に使用。
 - **ルート**: `src/routes/` — bookmarks, folders, trash, search, user。各ルートは `Hono<Env>` 型で `c.get('user')` から認証ユーザーを取得。
 - **バリデーション**: `@hono/zod-validator` + `src/validation-hook.ts` でリクエストを Zod スキーマで検証。
-- **DB**: Drizzle ORM + Neon PostgreSQL。スキーマは `src/db/schema.ts`。
+- **DB**: Drizzle ORM + PostgreSQL (`pg` driver)。ローカルは docker-compose の Postgres、本番は Neon の pooled エンドポイント。スキーマは `src/db/schema.ts`。
 - **認証**: better-auth（email/password + bearer token プラグイン）。設定は `src/auth.ts`。
 - **OGP 取得**: `src/ogp.ts` — URL からメタデータ（title, description, image, favicon）を抽出。localhost・プライベート IP を拒否、HTML サイズ上限 512KB。YouTube は oEmbed API、Twitter/X は FxTwitter API で専用取得。
 - **Hono RPC 型共有**: `src/index.ts` でルートをチェーンして `AppType` をエクスポート。Web・CLI パッケージがこの型を参照して型安全な API クライアントを構築。
@@ -98,12 +116,13 @@ pnpm モノレポ（Node.js 24+, TypeScript 6, ES modules）。
 
 ## Environment Variables
 
-`.env.example` を参照。`DATABASE_URL`（Neon PostgreSQL）、`BETTER_AUTH_SECRET`、`BETTER_AUTH_URL` が必要。
+`.env.example` を参照。`DATABASE_URL`（PostgreSQL）、`BETTER_AUTH_SECRET`、`BETTER_AUTH_URL` が必要。`.env.example` はローカル docker-compose 既定値を持つ。
 
 ## 開発環境
 
 - 開発時は `pnpm dev` で API（port 3000）と Web（Vite dev server）が同時起動する。
 - Vite が `/api`、`/auth`、`/health` を `http://localhost:3000` にプロキシするため、CORS 設定不要。
+- DB はローカル Postgres（`docker compose up -d db`）が前提。詳細は冒頭「ローカル開発セットアップ」を参照。
 
 ## デプロイ
 

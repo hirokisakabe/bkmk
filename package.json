@@ -21,7 +21,8 @@
     "release": "pnpm build && changeset publish",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "db:seed": "pnpm --filter @bkmk/api db:seed"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
@@ -32,6 +33,7 @@
     "@changesets/cli": "^2.31.0",
     "@eslint/js": "^9.27.0",
     "concurrently": "^9.1.2",
+    "dotenv": "^16.4.7",
     "drizzle-kit": "^0.31.10",
     "eslint": "^9.27.0",
     "eslint-plugin-react-hooks": "^7.0.1",
