@@ -160,8 +160,8 @@ function DeleteItemDialog({ target, onClose }: { target: TrashItem | null; onClo
   return (
     <AlertDialog.Root open={target !== null} onOpenChange={(open) => !open && onClose()}>
       <AlertDialog.Portal>
-        <AlertDialog.Overlay className="fixed inset-0 bg-black/40" />
-        <AlertDialog.Content className="fixed top-1/2 left-1/2 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-lg bg-white p-6 shadow-lg">
+        <AlertDialog.Overlay className="fixed inset-0 z-50 bg-black/40" />
+        <AlertDialog.Content className="fixed top-1/2 left-1/2 z-50 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-lg bg-white p-6 shadow-lg">
           <AlertDialog.Title className="mb-2 text-lg font-bold">完全削除</AlertDialog.Title>
           <AlertDialog.Description className="mb-4 text-sm text-gray-500">
             「{name}」を完全に削除します。この操作は取り消せません。
@@ -213,8 +213,8 @@ function EmptyTrashDialog({
   return (
     <AlertDialog.Root open={open} onOpenChange={onOpenChange}>
       <AlertDialog.Portal>
-        <AlertDialog.Overlay className="fixed inset-0 bg-black/40" />
-        <AlertDialog.Content className="fixed top-1/2 left-1/2 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-lg bg-white p-6 shadow-lg">
+        <AlertDialog.Overlay className="fixed inset-0 z-50 bg-black/40" />
+        <AlertDialog.Content className="fixed top-1/2 left-1/2 z-50 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-lg bg-white p-6 shadow-lg">
           <AlertDialog.Title className="mb-2 text-lg font-bold">ゴミ箱を空にする</AlertDialog.Title>
           <AlertDialog.Description className="mb-4 text-sm text-gray-500">
             ゴミ箱内のすべてのアイテムを完全に削除します。この操作は取り消せません。

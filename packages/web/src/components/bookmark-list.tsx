@@ -374,7 +374,7 @@ function BookmarkCard({
           </div>
         </ContextMenu.Trigger>
         <ContextMenu.Portal>
-          <ContextMenu.Content className="min-w-[160px] rounded-md border border-gray-200 bg-white py-1 shadow-lg">
+          <ContextMenu.Content className="z-50 min-w-[160px] rounded-md border border-gray-200 bg-white py-1 shadow-lg">
             <ContextMenu.Item
               className="cursor-default px-3 py-1.5 text-sm text-gray-700 outline-none hover:bg-gray-100 data-[highlighted]:bg-gray-100"
               onSelect={() => setMoveDialogOpen(true)}
