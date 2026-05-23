@@ -17,7 +17,7 @@ pnpm dev                   # API (3000) + Web (5173) を起動
 
 テストユーザー: `test@example.com` / `password1234`。Web 画面のログインフォームから入れる。
 
-`pnpm db:seed` はテストユーザーの folders/bookmarks を毎回 reset してから insert する。UI で手動追加したデータも消えるので注意。
+`pnpm db:seed` はテストユーザー自体を delete cascade で消してから作り直し、サンプル folders/bookmarks を transaction で投入する。UI で手動追加したデータも毎回消えるので注意。`DATABASE_URL` が `localhost` 以外を指している場合は安全のため停止する（必要なら `BKMK_SEED_ALLOW_REMOTE=1` で bypass 可）。
 
 ## Commands
 
