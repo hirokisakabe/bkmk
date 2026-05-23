@@ -110,3 +110,13 @@ pnpm モノレポ（Node.js 24+, TypeScript 6, ES modules）。
 - **Docker**: マルチステージビルド（`Dockerfile`）。Web をビルドし API の `public/` にコピーして単一コンテナで配信。
 - **本番ポート**: 8080（`PORT` 環境変数で変更可）。
 - **SPA ルーティング**: API が `public/index.html` へフォールバック配信。
+
+### PR プレビュー環境
+
+PR を作成すると `.github/workflows/preview.yml` が起動し、PR ごとに独立した環境を立ち上げる。
+
+- **Cloud Run service**: `bkmk-pr-<PR#>` という名前で deploy。close 時に削除される。
+- **Neon branch**: `pr-<PR#>` を main から copy-on-write で作成し、その DB に対して migration を実行。close 時に削除。
+- **PR コメント**: deploy 完了後にプレビュー URL を PR コメントとして投稿（再 push 時は既存コメントを update）。
+- **除外条件**: fork PR / dependabot PR は secrets 流出防止のため skip。
+- **必要な GitHub Secrets**: 既存の `GCP_PROJECT_ID` / `GCP_WORKLOAD_IDENTITY_PROVIDER` / `GCP_SERVICE_ACCOUNT` / `BETTER_AUTH_SECRET` に加えて、`GCP_PROJECT_NUMBER`（preview URL 計算用）、`NEON_API_KEY`、`NEON_PROJECT_ID`（neonctl 用）が必要。
