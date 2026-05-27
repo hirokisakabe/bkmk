@@ -1,8 +1,19 @@
-import { DndContext, type DragEndEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import {
+  DndContext,
+  DragOverlay,
+  type DragEndEvent,
+  type DragStartEvent,
+  PointerSensor,
+  useDndContext,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { collisionDetection } from '../lib/dnd-collision';
+import type { Bookmark } from '../types';
+import { BookmarkCardPreview } from './bookmark-list';
 import { FolderTree } from './folder-tree';
 
 export function Layout({
@@ -15,6 +26,23 @@ export function Layout({
   const navigate = useNavigate();
   const location = useRouterState({ select: (s) => s.location });
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [activeBookmark, setActiveBookmark] = useState<Bookmark | null>(null);
+
+  const handleDragStart = (event: DragStartEvent) => {
+    const data = event.active.data.current;
+    if (data?.type === 'bookmark' && data.bookmark) {
+      setActiveBookmark(data.bookmark as Bookmark);
+    }
+  };
+
+  const handleDragEndInternal = (event: DragEndEvent) => {
+    setActiveBookmark(null);
+    onDragEnd?.(event);
+  };
+
+  const handleDragCancel = () => {
+    setActiveBookmark(null);
+  };
 
   const search = location.search as Record<string, unknown>;
   const isOnIndex = location.pathname === '/';
@@ -54,7 +82,9 @@ export function Layout({
     <DndContext
       sensors={sensors}
       collisionDetection={collisionDetection}
-      onDragEnd={onDragEnd ?? (() => {})}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEndInternal}
+      onDragCancel={handleDragCancel}
     >
       {sidebarOpen && (
         <div
@@ -136,7 +166,22 @@ export function Layout({
           <main className="flex-1 overflow-y-auto p-4">{children}</main>
         </div>
       </div>
+      <DragOverlay dropAnimation={null}>
+        {activeBookmark ? <BookmarkDragOverlayContent bookmark={activeBookmark} /> : null}
+      </DragOverlay>
     </DndContext>
+  );
+}
+
+function BookmarkDragOverlayContent({ bookmark }: { bookmark: Bookmark }) {
+  // DragOverlay は portal で render されるため grid 親のサイズ計算が効かない。
+  // active 要素の初期 rect の width を渡して元のカードと同じ幅で表示する。
+  const { active } = useDndContext();
+  const width = active?.rect.current.initial?.width;
+  return (
+    <div style={width ? { width } : undefined}>
+      <BookmarkCardPreview bookmark={bookmark} />
+    </div>
   );
 }
 

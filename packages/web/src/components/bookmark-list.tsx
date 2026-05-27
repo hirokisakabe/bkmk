@@ -243,13 +243,15 @@ function SortableBookmarkCard({
     data: { type: 'bookmark', bookmark },
   });
 
+  // drag 中はカード本体を不可視にし、DragOverlay 側のサムネイルだけを表示する。
+  // レイアウト枠は残すことで同一 SortableContext の reorder preview を維持する。
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
   };
 
   return (
-    <div ref={setNodeRef} style={style} className={isDragging ? 'relative z-10 opacity-50' : ''}>
+    <div ref={setNodeRef} style={style} className={isDragging ? 'opacity-0' : ''}>
       <BookmarkCard
         bookmark={bookmark}
         onDelete={onDelete}
@@ -266,24 +268,56 @@ function DraggableBookmarkCard({
   bookmark: Bookmark;
   onDelete: () => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: bookmark.id,
     data: { type: 'bookmark', bookmark },
   });
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-  };
-
   return (
     <div
       ref={setNodeRef}
-      style={style}
-      className={`[touch-action:pan-y] ${isDragging ? 'relative z-10 opacity-50' : ''}`}
+      className={`[touch-action:pan-y] ${isDragging ? 'opacity-0' : ''}`}
       {...attributes}
       {...listeners}
     >
       <BookmarkCard bookmark={bookmark} onDelete={onDelete} />
+    </div>
+  );
+}
+
+export function BookmarkCardPreview({ bookmark }: { bookmark: Bookmark }) {
+  const [imageError, setImageError] = useState(false);
+  const displayTitle = bookmark.title || bookmark.url;
+  const showImage = bookmark.imageUrl && !imageError;
+
+  return (
+    <div className="flex h-full flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
+      <div className="aspect-[1.91/1] w-full overflow-hidden bg-gray-100">
+        {showImage ? (
+          <img
+            src={bookmark.imageUrl!}
+            alt=""
+            className="h-full w-full object-cover"
+            onError={() => setImageError(true)}
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-gray-300">
+            <ImagePlaceholderIcon />
+          </div>
+        )}
+      </div>
+      <div className="flex flex-1 flex-col p-3">
+        <div className="mb-1 flex min-h-[2.5rem] items-center gap-1.5">
+          {bookmark.faviconUrl && (
+            <img src={bookmark.faviconUrl} alt="" className="h-4 w-4 shrink-0" />
+          )}
+          <h3 className="line-clamp-2 text-sm font-medium text-gray-900">{displayTitle}</h3>
+        </div>
+        {bookmark.description && (
+          <p className="line-clamp-2 text-xs text-gray-500">{bookmark.description}</p>
+        )}
+        <p className="mt-auto truncate text-xs text-gray-400">{bookmark.url}</p>
+      </div>
     </div>
   );
 }
