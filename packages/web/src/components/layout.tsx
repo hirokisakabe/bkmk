@@ -159,8 +159,9 @@ function BookmarkDragOverlayContent() {
   const { active } = useDndContext();
   const data = active?.data.current;
   if (!data || data.type !== 'bookmark') return null;
-  // DragOverlay は portal で render されるため grid 親のサイズ計算が効かない。
-  // active 要素の初期 rect の width を渡して元のカードと同じ幅で表示する。
+  // DragOverlay は position: fixed + 高い z-index で viewport 基準描画されるため、
+  // 元の grid のサイズ計算が効かない。active 要素の初期 rect の width を渡して
+  // 元のカードと同じ幅で表示する。
   const width = active?.rect.current.initial?.width;
   return (
     <div style={width ? { width } : undefined}>

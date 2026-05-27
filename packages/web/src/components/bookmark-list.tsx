@@ -309,7 +309,14 @@ export function BookmarkCardPreview({ bookmark }: { bookmark: Bookmark }) {
       <div className="flex flex-1 flex-col p-3">
         <div className="mb-1 flex min-h-[2.5rem] items-center gap-1.5">
           {bookmark.faviconUrl && (
-            <img src={bookmark.faviconUrl} alt="" className="h-4 w-4 shrink-0" />
+            <img
+              src={bookmark.faviconUrl}
+              alt=""
+              className="h-4 w-4 shrink-0"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+              }}
+            />
           )}
           <h3 className="line-clamp-2 text-sm font-medium text-gray-900">{displayTitle}</h3>
         </div>
