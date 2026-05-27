@@ -1,8 +1,18 @@
-import { DndContext, type DragEndEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import {
+  DndContext,
+  DragOverlay,
+  type DragEndEvent,
+  PointerSensor,
+  useDndContext,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { collisionDetection } from '../lib/dnd-collision';
+import type { Bookmark } from '../types';
+import { BookmarkCardPreview } from './bookmark-list';
 import { FolderTree } from './folder-tree';
 
 export function Layout({
@@ -136,7 +146,27 @@ export function Layout({
           <main className="flex-1 overflow-y-auto p-4">{children}</main>
         </div>
       </div>
+      <DragOverlay dropAnimation={null}>
+        <BookmarkDragOverlayContent />
+      </DragOverlay>
     </DndContext>
+  );
+}
+
+function BookmarkDragOverlayContent() {
+  // useDndContext で active 情報を取り、bookmark drag のときだけ overlay を出す。
+  // state を別途持たないことで onDragEnd 後の余計な再 render を避ける。
+  const { active } = useDndContext();
+  const data = active?.data.current;
+  if (!data || data.type !== 'bookmark') return null;
+  // DragOverlay は position: fixed + 高い z-index で viewport 基準描画されるため、
+  // 元の grid のサイズ計算が効かない。active 要素の初期 rect の width を渡して
+  // 元のカードと同じ幅で表示する。
+  const width = active?.rect.current.initial?.width;
+  return (
+    <div style={width ? { width } : undefined}>
+      <BookmarkCardPreview bookmark={data.bookmark as Bookmark} />
+    </div>
   );
 }
 
