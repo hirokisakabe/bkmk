@@ -2,7 +2,6 @@ import {
   DndContext,
   DragOverlay,
   type DragEndEvent,
-  type DragStartEvent,
   PointerSensor,
   useDndContext,
   useSensor,
@@ -26,23 +25,6 @@ export function Layout({
   const navigate = useNavigate();
   const location = useRouterState({ select: (s) => s.location });
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [activeBookmark, setActiveBookmark] = useState<Bookmark | null>(null);
-
-  const handleDragStart = (event: DragStartEvent) => {
-    const data = event.active.data.current;
-    if (data?.type === 'bookmark' && data.bookmark) {
-      setActiveBookmark(data.bookmark as Bookmark);
-    }
-  };
-
-  const handleDragEndInternal = (event: DragEndEvent) => {
-    setActiveBookmark(null);
-    onDragEnd?.(event);
-  };
-
-  const handleDragCancel = () => {
-    setActiveBookmark(null);
-  };
 
   const search = location.search as Record<string, unknown>;
   const isOnIndex = location.pathname === '/';
@@ -82,9 +64,7 @@ export function Layout({
     <DndContext
       sensors={sensors}
       collisionDetection={collisionDetection}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEndInternal}
-      onDragCancel={handleDragCancel}
+      onDragEnd={onDragEnd ?? (() => {})}
     >
       {sidebarOpen && (
         <div
@@ -167,20 +147,24 @@ export function Layout({
         </div>
       </div>
       <DragOverlay dropAnimation={null}>
-        {activeBookmark ? <BookmarkDragOverlayContent bookmark={activeBookmark} /> : null}
+        <BookmarkDragOverlayContent />
       </DragOverlay>
     </DndContext>
   );
 }
 
-function BookmarkDragOverlayContent({ bookmark }: { bookmark: Bookmark }) {
+function BookmarkDragOverlayContent() {
+  // useDndContext で active 情報を取り、bookmark drag のときだけ overlay を出す。
+  // state を別途持たないことで onDragEnd 後の余計な再 render を避ける。
+  const { active } = useDndContext();
+  const data = active?.data.current;
+  if (!data || data.type !== 'bookmark') return null;
   // DragOverlay は portal で render されるため grid 親のサイズ計算が効かない。
   // active 要素の初期 rect の width を渡して元のカードと同じ幅で表示する。
-  const { active } = useDndContext();
   const width = active?.rect.current.initial?.width;
   return (
     <div style={width ? { width } : undefined}>
-      <BookmarkCardPreview bookmark={bookmark} />
+      <BookmarkCardPreview bookmark={data.bookmark as Bookmark} />
     </div>
   );
 }
