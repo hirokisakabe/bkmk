@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "commander": "^13.1.0",
-    "hono": "^4.12.18"
+    "hono": "^4.12.21"
   },
   "devDependencies": {
     "@bkmk/api": "workspace:*",
