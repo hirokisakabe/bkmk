@@ -6,7 +6,7 @@
 
 URL をフォルダで整理し、OGP プレビュー付きで管理できるブックマークマネージャー
 
-[Web アプリ](https://bkmk-680461270704.asia-northeast1.run.app) | [CLI](https://www.npmjs.com/package/@bkmk/cli)
+[Web アプリ](https://bkmk.tokyo) | [CLI](https://www.npmjs.com/package/@bkmk/cli)
 
 </div>
 
@@ -16,7 +16,7 @@ URL をフォルダで整理し、OGP プレビュー付きで管理できるブ
 
 ### Web アプリ
 
-[bkmk](https://bkmk-680461270704.asia-northeast1.run.app) にアクセスしてアカウントを作成するだけで、すぐに使い始められます。
+[bkmk](https://bkmk.tokyo) にアクセスしてアカウントを作成するだけで、すぐに使い始められます。
 
 ### CLI
 

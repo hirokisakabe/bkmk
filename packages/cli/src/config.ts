@@ -14,7 +14,7 @@ function getSessionFile(): string {
   return path.join(getConfigDir(), 'session.json');
 }
 
-const DEFAULT_API_URL = 'https://bkmk-680461270704.asia-northeast1.run.app';
+const DEFAULT_API_URL = 'https://bkmk.tokyo';
 
 interface Config {
   apiUrl: string;
