@@ -25,6 +25,7 @@ export function Layout({
   const navigate = useNavigate();
   const location = useRouterState({ select: (s) => s.location });
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
 
   const search = location.search as Record<string, unknown>;
   const isOnIndex = location.pathname === '/';
@@ -94,11 +95,6 @@ export function Layout({
               <CloseIcon />
             </button>
           </div>
-          <SearchInput
-            key={isOnIndex ? (q ?? '') : ''}
-            defaultValue={isOnIndex ? (q ?? '') : ''}
-            onSearch={handleSearch}
-          />
           <FolderTree selectedFolder={selectedFolder} onSelectFolder={handleSelectFolder} />
           <div className="mt-auto space-y-1">
             <Link
@@ -130,7 +126,7 @@ export function Layout({
         </aside>
 
         <div className="flex flex-1 flex-col overflow-hidden">
-          <div className="flex shrink-0 items-center gap-3 border-b border-gray-200 bg-gray-50 px-2 md:hidden">
+          <div className="flex shrink-0 items-center gap-2 border-b border-gray-200 bg-gray-50 px-2 md:hidden">
             <button
               type="button"
               onClick={() => setSidebarOpen(true)}
@@ -139,11 +135,40 @@ export function Layout({
             >
               <HamburgerIcon />
             </button>
-            <Link to="/">
-              <span className="text-base font-bold">bkmk</span>
-            </Link>
+            {mobileSearchOpen || q ? (
+              <SearchInput
+                key={`mobile-${isOnIndex ? (q ?? '') : ''}`}
+                defaultValue={isOnIndex ? (q ?? '') : ''}
+                onSearch={handleSearch}
+                ariaLabel="モバイルでブックマークを検索"
+                className="min-w-0 flex-1"
+              />
+            ) : (
+              <>
+                <Link to="/" className="mr-auto">
+                  <span className="text-base font-bold">bkmk</span>
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setMobileSearchOpen(true)}
+                  className="flex h-11 w-11 items-center justify-center rounded text-gray-600 hover:bg-gray-200"
+                  aria-label="検索を開く"
+                >
+                  <SearchGlyph className="h-5 w-5" />
+                </button>
+              </>
+            )}
           </div>
-          <main className="flex-1 overflow-y-auto p-4">{children}</main>
+          <main className="flex-1 overflow-y-auto p-4">
+            <SearchInput
+              key={`desktop-${isOnIndex ? (q ?? '') : ''}`}
+              defaultValue={isOnIndex ? (q ?? '') : ''}
+              onSearch={handleSearch}
+              ariaLabel="ブックマークを検索"
+              className="float-right mb-4 ml-4 hidden w-full max-w-[22rem] md:block"
+            />
+            {children}
+          </main>
         </div>
       </div>
       <DragOverlay dropAnimation={null}>
@@ -173,9 +198,13 @@ function BookmarkDragOverlayContent() {
 function SearchInput({
   defaultValue,
   onSearch,
+  ariaLabel,
+  className,
 }: {
   defaultValue: string;
   onSearch: (query: string) => void;
+  ariaLabel: string;
+  className?: string;
 }) {
   const [value, setValue] = useState(defaultValue);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
@@ -195,12 +224,13 @@ function SearchInput({
   };
 
   return (
-    <div className="relative mb-4">
-      <SearchIcon />
+    <div className={`relative ${className ?? ''}`}>
+      <SearchGlyph className="pointer-events-none absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-gray-400" />
       <input
         type="text"
         value={value}
         onChange={(e) => handleChange(e.target.value)}
+        aria-label={ariaLabel}
         placeholder="ブックマークを検索..."
         className="w-full rounded-md border border-gray-300 py-1.5 pr-2 pl-8 text-sm placeholder-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
       />
@@ -232,13 +262,9 @@ function TrashIcon() {
   );
 }
 
-function SearchIcon() {
+function SearchGlyph({ className }: { className: string }) {
   return (
-    <svg
-      className="pointer-events-none absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-gray-400"
-      viewBox="0 0 20 20"
-      fill="currentColor"
-    >
+    <svg className={className} viewBox="0 0 20 20" fill="currentColor">
       <path
         fillRule="evenodd"
         d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z"

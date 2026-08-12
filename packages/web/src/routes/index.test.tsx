@@ -43,6 +43,49 @@ describe('IndexPage', () => {
     });
   });
 
+  it('検索バーがサイドバーではなくメイン領域の右上に表示される', async () => {
+    renderWithProviders({ initialUrl: '/' });
+
+    const searchInput = await screen.findByRole('textbox', { name: 'ブックマークを検索' });
+    expect(searchInput).toHaveAttribute('placeholder', 'ブックマークを検索...');
+    expect(searchInput.closest('aside')).not.toBeInTheDocument();
+    expect(searchInput.closest('main')).toBeInTheDocument();
+    expect(searchInput.parentElement).toHaveClass('float-right', 'max-w-[22rem]');
+  });
+
+  it('検索語をデバウンスして検索結果へ遷移し、入力値を維持する', async () => {
+    const user = userEvent.setup();
+    renderWithProviders({ initialUrl: '/' });
+
+    const searchInput = await screen.findByRole('textbox', { name: 'ブックマークを検索' });
+    await user.type(searchInput, 'TypeScript');
+
+    expect(
+      screen.queryByRole('heading', { name: '「TypeScript」の検索結果' }),
+    ).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: '「TypeScript」の検索結果' })).toBeInTheDocument();
+    });
+    expect(screen.getByRole('textbox', { name: 'ブックマークを検索' })).toHaveValue('TypeScript');
+  });
+
+  it('モバイル上部バーからサイドバーを開かずに検索入力を展開できる', async () => {
+    const user = userEvent.setup();
+    renderWithProviders({ initialUrl: '/' });
+
+    await user.click(await screen.findByRole('button', { name: '検索を開く' }));
+
+    const mobileSearchInput = screen.getByRole('textbox', {
+      name: 'モバイルでブックマークを検索',
+    });
+    expect(mobileSearchInput).toHaveAttribute('placeholder', 'ブックマークを検索...');
+    expect(mobileSearchInput.closest('aside')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'サイドバーを閉じる' }).closest('aside')).toHaveClass(
+      '-translate-x-full',
+    );
+  });
+
   it('サイドバーに「未分類」ノードが表示される', async () => {
     renderWithProviders({ initialUrl: '/' });
 
