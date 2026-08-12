@@ -1,12 +1,75 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
 
 import { client } from '../lib/api-client';
 import type { Bookmark } from '../types';
 
+const bookmarkCreationsKey = ['bookmark-creations'] as const;
+
+export type BookmarkCreation =
+  | {
+      status: 'pending';
+      clientId: string;
+      url: string;
+      folderPath: string | null;
+    }
+  | {
+      status: 'error';
+      clientId: string;
+      url: string;
+      folderPath: string | null;
+      error: string;
+    }
+  | {
+      status: 'success';
+      clientId: string;
+      url: string;
+      folderPath: string | null;
+      bookmark: Bookmark;
+    };
+
+export function isBookmarkInScope(
+  folderPath: string | null,
+  folder: string | null,
+  deep: boolean,
+): boolean {
+  if (!deep) return folderPath === folder;
+  if (folder === null) return true;
+  return folderPath === folder || folderPath?.startsWith(`${folder}/`) === true;
+}
+
+export function useBookmarkCreations(resolvedBookmarks: Bookmark[] = []) {
+  const queryClient = useQueryClient();
+  const query = useQuery<BookmarkCreation[]>({
+    queryKey: bookmarkCreationsKey,
+    queryFn: () => [],
+    initialData: [],
+    staleTime: Infinity,
+  });
+
+  useEffect(() => {
+    const resolvedIds = new Set(resolvedBookmarks.map((bookmark) => bookmark.id));
+    if (resolvedIds.size === 0) return;
+    queryClient.setQueryData<BookmarkCreation[]>(bookmarkCreationsKey, (current = []) => {
+      const next = current.filter(
+        (creation) => creation.status !== 'success' || !resolvedIds.has(creation.bookmark.id),
+      );
+      return next.length === current.length ? current : next;
+    });
+  }, [queryClient, resolvedBookmarks]);
+
+  return query;
+}
+
 export function useCreateBookmark() {
   const queryClient = useQueryClient();
 
-  return useMutation<Bookmark, Error, { url: string; folderPath: string | null }>({
+  return useMutation<
+    Bookmark,
+    Error,
+    { url: string; folderPath: string | null },
+    { clientId: string }
+  >({
     mutationFn: async ({ url, folderPath }) => {
       const res = await client.api.bookmarks.$post({
         json: { url, folderPath },
@@ -21,8 +84,37 @@ export function useCreateBookmark() {
 
       return (await res.json()) as Bookmark;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bookmarks'] });
+    onMutate: ({ url, folderPath }) => {
+      const clientId = crypto.randomUUID();
+      queryClient.setQueryData<BookmarkCreation[]>(bookmarkCreationsKey, (current = []) => [
+        { status: 'pending', clientId, url, folderPath },
+        ...current.filter(
+          (creation) => creation.folderPath !== folderPath || creation.status !== 'error',
+        ),
+      ]);
+      return { clientId };
+    },
+    onSuccess: (created, _variables, context) => {
+      queryClient.setQueryData<BookmarkCreation[]>(bookmarkCreationsKey, (current = []) =>
+        current.map((creation) =>
+          creation.clientId === context.clientId
+            ? { ...creation, status: 'success', bookmark: created }
+            : creation,
+        ),
+      );
+    },
+    onError: (error, _variables, context) => {
+      if (!context) return;
+      queryClient.setQueryData<BookmarkCreation[]>(bookmarkCreationsKey, (current = []) =>
+        current.map((creation) =>
+          creation.clientId === context.clientId
+            ? { ...creation, status: 'error', error: error.message }
+            : creation,
+        ),
+      );
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['bookmarks'] });
     },
   });
 }
