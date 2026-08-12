@@ -122,10 +122,46 @@ describe('useCreateBookmark', () => {
       paginatedBefore,
     );
 
+    queryClient.setQueryData<Bookmark[]>(bookmarkKey('/work'), [created, ...shiftedDirect]);
     finishInvalidation();
     await mutation;
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['bookmarks'] });
     expect(queryClient.getQueryData<BookmarkCreation[]>(['bookmark-creations'])).toEqual([]);
+  });
+
+  it('一覧refetchで正式IDを確認できない場合は成功カードを保持する', async () => {
+    const created = makeBookmark('created', 0, null);
+    server.use(http.post('/api/bookmarks', () => HttpResponse.json(created, { status: 201 })));
+    const { queryClient, Wrapper } = createWrapper();
+    vi.spyOn(queryClient, 'invalidateQueries').mockResolvedValue();
+    const { result } = renderHook(() => useCreateBookmark(), { wrapper: Wrapper });
+
+    await act(() => result.current.mutateAsync({ url: created.url, folderPath: null }));
+
+    expect(queryClient.getQueryData<BookmarkCreation[]>(['bookmark-creations'])).toEqual([
+      expect.objectContaining({ status: 'success', bookmark: created }),
+    ]);
+  });
+
+  it('POST失敗後の一覧refetchを待たずにmutationを完了する', async () => {
+    server.use(
+      http.post('/api/bookmarks', () =>
+        HttpResponse.json({ error: '追加に失敗しました' }, { status: 500 }),
+      ),
+    );
+    const { queryClient, Wrapper } = createWrapper();
+    vi.spyOn(queryClient, 'invalidateQueries').mockImplementation(() => new Promise(() => {}));
+    const { result } = renderHook(() => useCreateBookmark(), { wrapper: Wrapper });
+
+    await expect(
+      act(() =>
+        result.current.mutateAsync({ url: 'https://failed.example.com', folderPath: null }),
+      ),
+    ).rejects.toThrow('追加に失敗しました');
+    expect(result.current.isPending).toBe(false);
+    expect(queryClient.getQueryData<BookmarkCreation[]>(['bookmark-creations'])).toEqual([
+      expect.objectContaining({ status: 'error', error: '追加に失敗しました' }),
+    ]);
   });
 
   it('失敗時はURLとエラーを残し、同じURLで再試行できる', async () => {
@@ -157,7 +193,12 @@ describe('useCreateBookmark', () => {
       ),
     );
     await act(() => result.current.mutateAsync(variables));
-    expect(queryClient.getQueryData<BookmarkCreation[]>(['bookmark-creations'])).toEqual([]);
+    expect(queryClient.getQueryData<BookmarkCreation[]>(['bookmark-creations'])).toEqual([
+      expect.objectContaining({
+        status: 'success',
+        bookmark: expect.objectContaining({ id: 'retried' }),
+      }),
+    ]);
   });
 
   it('URLを修正して再送すると同じフォルダの古いエラーカードを置き換える', async () => {

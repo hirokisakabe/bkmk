@@ -74,10 +74,10 @@ function ReorderableBookmarkList({
   addBookmarkFolderPath: string | null;
 }) {
   const { data: bookmarks, isLoading } = useBookmarks(folderPath, deep);
-  const { data: creations = [] } = useBookmarkCreations();
-  const deleteBookmark = useDeleteBookmark();
   // deep=true のとき複数フォルダのブックマークが混在するため、現在のフォルダのみに絞る
   const currentFolderBookmarks = bookmarks?.filter((b) => b.folderPath === folderPath);
+  const { data: creations = [] } = useBookmarkCreations(currentFolderBookmarks);
+  const deleteBookmark = useDeleteBookmark();
   const visibleCreations = creations.filter(
     (creation) =>
       isBookmarkInScope(creation.folderPath, folderPath, deep) &&
@@ -149,7 +149,8 @@ function PaginatedBookmarkList({
     folderPath,
     deep,
   );
-  const { data: creations = [] } = useBookmarkCreations();
+  const bookmarks = data?.pages.flatMap((page) => page.data) ?? [];
+  const { data: creations = [] } = useBookmarkCreations(bookmarks);
   const deleteBookmark = useDeleteBookmark();
 
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -171,7 +172,6 @@ function PaginatedBookmarkList({
     return () => observer.disconnect();
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  const bookmarks = data?.pages.flatMap((page) => page.data) ?? [];
   const visibleCreations = creations.filter(
     (creation) =>
       isBookmarkInScope(creation.folderPath, folderPath, deep) &&

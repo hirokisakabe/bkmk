@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
 
 import { client } from '../lib/api-client';
 import type { Bookmark } from '../types';
@@ -37,13 +38,49 @@ export function isBookmarkInScope(
   return folderPath === folder || folderPath?.startsWith(`${folder}/`) === true;
 }
 
-export function useBookmarkCreations() {
-  return useQuery<BookmarkCreation[]>({
+function containsBookmark(data: unknown, bookmarkId: string): boolean {
+  if (Array.isArray(data)) {
+    return data.some(
+      (bookmark) =>
+        bookmark !== null &&
+        typeof bookmark === 'object' &&
+        'id' in bookmark &&
+        bookmark.id === bookmarkId,
+    );
+  }
+  if (!data || typeof data !== 'object' || !('pages' in data) || !Array.isArray(data.pages)) {
+    return false;
+  }
+  return data.pages.some(
+    (page) =>
+      page !== null &&
+      typeof page === 'object' &&
+      'data' in page &&
+      containsBookmark(page.data, bookmarkId),
+  );
+}
+
+export function useBookmarkCreations(resolvedBookmarks: Bookmark[] = []) {
+  const queryClient = useQueryClient();
+  const query = useQuery<BookmarkCreation[]>({
     queryKey: bookmarkCreationsKey,
     queryFn: () => [],
     initialData: [],
     staleTime: Infinity,
   });
+
+  useEffect(() => {
+    const resolvedIds = new Set(resolvedBookmarks.map((bookmark) => bookmark.id));
+    if (resolvedIds.size === 0) return;
+    queryClient.setQueryData<BookmarkCreation[]>(bookmarkCreationsKey, (current = []) => {
+      const next = current.filter(
+        (creation) => creation.status !== 'success' || !resolvedIds.has(creation.bookmark.id),
+      );
+      return next.length === current.length ? current : next;
+    });
+  }, [queryClient, resolvedBookmarks]);
+
+  return query;
 }
 
 export function useCreateBookmark() {
@@ -99,8 +136,16 @@ export function useCreateBookmark() {
       );
     },
     onSettled: async (created, _error, _variables, context) => {
+      if (!created || !context) {
+        void queryClient.invalidateQueries({ queryKey: ['bookmarks'] });
+        return;
+      }
+
       await queryClient.invalidateQueries({ queryKey: ['bookmarks'] });
-      if (!created || !context) return;
+      const createdIsCached = queryClient
+        .getQueriesData({ queryKey: ['bookmarks'] })
+        .some(([, data]) => containsBookmark(data, created.id));
+      if (!createdIsCached) return;
       queryClient.setQueryData<BookmarkCreation[]>(bookmarkCreationsKey, (current = []) =>
         current.filter((creation) => creation.clientId !== context.clientId),
       );
