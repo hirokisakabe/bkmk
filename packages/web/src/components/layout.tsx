@@ -36,14 +36,21 @@ export function Layout({
   const isSearching = !!q;
   const urlSearchValue = isOnIndex ? (q ?? '') : '';
   const [searchValue, setSearchValue] = useState(urlSearchValue);
+  const searchDestinationRef = useRef<{ folder?: string; q?: string }>({
+    folder: q ? undefined : isOnIndex ? folder : undefined,
+    q,
+  });
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
   const searchRevisionRef = useRef(0);
   const isHistoryNavigationRef = useRef(false);
   const submittedRevision = (location.state as unknown as Record<string, unknown>)
     .bkmkSearchRevision;
+  const locationKey = location.state.__TSR_key;
 
   useEffect(() => {
     return router.history.subscribe(({ action }) => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = null;
       if (action.type === 'BACK' || action.type === 'FORWARD' || action.type === 'GO') {
         isHistoryNavigationRef.current = true;
       }
@@ -54,21 +61,30 @@ export function Layout({
     const isHistoryNavigation = isHistoryNavigationRef.current;
     isHistoryNavigationRef.current = false;
 
-    if (
-      !isHistoryNavigation &&
-      typeof submittedRevision === 'number' &&
-      submittedRevision <= searchRevisionRef.current
-    ) {
-      return;
+    if (!isHistoryNavigation && typeof submittedRevision === 'number') {
+      if (submittedRevision < searchRevisionRef.current) {
+        void navigate({
+          to: '/',
+          search: searchDestinationRef.current,
+          replace: true,
+          state: (previous) => ({
+            ...previous,
+            bkmkSearchRevision: searchRevisionRef.current,
+          }),
+        });
+      }
+      if (submittedRevision <= searchRevisionRef.current) return;
     }
 
     searchRevisionRef.current += 1;
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = null;
+    searchDestinationRef.current = {
+      folder: q ? undefined : isOnIndex ? folder : undefined,
+      q,
+    };
     // URL/history is external state; an external navigation intentionally replaces local input.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setSearchValue(urlSearchValue);
-  }, [submittedRevision, urlSearchValue]);
+  }, [folder, isOnIndex, locationKey, navigate, q, submittedRevision, urlSearchValue]);
 
   useEffect(() => {
     return () => {
@@ -84,25 +100,26 @@ export function Layout({
   );
 
   const handleSearchChange = (input: string) => {
+    const query = input.trim();
     setSearchValue(input);
+    searchDestinationRef.current = {
+      folder: query ? undefined : isOnIndex ? folder : undefined,
+      q: query || undefined,
+    };
     searchRevisionRef.current += 1;
     const revision = searchRevisionRef.current;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       if (revision !== searchRevisionRef.current) return;
 
-      const query = input.trim();
       setSearchValue(query);
+      debounceRef.current = null;
       void navigate({
         to: '/',
-        search: {
-          folder: query ? undefined : isOnIndex ? folder : undefined,
-          q: query || undefined,
-        },
+        search: searchDestinationRef.current,
         state: (previous) => ({ ...previous, bkmkSearchRevision: revision }),
       });
       setSidebarOpen(false);
-      debounceRef.current = null;
     }, 300);
   };
 

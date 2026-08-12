@@ -83,14 +83,30 @@ describe('IndexPage', () => {
   it('古いURL遷移が完了しても、その後に入力した新しい検索語を上書きしない', async () => {
     const { router } = renderWithProviders({ initialUrl: '/' });
     const searchInput = await screen.findByRole('textbox', { name: 'ブックマークを検索' });
+    const navigate = router.navigate.bind(router);
+    let releaseOldNavigation!: () => void;
+    let finishOldNavigation!: () => void;
+    const oldNavigationGate = new Promise<void>((resolve) => {
+      releaseOldNavigation = resolve;
+    });
+    const oldNavigationFinished = new Promise<void>((resolve) => {
+      finishOldNavigation = resolve;
+    });
+    vi.spyOn(router, 'navigate').mockImplementation(async (options) => {
+      const search = options.search as { q?: string } | undefined;
+      if (search?.q === 'old') {
+        await oldNavigationGate;
+        await navigate(options);
+        finishOldNavigation();
+        return;
+      }
+      return navigate(options);
+    });
 
     vi.useFakeTimers();
     fireEvent.change(searchInput, { target: { value: 'old' } });
     act(() => vi.advanceTimersByTime(300));
     fireEvent.change(searchInput, { target: { value: 'new' } });
-    await act(async () => Promise.resolve());
-
-    expect(searchInput).toHaveValue('new');
 
     await act(async () => {
       vi.advanceTimersByTime(300);
@@ -98,7 +114,43 @@ describe('IndexPage', () => {
     });
     vi.useRealTimers();
     await waitFor(() => expect(router.state.location.search).toEqual({ q: 'new' }));
+
+    await act(async () => {
+      releaseOldNavigation();
+      await oldNavigationFinished;
+    });
+
+    await waitFor(() => expect(router.state.location.search).toEqual({ q: 'new' }));
     expect(searchInput).toHaveValue('new');
+  });
+
+  it('検索語が同じまま別の場所へ遷移した場合も保留中の検索を破棄する', async () => {
+    const { router } = renderWithProviders({ initialUrl: '/' });
+    const searchInput = await screen.findByRole('textbox', { name: 'ブックマークを検索' });
+
+    vi.useFakeTimers();
+    fireEvent.change(searchInput, { target: { value: 'stale' } });
+    await act(async () => {
+      await router.navigate({ to: '/', search: { folder: '/folder-a' } });
+    });
+
+    expect(searchInput).toHaveValue('');
+    act(() => vi.advanceTimersByTime(300));
+    await act(async () => Promise.resolve());
+    expect(router.state.location.search).toEqual({ folder: '/folder-a' });
+  });
+
+  it('アンマウント時に保留中の検索タイマーを破棄する', async () => {
+    const { router, unmount } = renderWithProviders({ initialUrl: '/' });
+    const searchInput = await screen.findByRole('textbox', { name: 'ブックマークを検索' });
+
+    vi.useFakeTimers();
+    fireEvent.change(searchInput, { target: { value: 'stale' } });
+    unmount();
+    act(() => vi.advanceTimersByTime(300));
+    await act(async () => Promise.resolve());
+
+    expect(router.state.location.search).toEqual({});
   });
 
   it('履歴移動でURLから入力値を同期し、移動前の古いタイマーを実行しない', async () => {
