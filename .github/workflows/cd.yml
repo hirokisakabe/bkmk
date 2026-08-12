@@ -77,7 +77,7 @@ jobs:
             DATABASE_URL=database-url:latest
             BETTER_AUTH_SECRET=better-auth-secret:latest
           env_vars: |
-            BETTER_AUTH_URL=https://bkmk-680461270704.asia-northeast1.run.app
+            BETTER_AUTH_URL=https://bkmk.tokyo
 
       - name: Health check
         run: |

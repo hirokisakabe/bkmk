@@ -24,13 +24,13 @@ describe('config', () => {
   describe('getConfig', () => {
     it('returns default config when no file exists', () => {
       const config = getConfig();
-      expect(config.apiUrl).toBe('https://bkmk-680461270704.asia-northeast1.run.app');
+      expect(config.apiUrl).toBe('https://bkmk.tokyo');
     });
   });
 
   describe('getApiUrl', () => {
     it('returns default API URL', () => {
-      expect(getApiUrl()).toBe('https://bkmk-680461270704.asia-northeast1.run.app');
+      expect(getApiUrl()).toBe('https://bkmk.tokyo');
     });
   });
 
