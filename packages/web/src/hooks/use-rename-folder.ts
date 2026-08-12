@@ -1,17 +1,32 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, type QueryKey } from '@tanstack/react-query';
 
 import { client } from '../lib/api-client';
+import {
+  rebaseBookmarkQueryData,
+  rebaseBookmarkQueryKey,
+  rebaseFolderPath,
+  rebaseFolders,
+  type BookmarkQueryData,
+} from '../lib/folder-paths';
 import type { Folder } from '../types';
 
-export function useRenameFolder() {
+interface FolderPathSelection {
+  selectedFolder: string | null;
+  onSelectFolder: (path: string | null) => void;
+}
+
+interface MutationContext {
+  previousFolderQueries: [queryKey: QueryKey, data: Folder[] | undefined][];
+  previousBookmarkQueries: [queryKey: QueryKey, data: BookmarkQueryData | undefined][];
+  optimisticBookmarkQueryKeys: QueryKey[];
+  previousSelectedFolder: string | null;
+  selectionChanged: boolean;
+}
+
+export function useRenameFolder(selection: FolderPathSelection) {
   const queryClient = useQueryClient();
 
-  return useMutation<
-    Folder,
-    Error,
-    { id: string; name: string },
-    { previousQueries: [queryKey: readonly unknown[], data: Folder[] | undefined][] }
-  >({
+  return useMutation<Folder, Error, { id: string; name: string }, MutationContext>({
     mutationFn: async ({ id, name }) => {
       const res = await client.api.folders[':id'].$patch({
         param: { id },
@@ -28,22 +43,86 @@ export function useRenameFolder() {
       return (await res.json()) as Folder;
     },
     onMutate: async ({ id, name }) => {
-      await queryClient.cancelQueries({ queryKey: ['folders'] });
-      const previousQueries = queryClient.getQueriesData<Folder[]>({
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: ['folders'] }),
+        queryClient.cancelQueries({ queryKey: ['bookmarks'] }),
+      ]);
+      const previousFolderQueries = queryClient.getQueriesData<Folder[]>({
         queryKey: ['folders'],
       });
+      const previousBookmarkQueries = queryClient.getQueriesData<BookmarkQueryData>({
+        queryKey: ['bookmarks'],
+      });
+      const folder = previousFolderQueries
+        .flatMap(([, data]) => data ?? [])
+        .find((candidate) => candidate.id === id);
+      const previousSelectedFolder = selection.selectedFolder;
+
+      if (!folder) {
+        return {
+          previousFolderQueries,
+          previousBookmarkQueries,
+          optimisticBookmarkQueryKeys: [],
+          previousSelectedFolder,
+          selectionChanged: false,
+        };
+      }
+
+      const oldPath = folder.path;
+      const newPath = folder.parentPath === null ? `/${name}` : `${folder.parentPath}/${name}`;
 
       queryClient.setQueriesData<Folder[]>({ queryKey: ['folders'] }, (old) => {
         if (!old) return old;
-        return old.map((f) => (f.id === id ? { ...f, name } : f));
+        return rebaseFolders(old, {
+          folderId: id,
+          oldPath,
+          newPath,
+          newParentPath: folder.parentPath,
+          newName: name,
+          moved: false,
+        });
       });
 
-      return { previousQueries };
+      const optimisticBookmarkQueryKeys: QueryKey[] = [];
+      for (const [queryKey, data] of previousBookmarkQueries) {
+        const optimisticData = rebaseBookmarkQueryData(data, oldPath, newPath);
+        queryClient.setQueryData(queryKey, optimisticData);
+
+        const optimisticQueryKey = rebaseBookmarkQueryKey(queryKey, oldPath, newPath);
+        if (optimisticQueryKey !== queryKey) {
+          queryClient.setQueryData(optimisticQueryKey, optimisticData);
+          optimisticBookmarkQueryKeys.push(optimisticQueryKey);
+        }
+      }
+
+      const optimisticSelectedFolder = rebaseFolderPath(previousSelectedFolder, oldPath, newPath);
+      const selectionChanged = optimisticSelectedFolder !== previousSelectedFolder;
+      if (selectionChanged) selection.onSelectFolder(optimisticSelectedFolder);
+
+      return {
+        previousFolderQueries,
+        previousBookmarkQueries,
+        optimisticBookmarkQueryKeys,
+        previousSelectedFolder,
+        selectionChanged,
+      };
     },
     onError: (_err, _vars, context) => {
-      context?.previousQueries.forEach(([queryKey, data]) => {
+      context?.optimisticBookmarkQueryKeys.forEach((queryKey) => {
+        const existedBefore = context.previousBookmarkQueries.some(
+          ([previousQueryKey]) => JSON.stringify(previousQueryKey) === JSON.stringify(queryKey),
+        );
+        if (!existedBefore) queryClient.removeQueries({ queryKey, exact: true });
+      });
+      context?.previousFolderQueries.forEach(([queryKey, data]) => {
         queryClient.setQueryData(queryKey, data);
       });
+      context?.previousBookmarkQueries.forEach(([queryKey, data]) => {
+        queryClient.setQueryData(queryKey, data);
+      });
+      if (context?.selectionChanged) {
+        selection.onSelectFolder(context.previousSelectedFolder);
+      }
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['folders'] });

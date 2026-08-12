@@ -90,13 +90,17 @@ export function RenameFolderDialog({
   open,
   onOpenChange,
   folder,
+  selectedFolder,
+  onSelectFolder,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   folder: Folder;
+  selectedFolder: string | null;
+  onSelectFolder: (path: string | null) => void;
 }) {
   const [name, setName] = useState(folder.name);
-  const renameFolder = useRenameFolder();
+  const renameFolder = useRenameFolder({ selectedFolder, onSelectFolder });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -163,16 +167,18 @@ export function MoveFolderDialog({
   open,
   onOpenChange,
   folder,
-  onMoved,
+  selectedFolder,
+  onSelectFolder,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   folder: Folder;
-  onMoved?: () => void;
+  selectedFolder: string | null;
+  onSelectFolder: (path: string | null) => void;
 }) {
   const [selectedParent, setSelectedParent] = useState<string | null>(folder.parentPath);
   const [searchQuery, setSearchQuery] = useState('');
-  const moveFolder = useMoveFolder();
+  const moveFolder = useMoveFolder({ selectedFolder, onSelectFolder });
 
   const handleMove = () => {
     if (selectedParent === folder.parentPath) return;
@@ -182,7 +188,6 @@ export function MoveFolderDialog({
       {
         onSuccess: () => {
           onOpenChange(false);
-          onMoved?.();
         },
       },
     );
