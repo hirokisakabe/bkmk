@@ -10,14 +10,19 @@ import { FolderTree } from './folder-tree';
 const folders: Folder[] = [
   {
     id: 'folder-1',
+    userId: 'user-1',
     name: '仕事',
     path: '/仕事',
     parentPath: null,
     position: 0,
+    deletedAt: null,
     createdAt: '2026-08-12T00:00:00.000Z',
-    updatedAt: '2026-08-12T00:00:00.000Z',
   },
 ];
+
+const captureCreateFolderDialogProps = vi.hoisted(() =>
+  vi.fn<(props: { parentPath: string | null }) => void>(),
+);
 
 vi.mock('../hooks/use-folders', async (importOriginal) => {
   const original = await importOriginal<typeof import('../hooks/use-folders')>();
@@ -32,9 +37,10 @@ vi.mock('../hooks/use-delete-folder', () => ({
 }));
 
 vi.mock('./folder-dialogs', () => ({
-  CreateFolderDialog: ({ parentPath }: { parentPath: string | null }) => (
-    <div data-testid="create-folder-dialog" data-parent-path={parentPath ?? 'root'} />
-  ),
+  CreateFolderDialog: (props: { parentPath: string | null }) => {
+    captureCreateFolderDialogProps(props);
+    return <div data-testid="create-folder-dialog" />;
+  },
   MoveFolderDialog: () => null,
   RenameFolderDialog: () => null,
 }));
@@ -71,7 +77,8 @@ describe('FolderTree', () => {
 
     await user.click(createButton);
 
-    expect(screen.getByTestId('create-folder-dialog')).toHaveAttribute('data-parent-path', 'root');
+    expect(screen.getByTestId('create-folder-dialog')).toBeInTheDocument();
+    expect(captureCreateFolderDialogProps.mock.lastCall?.[0].parentPath).toBeNull();
   });
 
   it('フォルダのコンテキストメニューから子フォルダを作成できる', async () => {
@@ -84,10 +91,8 @@ describe('FolderTree', () => {
     await user.click(createChildItem);
 
     await waitFor(() => {
-      expect(screen.getByTestId('create-folder-dialog')).toHaveAttribute(
-        'data-parent-path',
-        '/仕事',
-      );
+      expect(screen.getByTestId('create-folder-dialog')).toBeInTheDocument();
+      expect(captureCreateFolderDialogProps.mock.lastCall?.[0].parentPath).toBe('/仕事');
     });
   });
 });
