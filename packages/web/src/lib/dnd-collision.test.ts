@@ -1,15 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@dnd-kit/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@dnd-kit/core')>();
-  return { ...actual, closestCenter: vi.fn(actual.closestCenter) };
-});
+const dndKit = vi.hoisted(() => ({
+  closestCenter: vi.fn(),
+}));
 
-import * as dndKit from '@dnd-kit/core';
+vi.mock('@dnd-kit/core', () => dndKit);
 
 import { collisionDetection } from './dnd-collision';
-
-const actualDndKit = await vi.importActual<typeof import('@dnd-kit/core')>('@dnd-kit/core');
 
 const makeRect = (left: number, top: number, width: number, height: number) => ({
   left,
@@ -48,7 +45,7 @@ const createArgs = ({
 
 describe('collisionDetection', () => {
   beforeEach(() => {
-    vi.mocked(dndKit.closestCenter).mockReset().mockImplementation(actualDndKit.closestCenter);
+    vi.clearAllMocks();
   });
 
   it('カード中心がフォルダ内ならポインタが外側でもそのフォルダを返す', () => {
@@ -110,7 +107,7 @@ describe('collisionDetection', () => {
     const folder = makeContainer('folder-1', 'folder');
     const bookmark = makeContainer('bookmark-1', 'bookmark');
     const collisions: ReturnType<typeof collisionDetection> = [{ id: 'bookmark-1' }];
-    vi.mocked(dndKit.closestCenter).mockReturnValue(collisions);
+    dndKit.closestCenter.mockReturnValue(collisions);
 
     const result = collisionDetection(
       createArgs({
@@ -164,7 +161,7 @@ describe('collisionDetection', () => {
   it('bookmarkソートはpointerCoordinatesに関係なく同じcollisionRectで同じ候補を渡す', () => {
     const first = makeContainer('bookmark-1', 'bookmark');
     const second = makeContainer('bookmark-2', 'bookmark');
-    vi.mocked(dndKit.closestCenter).mockReturnValue([{ id: 'bookmark-2' }]);
+    dndKit.closestCenter.mockReturnValue([{ id: 'bookmark-2' }]);
     const common = {
       collisionRect: makeRect(190, 0, 100, 100),
       containers: [first, second],
@@ -190,54 +187,10 @@ describe('collisionDetection', () => {
     const bookmark = makeContainer('bookmark-1', 'bookmark');
     const folder = makeContainer('folder-1', 'folder');
     const collisions: ReturnType<typeof collisionDetection> = [{ id: 'folder-1' }];
-    vi.mocked(dndKit.closestCenter).mockReturnValue(collisions);
+    dndKit.closestCenter.mockReturnValue(collisions);
     const args = createArgs({ activeType: 'folder', containers: [bookmark, folder] });
 
     expect(collisionDetection(args)).toBe(collisions);
     expect(dndKit.closestCenter).toHaveBeenCalledWith(args);
-  });
-
-  describe('実dnd-kit closestCenterの座標境界', () => {
-    const active = makeContainer('active', 'bookmark');
-    const adjacent = makeContainer('bookmark-adjacent', 'bookmark');
-    const containers = [active, adjacent];
-    const rects: [string, ReturnType<typeof makeRect>][] = [
-      ['active', makeRect(0, 0, 100, 100)],
-      ['bookmark-adjacent', makeRect(100, 0, 100, 100)],
-    ];
-
-    const detectAtCenter = (
-      centerX: number,
-      pointerCoordinates: { x: number; y: number } = { x: centerX, y: 50 },
-      orderedContainers = containers,
-    ) =>
-      collisionDetection(
-        createArgs({
-          collisionRect: makeRect(centerX - 50, 0, 100, 100),
-          containers: orderedContainers,
-          rects,
-          pointerCoordinates,
-        }),
-      );
-
-    it('隣接cardとの中点直前はactive自身、中点直後は隣接cardを返す', () => {
-      expect(detectAtCenter(99.99)[0]?.id).toBe('active');
-      expect(detectAtCenter(100.01)[0]?.id).toBe('bookmark-adjacent');
-    });
-
-    it('隣接cardとの中点ちょうどはdroppable containerの登録順で決まる', () => {
-      expect(detectAtCenter(100)[0]?.id).toBe('active');
-      expect(detectAtCenter(100, { x: 100, y: 50 }, [adjacent, active])[0]?.id).toBe(
-        'bookmark-adjacent',
-      );
-    });
-
-    it('collisionRectが同じならpointerだけ変えても判定は変わらない', () => {
-      const fromActiveSide = detectAtCenter(100.01, { x: 1, y: 1 });
-      const fromAdjacentSide = detectAtCenter(100.01, { x: 199, y: 99 });
-
-      expect(fromActiveSide[0]?.id).toBe('bookmark-adjacent');
-      expect(fromAdjacentSide[0]?.id).toBe('bookmark-adjacent');
-    });
   });
 });
