@@ -52,31 +52,18 @@ export function FolderTree({
 
   return (
     <nav className="flex-1">
-      <div className="group/header flex items-center">
-        <button
-          type="button"
-          className={`flex min-h-[44px] flex-1 items-center rounded px-2 py-1.5 text-left text-sm ${
-            selectedFolder === null
-              ? 'bg-blue-100 font-semibold text-blue-800'
-              : 'text-gray-700 hover:bg-gray-200'
-          }`}
-          onClick={() => onSelectFolder(null)}
-        >
-          <span className="w-5 shrink-0" />
-          すべて
-        </button>
-        <button
-          type="button"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded text-gray-400 opacity-100 hover:bg-gray-200 hover:text-gray-600 md:h-6 md:w-6 md:opacity-0 md:group-hover/header:opacity-100"
-          onClick={(e: MouseEvent) => {
-            e.stopPropagation();
-            setDialogState({ type: 'create', parentPath: null });
-          }}
-          aria-label="新しいフォルダを作成"
-        >
-          <PlusIcon />
-        </button>
-      </div>
+      <button
+        type="button"
+        className={`flex min-h-[44px] w-full items-center rounded px-2 py-1.5 text-left text-sm ${
+          selectedFolder === null
+            ? 'bg-blue-100 font-semibold text-blue-800'
+            : 'text-gray-700 hover:bg-gray-200'
+        }`}
+        onClick={() => onSelectFolder(null)}
+      >
+        <span className="w-5 shrink-0" />
+        すべて
+      </button>
 
       <button
         ref={uncategorizedDropRef}
@@ -95,7 +82,20 @@ export function FolderTree({
         未分類
       </button>
 
-      <hr className="my-1 border-gray-200" />
+      <div className="mt-1 flex min-h-[44px] items-center px-2">
+        <h2 className="flex-1 text-xs font-semibold text-gray-500">フォルダ</h2>
+        <button
+          type="button"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded text-gray-400 hover:bg-gray-200 hover:text-gray-600 md:h-6 md:w-6"
+          onClick={(e: MouseEvent) => {
+            e.stopPropagation();
+            setDialogState({ type: 'create', parentPath: null });
+          }}
+          aria-label="新しいフォルダを作成"
+        >
+          <PlusIcon />
+        </button>
+      </div>
 
       {isLoading && (
         <div className="mt-2 space-y-2 px-2">
