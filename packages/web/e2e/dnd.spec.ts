@@ -420,11 +420,17 @@ test.describe('フォルダ内3件ソート（deep=false）全パターン', () 
   test('連続ソート: 1→3移動後にさらに2番目を1番目に移動', async ({ page }) => {
     const { bk1, bk2, bk3 } = await setup3Bookmarks(page);
     // 1回目: A→C で B,C,A
+    const firstPatch = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PATCH' &&
+        response.url().includes(`/api/bookmarks/${bk1.id}/position`),
+    );
     await dragTo(
       page,
       page.getByTestId(`bookmark-drag-handle-${bk1.id}`),
       page.getByTestId(`bookmark-drag-handle-${bk3.id}`),
     );
+    await firstPatch;
     await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText([
       'SortB',
       'SortC',
