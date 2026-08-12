@@ -78,6 +78,12 @@ function ReorderableBookmarkList({
   const deleteBookmark = useDeleteBookmark();
   // deep=true のとき複数フォルダのブックマークが混在するため、現在のフォルダのみに絞る
   const currentFolderBookmarks = bookmarks?.filter((b) => b.folderPath === folderPath);
+  const visibleCreations = creations.filter(
+    (creation) =>
+      isBookmarkInScope(creation.folderPath, folderPath, deep) &&
+      (creation.status !== 'success' ||
+        !currentFolderBookmarks?.some((bookmark) => bookmark.id === creation.bookmark.id)),
+  );
   const canReorder = resolveCanSortBookmarkList(currentFolderBookmarks);
 
   return (
@@ -88,15 +94,13 @@ function ReorderableBookmarkList({
 
       <AddBookmarkForm folderPath={addBookmarkFolderPath} />
 
-      <BookmarkCreationCards
-        creations={creations.filter((creation) =>
-          isBookmarkInScope(creation.folderPath, folderPath, deep),
-        )}
-      />
+      <BookmarkCreationCards creations={visibleCreations} />
 
       <LoadingSkeleton isLoading={isLoading} />
 
-      {!isLoading && currentFolderBookmarks?.length === 0 && <EmptyState />}
+      {!isLoading && currentFolderBookmarks?.length === 0 && visibleCreations.length === 0 && (
+        <EmptyState />
+      )}
 
       {!isLoading && currentFolderBookmarks && currentFolderBookmarks.length > 0 && canReorder && (
         <SortableContext
@@ -168,6 +172,12 @@ function PaginatedBookmarkList({
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const bookmarks = data?.pages.flatMap((page) => page.data) ?? [];
+  const visibleCreations = creations.filter(
+    (creation) =>
+      isBookmarkInScope(creation.folderPath, folderPath, deep) &&
+      (creation.status !== 'success' ||
+        !bookmarks.some((bookmark) => bookmark.id === creation.bookmark.id)),
+  );
 
   return (
     <div>
@@ -177,15 +187,11 @@ function PaginatedBookmarkList({
 
       <AddBookmarkForm folderPath={addBookmarkFolderPath} />
 
-      <BookmarkCreationCards
-        creations={creations.filter((creation) =>
-          isBookmarkInScope(creation.folderPath, folderPath, deep),
-        )}
-      />
+      <BookmarkCreationCards creations={visibleCreations} />
 
       <LoadingSkeleton isLoading={isLoading} />
 
-      {!isLoading && bookmarks.length === 0 && <EmptyState />}
+      {!isLoading && bookmarks.length === 0 && visibleCreations.length === 0 && <EmptyState />}
 
       {!isLoading && bookmarks.length > 0 && (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
@@ -224,58 +230,68 @@ function PaginatedBookmarkList({
 }
 
 function BookmarkCreationCards({ creations }: { creations: BookmarkCreation[] }) {
+  const deleteBookmark = useDeleteBookmark();
   if (creations.length === 0) return null;
 
   return (
     <div className="mb-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
       {creations.map((creation) => (
-        <div
-          key={creation.clientId}
-          className={`flex h-full flex-col overflow-hidden rounded-lg border bg-white ${
-            creation.status === 'error' ? 'border-red-300' : 'border-blue-300'
-          }`}
-          data-testid={`bookmark-creation-${creation.status}`}
-        >
-          <div
-            className={`flex aspect-[1.91/1] items-center justify-center ${
-              creation.status === 'error' ? 'bg-red-50 text-red-400' : 'bg-blue-50 text-blue-500'
-            }`}
-          >
-            {creation.status === 'pending' ? (
-              <svg className="h-8 w-8 animate-spin" viewBox="0 0 24 24" fill="none">
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                />
-              </svg>
-            ) : (
-              <span className="text-2xl" aria-hidden="true">
-                !
-              </span>
-            )}
-          </div>
-          <div className="flex flex-1 flex-col gap-1 p-3">
-            <p
-              className={`text-sm font-medium ${
-                creation.status === 'error' ? 'text-red-700' : 'text-blue-700'
+        <div key={creation.clientId} data-testid={`bookmark-creation-${creation.status}`}>
+          {creation.status === 'success' ? (
+            <BookmarkCard
+              bookmark={creation.bookmark}
+              onDelete={() => deleteBookmark.mutate({ id: creation.bookmark.id })}
+            />
+          ) : (
+            <div
+              className={`flex h-full flex-col overflow-hidden rounded-lg border bg-white ${
+                creation.status === 'error' ? 'border-red-300' : 'border-blue-300'
               }`}
             >
-              {creation.status === 'pending' ? '情報を取得中' : '追加できませんでした'}
-            </p>
-            {creation.status === 'error' && (
-              <p className="text-xs text-red-600">{creation.error}</p>
-            )}
-            <p className="mt-auto truncate text-xs text-gray-500">{creation.url}</p>
-          </div>
+              <div
+                className={`flex aspect-[1.91/1] items-center justify-center ${
+                  creation.status === 'error'
+                    ? 'bg-red-50 text-red-400'
+                    : 'bg-blue-50 text-blue-500'
+                }`}
+              >
+                {creation.status === 'pending' ? (
+                  <svg className="h-8 w-8 animate-spin" viewBox="0 0 24 24" fill="none">
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                    />
+                  </svg>
+                ) : (
+                  <span className="text-2xl" aria-hidden="true">
+                    !
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-1 flex-col gap-1 p-3">
+                <p
+                  className={`text-sm font-medium ${
+                    creation.status === 'error' ? 'text-red-700' : 'text-blue-700'
+                  }`}
+                >
+                  {creation.status === 'pending' ? '情報を取得中' : '追加できませんでした'}
+                </p>
+                {creation.status === 'error' && (
+                  <p className="text-xs text-red-600">{creation.error}</p>
+                )}
+                <p className="mt-auto truncate text-xs text-gray-500">{creation.url}</p>
+              </div>
+            </div>
+          )}
         </div>
       ))}
     </div>

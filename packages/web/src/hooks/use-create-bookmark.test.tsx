@@ -2,7 +2,7 @@ import { type InfiniteData, QueryClient, QueryClientProvider } from '@tanstack/r
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { HttpResponse, http } from 'msw';
 import type { ReactNode } from 'react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { server } from '../test/server';
 import type { Bookmark } from '../types';
@@ -57,7 +57,7 @@ function createWrapper() {
 }
 
 describe('useCreateBookmark', () => {
-  it('API応答前は仮データを保持し、成功時は通常・すべて・ページネーションを正式データへ置換する', async () => {
+  it('正式レスポンスを表示しながらserver refetchを待ち、複数ページのdataとcursorを手動変更しない', async () => {
     const created = makeBookmark('created', 0, '/work', {
       url: 'https://new.example.com',
       title: '取得したタイトル',
@@ -77,65 +77,58 @@ describe('useCreateBookmark', () => {
     });
 
     const { queryClient, Wrapper } = createWrapper();
-    queryClient.setQueryData<Bookmark[]>(bookmarkKey('/work'), [
-      makeBookmark('work-existing', 0, '/work'),
-    ]);
-    queryClient.setQueryData<Bookmark[]>(bookmarkKey(null, true), [
-      makeBookmark('other', 0, '/other'),
-      makeBookmark('work-existing', 0, '/work'),
-    ]);
-    queryClient.setQueryData<Bookmark[]>(bookmarkKey('/other'), [
-      makeBookmark('other', 0, '/other'),
-    ]);
-    queryClient.setQueryData<InfiniteData<Page>>(paginatedKey(null, true), {
+    const shiftedDirect = [makeBookmark('work-existing', 1, '/work')];
+    const paginatedBefore: InfiniteData<Page> = {
       pages: [
         {
-          data: [makeBookmark('work-existing', 0, '/work'), makeBookmark('created', 99, '/work')],
+          data: [makeBookmark('first-page', 1, '/work')],
+          nextCursor: 'position-1',
+        },
+        {
+          data: [makeBookmark('second-page', 2, '/work')],
           nextCursor: null,
         },
       ],
-      pageParams: [''],
-    });
+      pageParams: ['', 'position-1'],
+    };
+    queryClient.setQueryData<Bookmark[]>(bookmarkKey('/work'), shiftedDirect);
+    queryClient.setQueryData<InfiniteData<Page>>(paginatedKey('/work'), paginatedBefore);
+
+    let finishInvalidation!: () => void;
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries').mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finishInvalidation = resolve;
+        }),
+    );
 
     const { result } = renderHook(() => useCreateBookmark(), { wrapper: Wrapper });
     const mutation = act(() =>
       result.current.mutateAsync({ url: created.url, folderPath: created.folderPath }),
     );
     await requestStarted;
-
     expect(queryClient.getQueryData<BookmarkCreation[]>(['bookmark-creations'])).toEqual([
-      expect.objectContaining({
-        status: 'pending',
-        url: created.url,
-        folderPath: '/work',
-      }),
+      expect.objectContaining({ status: 'pending', url: created.url, folderPath: '/work' }),
     ]);
 
     finishRequest();
+    await waitFor(() => {
+      expect(queryClient.getQueryData<BookmarkCreation[]>(['bookmark-creations'])).toEqual([
+        expect.objectContaining({ status: 'success', bookmark: created }),
+      ]);
+    });
+    expect(queryClient.getQueryData<Bookmark[]>(bookmarkKey('/work'))).toEqual(shiftedDirect);
+    expect(queryClient.getQueryData<InfiniteData<Page>>(paginatedKey('/work'))).toEqual(
+      paginatedBefore,
+    );
+
+    finishInvalidation();
     await mutation;
-
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['bookmarks'] });
     expect(queryClient.getQueryData<BookmarkCreation[]>(['bookmark-creations'])).toEqual([]);
-    expect(queryClient.getQueryData<Bookmark[]>(bookmarkKey('/work'))).toEqual([
-      created,
-      expect.objectContaining({ id: 'work-existing', position: 1 }),
-    ]);
-    expect(queryClient.getQueryData<Bookmark[]>(bookmarkKey(null, true))).toEqual([
-      created,
-      expect.objectContaining({ id: 'other', position: 0 }),
-      expect.objectContaining({ id: 'work-existing', position: 1 }),
-    ]);
-    expect(
-      queryClient.getQueryData<Bookmark[]>(bookmarkKey('/other'))?.map(({ id }) => id),
-    ).toEqual(['other']);
-
-    const paginated = queryClient.getQueryData<InfiniteData<Page>>(paginatedKey(null, true));
-    expect(paginated?.pages[0].data).toEqual([
-      created,
-      expect.objectContaining({ id: 'work-existing', position: 1 }),
-    ]);
   });
 
-  it('失敗時はURLとエラーを残し、同じURLの再試行時に失敗データをpendingへ置き換える', async () => {
+  it('失敗時はURLとエラーを残し、同じURLで再試行できる', async () => {
     server.use(
       http.post('/api/bookmarks', () =>
         HttpResponse.json({ error: 'OGPの取得に失敗しました' }, { status: 502 }),
@@ -156,31 +149,54 @@ describe('useCreateBookmark', () => {
       }),
     ]);
 
-    let finishRetry!: () => void;
-    const retryStarted = new Promise<void>((resolveStarted) => {
-      server.use(
-        http.post('/api/bookmarks', async () => {
-          resolveStarted();
-          await new Promise<void>((resolve) => {
-            finishRetry = resolve;
-          });
-          return HttpResponse.json(makeBookmark('retried', 0, null, { url: variables.url }), {
-            status: 201,
-          });
+    server.use(
+      http.post('/api/bookmarks', () =>
+        HttpResponse.json(makeBookmark('retried', 0, null, { url: variables.url }), {
+          status: 201,
         }),
-      );
+      ),
+    );
+    await act(() => result.current.mutateAsync(variables));
+    expect(queryClient.getQueryData<BookmarkCreation[]>(['bookmark-creations'])).toEqual([]);
+  });
+
+  it('URLを修正して再送すると同じフォルダの古いエラーカードを置き換える', async () => {
+    server.use(
+      http.post('/api/bookmarks', () =>
+        HttpResponse.json({ error: 'URLが見つかりません' }, { status: 404 }),
+      ),
+    );
+    const { queryClient, Wrapper } = createWrapper();
+    const { result } = renderHook(() => useCreateBookmark(), { wrapper: Wrapper });
+
+    await expect(
+      act(() =>
+        result.current.mutateAsync({ url: 'https://wrong.example.com', folderPath: '/work' }),
+      ),
+    ).rejects.toThrow('URLが見つかりません');
+
+    let finishRetry!: () => void;
+    server.use(
+      http.post('/api/bookmarks', async () => {
+        await new Promise<void>((resolve) => {
+          finishRetry = resolve;
+        });
+        return HttpResponse.json(
+          makeBookmark('corrected', 0, '/work', { url: 'https://correct.example.com' }),
+          { status: 201 },
+        );
+      }),
+    );
+    const retry = act(() =>
+      result.current.mutateAsync({ url: 'https://correct.example.com', folderPath: '/work' }),
+    );
+
+    await waitFor(() => {
+      expect(queryClient.getQueryData<BookmarkCreation[]>(['bookmark-creations'])).toEqual([
+        expect.objectContaining({ status: 'pending', url: 'https://correct.example.com' }),
+      ]);
     });
-
-    const retry = act(() => result.current.mutateAsync(variables));
-    await retryStarted;
-    expect(queryClient.getQueryData<BookmarkCreation[]>(['bookmark-creations'])).toEqual([
-      expect.objectContaining({ status: 'pending', url: variables.url }),
-    ]);
-
     finishRetry();
     await retry;
-    await waitFor(() => {
-      expect(queryClient.getQueryData<BookmarkCreation[]>(['bookmark-creations'])).toEqual([]);
-    });
   });
 });

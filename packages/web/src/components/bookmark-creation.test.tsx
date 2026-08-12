@@ -89,4 +89,51 @@ describe('bookmark creation card', () => {
     expect(input).toHaveValue(url);
     expect(screen.getByRole('button', { name: '追加' })).toBeEnabled();
   });
+
+  it('空フォルダで仮カードを表示中は空状態を同時表示しない', async () => {
+    const user = userEvent.setup();
+    const url = 'https://first.example.com';
+    const created: Bookmark = {
+      id: 'first-bookmark',
+      userId: 'test-user',
+      url,
+      title: '最初のブックマーク',
+      description: null,
+      imageUrl: null,
+      faviconUrl: null,
+      folderPath: null,
+      position: 0,
+      deletedAt: null,
+      createdAt: '2026-08-12T00:00:00.000Z',
+      updatedAt: '2026-08-12T00:00:00.000Z',
+    };
+    let finishRequest!: () => void;
+    let requestFinished = false;
+    server.use(
+      http.get('/api/bookmarks', ({ request }) => {
+        const requestUrl = new URL(request.url);
+        if (!requestUrl.searchParams.has('limit')) return;
+        return HttpResponse.json({ data: requestFinished ? [created] : [], nextCursor: null });
+      }),
+      http.post('/api/bookmarks', async () => {
+        await new Promise<void>((resolve) => {
+          finishRequest = resolve;
+        });
+        requestFinished = true;
+        return HttpResponse.json(created, { status: 201 });
+      }),
+    );
+
+    renderWithProviders({ initialUrl: '/' });
+    expect(await screen.findByText('ブックマークはありません')).toBeInTheDocument();
+    const input = screen.getByPlaceholderText('URLを入力してブックマークを追加');
+    await user.type(input, url);
+    await user.click(screen.getByRole('button', { name: '追加' }));
+
+    expect(await screen.findByTestId('bookmark-creation-pending')).toBeInTheDocument();
+    expect(screen.queryByText('ブックマークはありません')).not.toBeInTheDocument();
+
+    finishRequest();
+    expect(await screen.findByTestId(`bookmark-card-${created.id}`)).toBeInTheDocument();
+  });
 });

@@ -1,10 +1,4 @@
-import {
-  type InfiniteData,
-  type QueryClient,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { client } from '../lib/api-client';
 import type { Bookmark } from '../types';
@@ -24,26 +18,14 @@ export type BookmarkCreation =
       url: string;
       folderPath: string | null;
       error: string;
+    }
+  | {
+      status: 'success';
+      clientId: string;
+      url: string;
+      folderPath: string | null;
+      bookmark: Bookmark;
     };
-
-interface PaginatedBookmarks {
-  data: Bookmark[];
-  nextCursor: string | null;
-}
-
-type BookmarkQueryScope = {
-  folder: string | null;
-  deep: boolean;
-};
-
-function getBookmarkQueryScope(queryKey: readonly unknown[]): BookmarkQueryScope | null {
-  const candidate = queryKey[1] === 'paginated' ? queryKey[2] : queryKey[1];
-  if (!candidate || typeof candidate !== 'object' || !('folder' in candidate)) return null;
-
-  const folder = candidate.folder;
-  const deep = 'deep' in candidate && candidate.deep === true;
-  return { folder: typeof folder === 'string' ? folder : null, deep };
-}
 
 export function isBookmarkInScope(
   folderPath: string | null,
@@ -53,54 +35,6 @@ export function isBookmarkInScope(
   if (!deep) return folderPath === folder;
   if (folder === null) return true;
   return folderPath === folder || folderPath?.startsWith(`${folder}/`) === true;
-}
-
-function prependCreatedBookmark(items: Bookmark[], created: Bookmark): Bookmark[] {
-  return [
-    created,
-    ...items
-      .filter((bookmark) => bookmark.id !== created.id)
-      .map((bookmark) =>
-        bookmark.folderPath === created.folderPath
-          ? { ...bookmark, position: bookmark.position + 1 }
-          : bookmark,
-      ),
-  ];
-}
-
-function addCreatedBookmarkToCache(queryClient: QueryClient, created: Bookmark) {
-  const queries = queryClient.getQueriesData<Bookmark[] | InfiniteData<PaginatedBookmarks>>({
-    queryKey: ['bookmarks'],
-  });
-
-  for (const [queryKey, data] of queries) {
-    const scope = getBookmarkQueryScope(queryKey);
-    if (!scope || !isBookmarkInScope(created.folderPath, scope.folder, scope.deep) || !data) {
-      continue;
-    }
-
-    if (Array.isArray(data)) {
-      queryClient.setQueryData(queryKey, prependCreatedBookmark(data, created));
-      continue;
-    }
-
-    queryClient.setQueryData<InfiniteData<PaginatedBookmarks>>(queryKey, {
-      ...data,
-      pages: data.pages.map((page, index) => ({
-        ...page,
-        data:
-          index === 0
-            ? prependCreatedBookmark(page.data, created)
-            : page.data
-                .filter((bookmark) => bookmark.id !== created.id)
-                .map((bookmark) =>
-                  bookmark.folderPath === created.folderPath
-                    ? { ...bookmark, position: bookmark.position + 1 }
-                    : bookmark,
-                ),
-      })),
-    });
-  }
 }
 
 export function useBookmarkCreations() {
@@ -139,14 +73,19 @@ export function useCreateBookmark() {
       const clientId = crypto.randomUUID();
       queryClient.setQueryData<BookmarkCreation[]>(bookmarkCreationsKey, (current = []) => [
         { status: 'pending', clientId, url, folderPath },
-        ...current.filter((creation) => creation.url !== url || creation.folderPath !== folderPath),
+        ...current.filter(
+          (creation) => creation.folderPath !== folderPath || creation.status !== 'error',
+        ),
       ]);
       return { clientId };
     },
     onSuccess: (created, _variables, context) => {
-      addCreatedBookmarkToCache(queryClient, created);
       queryClient.setQueryData<BookmarkCreation[]>(bookmarkCreationsKey, (current = []) =>
-        current.filter((creation) => creation.clientId !== context.clientId),
+        current.map((creation) =>
+          creation.clientId === context.clientId
+            ? { ...creation, status: 'success', bookmark: created }
+            : creation,
+        ),
       );
     },
     onError: (error, _variables, context) => {
@@ -159,8 +98,12 @@ export function useCreateBookmark() {
         ),
       );
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['bookmarks'] });
+    onSettled: async (created, _error, _variables, context) => {
+      await queryClient.invalidateQueries({ queryKey: ['bookmarks'] });
+      if (!created || !context) return;
+      queryClient.setQueryData<BookmarkCreation[]>(bookmarkCreationsKey, (current = []) =>
+        current.filter((creation) => creation.clientId !== context.clientId),
+      );
     },
   });
 }
