@@ -202,10 +202,12 @@ describe('folder path mutation hooks', () => {
       makeFolder({ id: 'work', name: 'work', path: '/work', parentPath: null }),
     ];
     const beforeBookmarks = [makeBookmark('direct', '/work')];
+    const staleDestinationBookmarks = [makeBookmark('stale', '/archive/work')];
     const onSelectFolder = vi.fn();
     const { queryClient, Wrapper } = createWrapper();
     queryClient.setQueryData(foldersKey, beforeFolders);
     queryClient.setQueryData(bookmarksKey('/work'), beforeBookmarks);
+    queryClient.setQueryData(bookmarksKey('/archive/work'), staleDestinationBookmarks);
 
     const { result } = renderHook(
       () => useMoveFolder({ selectedFolder: '/work', onSelectFolder }),
@@ -217,7 +219,9 @@ describe('folder path mutation hooks', () => {
 
     expect(queryClient.getQueryData(foldersKey)).toEqual(beforeFolders);
     expect(queryClient.getQueryData(bookmarksKey('/work'))).toEqual(beforeBookmarks);
-    expect(queryClient.getQueryData(bookmarksKey('/archive/work'))).toBeUndefined();
+    expect(queryClient.getQueryData(bookmarksKey('/archive/work'))).toEqual(
+      staleDestinationBookmarks,
+    );
     expect(onSelectFolder.mock.calls).toEqual([['/archive/work'], ['/work']]);
   });
 
@@ -244,7 +248,10 @@ describe('folder path mutation hooks', () => {
       () => useMoveFolder({ selectedFolder: null, onSelectFolder: vi.fn() }),
       { wrapper: Wrapper },
     );
-    const mutation = act(() => result.current.mutateAsync({ id: 'work', parentPath: '/archive' }));
+    let mutation!: Promise<Folder>;
+    act(() => {
+      mutation = result.current.mutateAsync({ id: 'work', parentPath: '/archive' });
+    });
     await delayedPatch.patchStarted;
 
     expect(queryClient.getQueryData(bookmarksKey('/work'))).toEqual(sourceBookmarks);
@@ -341,10 +348,12 @@ describe('folder path mutation hooks', () => {
       }),
     ];
     const beforeBookmarks = [makeBookmark('child', '/work/project')];
+    const staleDestinationBookmarks = [makeBookmark('stale', '/job/project')];
     const onSelectFolder = vi.fn();
     const { queryClient, Wrapper } = createWrapper();
     queryClient.setQueryData(foldersKey, beforeFolders);
     queryClient.setQueryData(bookmarksKey('/work/project'), beforeBookmarks);
+    queryClient.setQueryData(bookmarksKey('/job/project'), staleDestinationBookmarks);
 
     const { result } = renderHook(
       () => useRenameFolder({ selectedFolder: '/work/project', onSelectFolder }),
@@ -356,7 +365,9 @@ describe('folder path mutation hooks', () => {
 
     expect(queryClient.getQueryData(foldersKey)).toEqual(beforeFolders);
     expect(queryClient.getQueryData(bookmarksKey('/work/project'))).toEqual(beforeBookmarks);
-    expect(queryClient.getQueryData(bookmarksKey('/job/project'))).toBeUndefined();
+    expect(queryClient.getQueryData(bookmarksKey('/job/project'))).toEqual(
+      staleDestinationBookmarks,
+    );
     expect(onSelectFolder.mock.calls).toEqual([['/job/project'], ['/work/project']]);
   });
 
@@ -377,7 +388,10 @@ describe('folder path mutation hooks', () => {
       () => useRenameFolder({ selectedFolder: null, onSelectFolder: vi.fn() }),
       { wrapper: Wrapper },
     );
-    const mutation = act(() => result.current.mutateAsync({ id: 'work', name: 'job' }));
+    let mutation!: Promise<Folder>;
+    act(() => {
+      mutation = result.current.mutateAsync({ id: 'work', name: 'job' });
+    });
     await delayedPatch.patchStarted;
 
     expect(queryClient.getQueryData(bookmarksKey('/work'))).toEqual(sourceBookmarks);
