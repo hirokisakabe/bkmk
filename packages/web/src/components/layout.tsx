@@ -7,7 +7,7 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
-import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
+import { Link, useNavigate, useRouter, useRouterState } from '@tanstack/react-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { collisionDetection } from '../lib/dnd-collision';
@@ -23,6 +23,7 @@ export function Layout({
   onDragEnd?: (event: DragEndEvent) => void;
 }) {
   const navigate = useNavigate();
+  const router = useRouter();
   const location = useRouterState({ select: (s) => s.location });
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
@@ -33,6 +34,48 @@ export function Layout({
   const q =
     typeof search.q === 'string' && search.q.trim().length > 0 ? search.q.trim() : undefined;
   const isSearching = !!q;
+  const urlSearchValue = isOnIndex ? (q ?? '') : '';
+  const [searchValue, setSearchValue] = useState(urlSearchValue);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
+  const searchRevisionRef = useRef(0);
+  const isHistoryNavigationRef = useRef(false);
+  const submittedRevision = (location.state as unknown as Record<string, unknown>)
+    .bkmkSearchRevision;
+
+  useEffect(() => {
+    return router.history.subscribe(({ action }) => {
+      if (action.type === 'BACK' || action.type === 'FORWARD' || action.type === 'GO') {
+        isHistoryNavigationRef.current = true;
+      }
+    });
+  }, [router]);
+
+  useEffect(() => {
+    const isHistoryNavigation = isHistoryNavigationRef.current;
+    isHistoryNavigationRef.current = false;
+
+    if (
+      !isHistoryNavigation &&
+      typeof submittedRevision === 'number' &&
+      submittedRevision <= searchRevisionRef.current
+    ) {
+      return;
+    }
+
+    searchRevisionRef.current += 1;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = null;
+    // URL/history is external state; an external navigation intentionally replaces local input.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSearchValue(urlSearchValue);
+  }, [submittedRevision, urlSearchValue]);
+
+  useEffect(() => {
+    return () => {
+      searchRevisionRef.current += 1;
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -40,15 +83,27 @@ export function Layout({
     }),
   );
 
-  const handleSearch = (query: string) => {
-    navigate({
-      to: '/',
-      search: {
-        folder: query ? undefined : isOnIndex ? folder : undefined,
-        q: query || undefined,
-      },
-    });
-    setSidebarOpen(false);
+  const handleSearchChange = (input: string) => {
+    setSearchValue(input);
+    searchRevisionRef.current += 1;
+    const revision = searchRevisionRef.current;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      if (revision !== searchRevisionRef.current) return;
+
+      const query = input.trim();
+      setSearchValue(query);
+      void navigate({
+        to: '/',
+        search: {
+          folder: query ? undefined : isOnIndex ? folder : undefined,
+          q: query || undefined,
+        },
+        state: (previous) => ({ ...previous, bkmkSearchRevision: revision }),
+      });
+      setSidebarOpen(false);
+      debounceRef.current = null;
+    }, 300);
   };
 
   const handleSelectFolder = (path: string | null) => {
@@ -137,11 +192,11 @@ export function Layout({
             </button>
             {mobileSearchOpen || q ? (
               <SearchInput
-                key={`mobile-${isOnIndex ? (q ?? '') : ''}`}
-                defaultValue={isOnIndex ? (q ?? '') : ''}
-                onSearch={handleSearch}
+                value={searchValue}
+                onChange={handleSearchChange}
                 ariaLabel="モバイルでブックマークを検索"
                 className="min-w-0 flex-1"
+                autoFocus={mobileSearchOpen}
               />
             ) : (
               <>
@@ -161,9 +216,8 @@ export function Layout({
           </div>
           <main className="flex-1 overflow-y-auto p-4">
             <SearchInput
-              key={`desktop-${isOnIndex ? (q ?? '') : ''}`}
-              defaultValue={isOnIndex ? (q ?? '') : ''}
-              onSearch={handleSearch}
+              value={searchValue}
+              onChange={handleSearchChange}
               ariaLabel="ブックマークを検索"
               className="float-right mb-4 ml-4 hidden w-full max-w-[22rem] md:block"
             />
@@ -196,41 +250,27 @@ function BookmarkDragOverlayContent() {
 }
 
 function SearchInput({
-  defaultValue,
-  onSearch,
+  value,
+  onChange,
   ariaLabel,
   className,
+  autoFocus = false,
 }: {
-  defaultValue: string;
-  onSearch: (query: string) => void;
+  value: string;
+  onChange: (query: string) => void;
   ariaLabel: string;
   className?: string;
+  autoFocus?: boolean;
 }) {
-  const [value, setValue] = useState(defaultValue);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
-
-  useEffect(() => {
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, []);
-
-  const handleChange = (input: string) => {
-    setValue(input);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      onSearch(input.trim());
-    }, 300);
-  };
-
   return (
     <div className={`relative ${className ?? ''}`}>
       <SearchGlyph className="pointer-events-none absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-gray-400" />
       <input
         type="text"
         value={value}
-        onChange={(e) => handleChange(e.target.value)}
+        onChange={(e) => onChange(e.target.value)}
         aria-label={ariaLabel}
+        autoFocus={autoFocus}
         placeholder="ブックマークを検索..."
         className="w-full rounded-md border border-gray-300 py-1.5 pr-2 pl-8 text-sm placeholder-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
       />
