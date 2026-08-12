@@ -123,7 +123,32 @@ describe('移動先選択ダイアログ', () => {
     await user.click(await screen.findByRole('button', { name: 'projectsを展開する' }));
     expect(screen.getByRole('button', { name: 'frontend' })).toBeInTheDocument();
   });
+
+  it('操作可能な親行だけに展開ボタンを表示し、それ以外は同幅の余白を保つ', async () => {
+    const user = userEvent.setup();
+    renderDialog(<MoveBookmarkDialog open onOpenChange={vi.fn()} bookmark={bookmark} />);
+
+    const parentRow = await screen.findByTestId('move-target-row-/projects');
+    expect(within(parentRow).getAllByRole('button')).toHaveLength(2);
+    expect(within(parentRow).getByRole('button', { name: 'projectsを展開する' })).toBeEnabled();
+
+    expectRowWithoutExpandButton(screen.getByTestId('move-target-row-top'));
+    expectRowWithoutExpandButton(screen.getByTestId('move-target-row-/archive'));
+
+    await user.type(screen.getByPlaceholderText('フォルダを検索...'), 'frontend');
+
+    expectRowWithoutExpandButton(screen.getByTestId('move-target-row-/projects'));
+    expectRowWithoutExpandButton(screen.getByTestId('move-target-row-/projects/frontend'));
+    expect(
+      screen.queryByRole('button', { name: /を(?:展開する|折りたたむ)$/ }),
+    ).not.toBeInTheDocument();
+  });
 });
+
+function expectRowWithoutExpandButton(row: HTMLElement) {
+  expect(within(row).getAllByRole('button')).toHaveLength(1);
+  expect(row.querySelector('span[aria-hidden="true"]')).toHaveClass('h-10', 'w-6', 'shrink-0');
+}
 
 function renderDialog(element: ReactElement) {
   server.use(http.get('/api/folders', () => HttpResponse.json(folders)));

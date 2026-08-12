@@ -38,19 +38,22 @@ export function MoveTargetRow({
       }`}
       style={{ paddingLeft: `${depth * 16 + 8}px` }}
     >
-      <button
-        type="button"
-        aria-label={hasChildren ? `${label}を${expanded ? '折りたたむ' : '展開する'}` : undefined}
-        aria-expanded={hasChildren ? expanded : undefined}
-        disabled={!hasChildren}
-        onClick={(event) => {
-          event.stopPropagation();
-          onToggle?.();
-        }}
-        className="flex h-10 w-6 shrink-0 items-center justify-center rounded-sm text-gray-500 outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset disabled:pointer-events-none"
-      >
-        {hasChildren && showExpandControl ? <ChevronIcon expanded={expanded} /> : null}
-      </button>
+      {hasChildren && showExpandControl ? (
+        <button
+          type="button"
+          aria-label={`${label}を${expanded ? '折りたたむ' : '展開する'}`}
+          aria-expanded={expanded}
+          onClick={(event) => {
+            event.stopPropagation();
+            onToggle?.();
+          }}
+          className="flex h-10 w-6 shrink-0 items-center justify-center rounded-sm text-gray-500 outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset"
+        >
+          <ChevronIcon expanded={expanded} />
+        </button>
+      ) : (
+        <span aria-hidden="true" className="h-10 w-6 shrink-0" />
+      )}
       <button
         type="button"
         onClick={() => onSelect(path)}
