@@ -90,6 +90,22 @@ function delayedFolderPatch(response: Folder) {
   return { patchStarted, resolvePatch: () => resolvePatch() };
 }
 
+function delayedFolderPatchFailure(error: string) {
+  let resolvePatch!: () => void;
+  const patchStarted = new Promise<void>((resolve) => {
+    server.use(
+      http.patch('/api/folders/:id', async () => {
+        resolve();
+        await new Promise<void>((resolveRequest) => {
+          resolvePatch = resolveRequest;
+        });
+        return HttpResponse.json({ error }, { status: 500 });
+      }),
+    );
+  });
+  return { patchStarted, resolvePatch: () => resolvePatch() };
+}
+
 describe('folder path mutation hooks', () => {
   it('パス置換は対象自身と子孫だけに適用する', () => {
     expect(rebaseFolderPath('/work', '/work', '/archive/work')).toBe('/archive/work');
@@ -205,6 +221,69 @@ describe('folder path mutation hooks', () => {
     expect(onSelectFolder.mock.calls).toEqual([['/archive/work'], ['/work']]);
   });
 
+  it('move は移行先cacheが既存でも移行元dataを最後に設定し、成功後に旧keyを除去する', async () => {
+    const beforeFolders = [
+      makeFolder({ id: 'archive', name: 'archive', path: '/archive', parentPath: null }),
+      makeFolder({ id: 'work', name: 'work', path: '/work', parentPath: null }),
+    ];
+    const sourceBookmarks = [makeBookmark('source', '/work')];
+    const staleDestinationBookmarks = [makeBookmark('stale', '/archive/work')];
+    const response = makeFolder({
+      id: 'work',
+      name: 'work',
+      path: '/archive/work',
+      parentPath: '/archive',
+    });
+    const delayedPatch = delayedFolderPatch(response);
+    const { queryClient, Wrapper } = createWrapper();
+    queryClient.setQueryData(foldersKey, beforeFolders);
+    queryClient.setQueryData(bookmarksKey('/work'), sourceBookmarks);
+    queryClient.setQueryData(bookmarksKey('/archive/work'), staleDestinationBookmarks);
+
+    const { result } = renderHook(
+      () => useMoveFolder({ selectedFolder: null, onSelectFolder: vi.fn() }),
+      { wrapper: Wrapper },
+    );
+    const mutation = act(() => result.current.mutateAsync({ id: 'work', parentPath: '/archive' }));
+    await delayedPatch.patchStarted;
+
+    expect(queryClient.getQueryData(bookmarksKey('/work'))).toEqual(sourceBookmarks);
+    expect(queryClient.getQueryData<Bookmark[]>(bookmarksKey('/archive/work'))).toEqual([
+      expect.objectContaining({ id: 'source', folderPath: '/archive/work' }),
+    ]);
+
+    delayedPatch.resolvePatch();
+    await mutation;
+    expect(queryClient.getQueryData(bookmarksKey('/work'))).toBeUndefined();
+  });
+
+  it('move 失敗時に別folderへ移動済みなら選択状態をrollbackしない', async () => {
+    const beforeFolders = [
+      makeFolder({ id: 'archive', name: 'archive', path: '/archive', parentPath: null }),
+      makeFolder({ id: 'work', name: 'work', path: '/work', parentPath: null }),
+    ];
+    const delayedPatch = delayedFolderPatchFailure('移動に失敗しました');
+    const onSelectFolder = vi.fn();
+    const { queryClient, Wrapper } = createWrapper();
+    queryClient.setQueryData(foldersKey, beforeFolders);
+
+    const { result, rerender } = renderHook(
+      ({ selectedFolder }: { selectedFolder: string }) =>
+        useMoveFolder({ selectedFolder, onSelectFolder }),
+      { wrapper: Wrapper, initialProps: { selectedFolder: '/work' } },
+    );
+    let mutation!: Promise<Folder>;
+    act(() => {
+      mutation = result.current.mutateAsync({ id: 'work', parentPath: '/archive' });
+    });
+    await delayedPatch.patchStarted;
+    rerender({ selectedFolder: '/personal' });
+
+    delayedPatch.resolvePatch();
+    await expect(mutation).rejects.toThrow('移動に失敗しました');
+    expect(onSelectFolder.mock.calls).toEqual([['/archive/work']]);
+  });
+
   it('rename はAPI応答前に対象名、全子孫パス、bookmark cache、選択パスを更新する', async () => {
     const beforeFolders = [
       makeFolder({ id: 'work', name: 'work', path: '/work', parentPath: null }),
@@ -227,7 +306,10 @@ describe('folder path mutation hooks', () => {
       () => useRenameFolder({ selectedFolder: '/work/project', onSelectFolder }),
       { wrapper: Wrapper },
     );
-    const mutation = act(() => result.current.mutateAsync({ id: 'work', name: 'job' }));
+    let mutation!: Promise<Folder>;
+    act(() => {
+      mutation = result.current.mutateAsync({ id: 'work', name: 'job' });
+    });
     await delayedPatch.patchStarted;
 
     expect(queryClient.getQueryData<Folder[]>(foldersKey)).toEqual([
@@ -276,5 +358,61 @@ describe('folder path mutation hooks', () => {
     expect(queryClient.getQueryData(bookmarksKey('/work/project'))).toEqual(beforeBookmarks);
     expect(queryClient.getQueryData(bookmarksKey('/job/project'))).toBeUndefined();
     expect(onSelectFolder.mock.calls).toEqual([['/job/project'], ['/work/project']]);
+  });
+
+  it('rename は移行先cacheが既存でも移行元dataを最後に設定し、成功後に旧keyを除去する', async () => {
+    const beforeFolders = [
+      makeFolder({ id: 'work', name: 'work', path: '/work', parentPath: null }),
+    ];
+    const sourceBookmarks = [makeBookmark('source', '/work')];
+    const staleDestinationBookmarks = [makeBookmark('stale', '/job')];
+    const response = makeFolder({ id: 'work', name: 'job', path: '/job', parentPath: null });
+    const delayedPatch = delayedFolderPatch(response);
+    const { queryClient, Wrapper } = createWrapper();
+    queryClient.setQueryData(foldersKey, beforeFolders);
+    queryClient.setQueryData(bookmarksKey('/job'), staleDestinationBookmarks);
+    queryClient.setQueryData(bookmarksKey('/work'), sourceBookmarks);
+
+    const { result } = renderHook(
+      () => useRenameFolder({ selectedFolder: null, onSelectFolder: vi.fn() }),
+      { wrapper: Wrapper },
+    );
+    const mutation = act(() => result.current.mutateAsync({ id: 'work', name: 'job' }));
+    await delayedPatch.patchStarted;
+
+    expect(queryClient.getQueryData(bookmarksKey('/work'))).toEqual(sourceBookmarks);
+    expect(queryClient.getQueryData<Bookmark[]>(bookmarksKey('/job'))).toEqual([
+      expect.objectContaining({ id: 'source', folderPath: '/job' }),
+    ]);
+
+    delayedPatch.resolvePatch();
+    await mutation;
+    expect(queryClient.getQueryData(bookmarksKey('/work'))).toBeUndefined();
+  });
+
+  it('rename 失敗時に別folderへ移動済みなら選択状態をrollbackしない', async () => {
+    const beforeFolders = [
+      makeFolder({ id: 'work', name: 'work', path: '/work', parentPath: null }),
+    ];
+    const delayedPatch = delayedFolderPatchFailure('rename failed');
+    const onSelectFolder = vi.fn();
+    const { queryClient, Wrapper } = createWrapper();
+    queryClient.setQueryData(foldersKey, beforeFolders);
+
+    const { result, rerender } = renderHook(
+      ({ selectedFolder }: { selectedFolder: string }) =>
+        useRenameFolder({ selectedFolder, onSelectFolder }),
+      { wrapper: Wrapper, initialProps: { selectedFolder: '/work' } },
+    );
+    let mutation!: Promise<Folder>;
+    act(() => {
+      mutation = result.current.mutateAsync({ id: 'work', name: 'job' });
+    });
+    await delayedPatch.patchStarted;
+    rerender({ selectedFolder: '/personal' });
+
+    delayedPatch.resolvePatch();
+    await expect(mutation).rejects.toThrow('rename failed');
+    expect(onSelectFolder.mock.calls).toEqual([['/job']]);
   });
 });

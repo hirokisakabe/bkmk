@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient, type QueryKey } from '@tanstack/react-query';
+import { useLayoutEffect, useRef } from 'react';
 
 import { client } from '../lib/api-client';
 import {
@@ -18,13 +19,19 @@ interface FolderPathSelection {
 interface MutationContext {
   previousFolderQueries: [queryKey: QueryKey, data: Folder[] | undefined][];
   previousBookmarkQueries: [queryKey: QueryKey, data: BookmarkQueryData | undefined][];
-  optimisticBookmarkQueryKeys: QueryKey[];
+  bookmarkQueryMigrations: [sourceQueryKey: QueryKey, destinationQueryKey: QueryKey][];
   previousSelectedFolder: string | null;
+  optimisticSelectedFolder: string | null;
   selectionChanged: boolean;
 }
 
 export function useMoveFolder(selection: FolderPathSelection) {
   const queryClient = useQueryClient();
+  const selectedFolderRef = useRef(selection.selectedFolder);
+
+  useLayoutEffect(() => {
+    selectedFolderRef.current = selection.selectedFolder;
+  }, [selection.selectedFolder]);
 
   return useMutation<Folder, Error, { id: string; parentPath: string | null }, MutationContext>({
     mutationFn: async ({ id, parentPath }) => {
@@ -56,14 +63,15 @@ export function useMoveFolder(selection: FolderPathSelection) {
       const folder = previousFolderQueries
         .flatMap(([, data]) => data ?? [])
         .find((candidate) => candidate.id === id);
-      const previousSelectedFolder = selection.selectedFolder;
+      const previousSelectedFolder = selectedFolderRef.current;
 
       if (!folder) {
         return {
           previousFolderQueries,
           previousBookmarkQueries,
-          optimisticBookmarkQueryKeys: [],
+          bookmarkQueryMigrations: [],
           previousSelectedFolder,
+          optimisticSelectedFolder: previousSelectedFolder,
           selectionChanged: false,
         };
       }
@@ -83,36 +91,47 @@ export function useMoveFolder(selection: FolderPathSelection) {
         });
       });
 
-      const optimisticBookmarkQueryKeys: QueryKey[] = [];
+      const bookmarkQueryMigrations: [QueryKey, QueryKey][] = [];
+      const migratedBookmarkQueries: [QueryKey, BookmarkQueryData | undefined][] = [];
       for (const [queryKey, data] of previousBookmarkQueries) {
         const optimisticData = rebaseBookmarkQueryData(data, oldPath, newPath);
-        queryClient.setQueryData(queryKey, optimisticData);
-
         const optimisticQueryKey = rebaseBookmarkQueryKey(queryKey, oldPath, newPath);
-        if (optimisticQueryKey !== queryKey) {
-          queryClient.setQueryData(optimisticQueryKey, optimisticData);
-          optimisticBookmarkQueryKeys.push(optimisticQueryKey);
+        if (optimisticQueryKey === queryKey) {
+          queryClient.setQueryData(queryKey, optimisticData);
+        } else {
+          bookmarkQueryMigrations.push([queryKey, optimisticQueryKey]);
+          migratedBookmarkQueries.push([optimisticQueryKey, optimisticData]);
         }
       }
+      migratedBookmarkQueries.forEach(([queryKey, data]) => {
+        queryClient.setQueryData(queryKey, data);
+      });
 
       const optimisticSelectedFolder = rebaseFolderPath(previousSelectedFolder, oldPath, newPath);
       const selectionChanged = optimisticSelectedFolder !== previousSelectedFolder;
-      if (selectionChanged) selection.onSelectFolder(optimisticSelectedFolder);
+      if (selectionChanged) {
+        selectedFolderRef.current = optimisticSelectedFolder;
+        selection.onSelectFolder(optimisticSelectedFolder);
+      }
 
       return {
         previousFolderQueries,
         previousBookmarkQueries,
-        optimisticBookmarkQueryKeys,
+        bookmarkQueryMigrations,
         previousSelectedFolder,
+        optimisticSelectedFolder,
         selectionChanged,
       };
     },
     onError: (_err, _vars, context) => {
-      context?.optimisticBookmarkQueryKeys.forEach((queryKey) => {
+      context?.bookmarkQueryMigrations.forEach(([, destinationQueryKey]) => {
         const existedBefore = context.previousBookmarkQueries.some(
-          ([previousQueryKey]) => JSON.stringify(previousQueryKey) === JSON.stringify(queryKey),
+          ([previousQueryKey]) =>
+            JSON.stringify(previousQueryKey) === JSON.stringify(destinationQueryKey),
         );
-        if (!existedBefore) queryClient.removeQueries({ queryKey, exact: true });
+        if (!existedBefore) {
+          queryClient.removeQueries({ queryKey: destinationQueryKey, exact: true });
+        }
       });
       context?.previousFolderQueries.forEach(([queryKey, data]) => {
         queryClient.setQueryData(queryKey, data);
@@ -120,9 +139,18 @@ export function useMoveFolder(selection: FolderPathSelection) {
       context?.previousBookmarkQueries.forEach(([queryKey, data]) => {
         queryClient.setQueryData(queryKey, data);
       });
-      if (context?.selectionChanged) {
+      if (
+        context?.selectionChanged &&
+        selectedFolderRef.current === context.optimisticSelectedFolder
+      ) {
+        selectedFolderRef.current = context.previousSelectedFolder;
         selection.onSelectFolder(context.previousSelectedFolder);
       }
+    },
+    onSuccess: (_data, _vars, context) => {
+      context.bookmarkQueryMigrations.forEach(([sourceQueryKey]) => {
+        queryClient.removeQueries({ queryKey: sourceQueryKey, exact: true });
+      });
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['folders'] });
