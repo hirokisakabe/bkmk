@@ -78,11 +78,12 @@ jobs:
             BETTER_AUTH_SECRET=better-auth-secret:latest
           env_vars: |
             BETTER_AUTH_URL=https://bkmk.tokyo
+            # Keep released CLI versions that still send the former API URL as Origin working.
             BETTER_AUTH_TRUSTED_ORIGINS=https://bkmk-680461270704.asia-northeast1.run.app
 
       - name: Health check
         run: |
           URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} --region ${{ env.REGION }} --format 'value(status.url)')
           curl --fail --silent --show-error --max-time 10 --retry 5 --retry-delay 3 "${URL}/health"
-          curl --fail --silent --show-error --max-time 10 --retry 5 --retry-delay 3 https://bkmk.tokyo/health
+          curl --fail --silent --show-error --connect-timeout 10 --max-time 30 --retry 5 --retry-delay 3 --retry-all-errors https://bkmk.tokyo/health
           echo "Health checks passed"
