@@ -9,8 +9,9 @@ export const collisionDetection: CollisionDetection = (args) => {
     );
     const folderContainers = args.droppableContainers.filter(
       (container) =>
-        container.data.current?.type === 'folder' ||
-        container.data.current?.type === 'folder-uncategorized',
+        container.data.current?.isBookmarkFolderDropTarget === true &&
+        (container.data.current.type === 'folder' ||
+          container.data.current.type === 'folder-uncategorized'),
     );
 
     const activeCenter = {
@@ -18,8 +19,8 @@ export const collisionDetection: CollisionDetection = (args) => {
       y: args.collisionRect.top + args.collisionRect.height / 2,
     };
 
-    // Bookmark cards can overlap both the sidebar and cards behind a mobile overlay.
-    // A folder is therefore selected from the dragged card position before bookmark sorting.
+    // Folder sorting measures wrappers that can include expanded descendants. Bookmark drops
+    // use separately registered row-only targets so an ancestor cannot cover its child rows.
     const containingFolders = folderContainers
       .map((container, index) => {
         const rect = args.droppableRects.get(container.id);
@@ -52,6 +53,16 @@ export const collisionDetection: CollisionDetection = (args) => {
     return [];
   }
 
-  // Keep the existing same-level folder sorting behavior.
+  if (activeType === 'folder') {
+    // Row-only bookmark targets share folder data with their sortable wrapper. Keep them out of
+    // folder collisions so SortableContext always receives one of its wrapper IDs.
+    const sortableFolderContainers = args.droppableContainers.filter(
+      (container) =>
+        container.data.current?.type === 'folder' &&
+        container.data.current.isBookmarkFolderDropTarget !== true,
+    );
+    return closestCenter({ ...args, droppableContainers: sortableFolderContainers });
+  }
+
   return closestCenter(args);
 };

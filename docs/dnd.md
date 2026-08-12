@@ -65,6 +65,11 @@ bookmark card の中心が row の矩形内に入ればその folder を highlig
 登録順で固定する。card 中心がどの folder row にも入っていない場合は folder 移動として扱わない。
 この基準は desktop sidebar と mobile の overlay sidebar で共通とする。
 
+folder の同一階層ソート用 droppable は、展開した子孫を含む tree node wrapper に登録する。一方、
+bookmark の folder drop 用 droppable は各 folder row だけに別 ID で登録する。bookmark の衝突判定では
+row-only target のみを候補にし、展開中の親 wrapper と child row の矩形が重なることを避ける。folder
+の衝突判定では逆に sortable wrapper のみを候補にし、同一階層ソートの preview と drop を維持する。
+
 `canReorder = false` の表示でも、bookmark の folder 移動 DnD を許可してよい。ただし、この状態で
 ソート用の grip handle を表示すると並び替え可能に見えるため、ソート用 drag handle は表示しない。
 folder 移動 DnD の affordance が必要な場合は、card 全体を draggable にする、またはソート用とは別の

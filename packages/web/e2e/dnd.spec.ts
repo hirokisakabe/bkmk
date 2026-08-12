@@ -130,6 +130,52 @@ test('ブックマークを別フォルダへDnD移動すると移動APIが呼�
   ]);
 });
 
+test('展開した親ではなくchild rowへブックマークをドロップできる', async ({ page }) => {
+  await setupMocks(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+
+  // Child を選んで親を展開したあと「すべて」へ戻し、card 全体を folder 移動用にする。
+  await page.goto(`/?folder=${encodeURIComponent('/folder-a/child')}`);
+  const parentFolder = page.getByTestId(`folder-drop-target-${FOLDERS[0].id}`);
+  const childFolder = page.getByTestId(`folder-drop-target-${FOLDERS[2].id}`);
+  await expect(childFolder).toBeVisible();
+  await page.getByRole('button', { name: 'すべて', exact: true }).click();
+
+  const patchRequest = page.waitForRequest(
+    (req) =>
+      req.method() === 'PATCH' && /\/api\/bookmarks\/[^/]+$/.test(new URL(req.url()).pathname),
+  );
+  const draggedCard = page.getByTestId(`bookmark-card-${BOOKMARKS[0].id}`);
+  const parentBox = await parentFolder.boundingBox();
+  const childBox = await childFolder.boundingBox();
+  await expect(draggedCard).toBeVisible();
+  const cardBox = await draggedCard.boundingBox();
+  if (!parentBox || !childBox || !cardBox) {
+    throw new Error('boundingBox が取得できませんでした');
+  }
+
+  // Bookmark drop geometry is row-only even though the sortable parent wrapper includes children.
+  expect(parentBox.y + parentBox.height).toBeLessThanOrEqual(childBox.y);
+
+  const fx = cardBox.x + cardBox.width / 2;
+  const fy = cardBox.y + cardBox.height / 2;
+  const tx = childBox.x + childBox.width / 2;
+  const ty = childBox.y + childBox.height / 2;
+  await page.mouse.move(fx, fy);
+  await page.mouse.down();
+  await page.mouse.move(fx + 8, fy, { steps: 4 });
+  await page.mouse.move(tx, ty, { steps: 20 });
+
+  await expect(childFolder).toHaveClass(/ring/);
+  await expect(parentFolder).not.toHaveClass(/ring/);
+  await page.mouse.up();
+
+  const req = await patchRequest;
+  const body = (await req.postDataJSON()) as { folderPath: string | null };
+  expect(body.folderPath).toBe('/folder-a/child');
+  await expect(page.locator('h3', { hasText: 'Alpha' })).toBeHidden();
+});
+
 test('ポインタが外側でもカード中心が入ったフォルダをハイライトして移動できる', async ({ page }) => {
   await setupMocks(page);
   await page.setViewportSize({ width: 1280, height: 900 });

@@ -17,10 +17,13 @@ const makeRect = (left: number, top: number, width: number, height: number) => (
   bottom: top + height,
 });
 
-const makeContainer = (id: string, type: string) =>
-  ({ id, data: { current: { type } } }) as unknown as Parameters<
+const makeContainer = (id: string, type: string, data: Record<string, unknown> = {}) =>
+  ({ id, data: { current: { type, ...data } } }) as unknown as Parameters<
     typeof collisionDetection
   >[0]['droppableContainers'][number];
+
+const makeFolderDropContainer = (id: string, type = 'folder') =>
+  makeContainer(id, type, { isBookmarkFolderDropTarget: true });
 
 const createArgs = ({
   activeType = 'bookmark',
@@ -49,7 +52,7 @@ describe('collisionDetection', () => {
   });
 
   it('カード中心がフォルダ内ならポインタが外側でもそのフォルダを返す', () => {
-    const folder = makeContainer('folder-1', 'folder');
+    const folder = makeFolderDropContainer('folder-drop-1');
     const bookmark = makeContainer('bookmark-1', 'bookmark');
 
     const result = collisionDetection(
@@ -57,20 +60,20 @@ describe('collisionDetection', () => {
         collisionRect: makeRect(80, 20, 40, 40),
         containers: [bookmark, folder],
         rects: [
-          ['folder-1', makeRect(0, 0, 200, 100)],
+          ['folder-drop-1', makeRect(0, 0, 200, 100)],
           ['bookmark-1', makeRect(250, 0, 200, 100)],
         ],
         pointerCoordinates: { x: 240, y: 40 },
       }),
     );
 
-    expect(result).toEqual([{ id: 'folder-1' }]);
+    expect(result).toEqual([{ id: 'folder-drop-1' }]);
     expect(dndKit.closestCenter).not.toHaveBeenCalled();
   });
 
   it('複数フォルダが重なる場合はカード中心に最も近い単一フォルダを安定して返す', () => {
-    const wideFolder = makeContainer('folder-wide', 'folder');
-    const narrowFolder = makeContainer('folder-narrow', 'folder');
+    const wideFolder = makeFolderDropContainer('folder-wide');
+    const narrowFolder = makeFolderDropContainer('folder-narrow');
 
     const args = createArgs({
       collisionRect: makeRect(90, 40, 20, 20),
@@ -86,8 +89,8 @@ describe('collisionDetection', () => {
   });
 
   it('等距で重なるフォルダはコンテナ順をtie-breakにして単一フォルダを返す', () => {
-    const first = makeContainer('folder-first', 'folder');
-    const second = makeContainer('folder-second', 'folder');
+    const first = makeFolderDropContainer('folder-first');
+    const second = makeFolderDropContainer('folder-second');
 
     const result = collisionDetection(
       createArgs({
@@ -104,7 +107,7 @@ describe('collisionDetection', () => {
   });
 
   it('カード中心がフォルダ外ならフォルダ移動にせずbookmarkだけでclosestCenterを使う', () => {
-    const folder = makeContainer('folder-1', 'folder');
+    const folder = makeFolderDropContainer('folder-drop-1');
     const bookmark = makeContainer('bookmark-1', 'bookmark');
     const collisions: ReturnType<typeof collisionDetection> = [{ id: 'bookmark-1' }];
     dndKit.closestCenter.mockReturnValue(collisions);
@@ -114,7 +117,7 @@ describe('collisionDetection', () => {
         collisionRect: makeRect(195, 40, 20, 20),
         containers: [bookmark, folder],
         rects: [
-          ['folder-1', makeRect(0, 0, 200, 100)],
+          ['folder-drop-1', makeRect(0, 0, 200, 100)],
           ['bookmark-1', makeRect(250, 0, 200, 100)],
         ],
       }),
@@ -126,13 +129,13 @@ describe('collisionDetection', () => {
   });
 
   it('bookmark候補がなくカード中心もフォルダ外なら空配列を返す', () => {
-    const folder = makeContainer('folder-1', 'folder');
+    const folder = makeFolderDropContainer('folder-drop-1');
 
     const result = collisionDetection(
       createArgs({
         collisionRect: makeRect(250, 0, 20, 20),
         containers: [folder],
-        rects: [['folder-1', makeRect(0, 0, 200, 100)]],
+        rects: [['folder-drop-1', makeRect(0, 0, 200, 100)]],
       }),
     );
 
@@ -141,8 +144,13 @@ describe('collisionDetection', () => {
   });
 
   it('folder候補はfolderとfolder-uncategorizedだけに限定する', () => {
-    const unknown = makeContainer('unknown-drop-target', 'search-result');
-    const uncategorized = makeContainer('folder-drop-uncategorized', 'folder-uncategorized');
+    const unknown = makeContainer('unknown-drop-target', 'search-result', {
+      isBookmarkFolderDropTarget: true,
+    });
+    const uncategorized = makeFolderDropContainer(
+      'folder-drop-uncategorized',
+      'folder-uncategorized',
+    );
 
     const result = collisionDetection(
       createArgs({
@@ -156,6 +164,27 @@ describe('collisionDetection', () => {
     );
 
     expect(result).toEqual([{ id: 'folder-drop-uncategorized' }]);
+  });
+
+  it('expanded parentのsortable wrapperを除外し、row-onlyのchild targetを返す', () => {
+    const parentSortableWrapper = makeContainer('folder-parent', 'folder');
+    const parentRow = makeFolderDropContainer('folder-drop-parent');
+    const childRow = makeFolderDropContainer('folder-drop-child');
+
+    const result = collisionDetection(
+      createArgs({
+        collisionRect: makeRect(80, 54, 40, 40),
+        containers: [parentSortableWrapper, parentRow, childRow],
+        rects: [
+          // Expanded descendants make the sortable wrapper cover both rows.
+          ['folder-parent', makeRect(0, 0, 200, 100)],
+          ['folder-drop-parent', makeRect(0, 0, 200, 44)],
+          ['folder-drop-child', makeRect(0, 44, 200, 44)],
+        ],
+      }),
+    );
+
+    expect(result).toEqual([{ id: 'folder-drop-child' }]);
   });
 
   it('bookmarkソートはpointerCoordinatesに関係なく同じcollisionRectで同じ候補を渡す', () => {
@@ -183,14 +212,21 @@ describe('collisionDetection', () => {
     expect(dndKit.closestCenter).toHaveBeenCalledTimes(2);
   });
 
-  it('folderドラッグ時は既存どおり全コンテナでclosestCenterを使う', () => {
+  it('folderドラッグ時はrow-only targetを除外してsortable wrapperだけでclosestCenterを使う', () => {
     const bookmark = makeContainer('bookmark-1', 'bookmark');
     const folder = makeContainer('folder-1', 'folder');
+    const folderRow = makeFolderDropContainer('folder-drop-1');
     const collisions: ReturnType<typeof collisionDetection> = [{ id: 'folder-1' }];
     dndKit.closestCenter.mockReturnValue(collisions);
-    const args = createArgs({ activeType: 'folder', containers: [bookmark, folder] });
+    const args = createArgs({
+      activeType: 'folder',
+      containers: [bookmark, folder, folderRow],
+    });
 
     expect(collisionDetection(args)).toBe(collisions);
-    expect(dndKit.closestCenter).toHaveBeenCalledWith(args);
+    expect(dndKit.closestCenter).toHaveBeenCalledWith({
+      ...args,
+      droppableContainers: [folder],
+    });
   });
 });
