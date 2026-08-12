@@ -36,10 +36,9 @@ export function Layout({
   const isSearching = !!q;
   const urlSearchValue = isOnIndex ? (q ?? '') : '';
   const [searchValue, setSearchValue] = useState(urlSearchValue);
-  const searchDestinationRef = useRef<{ folder?: string; q?: string }>({
-    folder: q ? undefined : isOnIndex ? folder : undefined,
-    q,
-  });
+  const desiredLocationRef = useRef<
+    { type: 'search'; search: { folder?: string; q?: string } } | { type: 'external'; href: string }
+  >({ type: 'external', href: location.href });
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
   const searchRevisionRef = useRef(0);
   const isHistoryNavigationRef = useRef(false);
@@ -48,10 +47,18 @@ export function Layout({
   const locationKey = location.state.__TSR_key;
 
   useEffect(() => {
-    return router.history.subscribe(({ action }) => {
+    return router.history.subscribe(({ action, location: nextLocation }) => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = null;
-      if (action.type === 'BACK' || action.type === 'FORWARD' || action.type === 'GO') {
+      const isHistoryNavigation =
+        action.type === 'BACK' || action.type === 'FORWARD' || action.type === 'GO';
+      const nextRevision = (nextLocation.state as unknown as Record<string, unknown>)
+        .bkmkSearchRevision;
+      if (isHistoryNavigation || typeof nextRevision !== 'number') {
+        searchRevisionRef.current += 1;
+        desiredLocationRef.current = { type: 'external', href: nextLocation.href };
+      }
+      if (isHistoryNavigation) {
         isHistoryNavigationRef.current = true;
       }
     });
@@ -63,28 +70,35 @@ export function Layout({
 
     if (!isHistoryNavigation && typeof submittedRevision === 'number') {
       if (submittedRevision < searchRevisionRef.current) {
-        void navigate({
-          to: '/',
-          search: searchDestinationRef.current,
-          replace: true,
-          state: (previous) => ({
-            ...previous,
-            bkmkSearchRevision: searchRevisionRef.current,
-          }),
-        });
+        const desiredLocation = desiredLocationRef.current;
+        if (desiredLocation.type === 'external') {
+          router.history.replace(desiredLocation.href);
+        } else {
+          void navigate({
+            to: '/',
+            search: desiredLocation.search,
+            replace: true,
+            state: (previous) => ({
+              ...previous,
+              bkmkSearchRevision: searchRevisionRef.current,
+            }),
+          });
+        }
       }
       if (submittedRevision <= searchRevisionRef.current) return;
     }
 
     searchRevisionRef.current += 1;
-    searchDestinationRef.current = {
-      folder: q ? undefined : isOnIndex ? folder : undefined,
-      q,
-    };
+    if (isHistoryNavigation || typeof submittedRevision !== 'number') {
+      desiredLocationRef.current = {
+        type: 'external',
+        href: location.href,
+      };
+    }
     // URL/history is external state; an external navigation intentionally replaces local input.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setSearchValue(urlSearchValue);
-  }, [folder, isOnIndex, locationKey, navigate, q, submittedRevision, urlSearchValue]);
+  }, [location.href, locationKey, navigate, router, submittedRevision, urlSearchValue]);
 
   useEffect(() => {
     return () => {
@@ -102,10 +116,11 @@ export function Layout({
   const handleSearchChange = (input: string) => {
     const query = input.trim();
     setSearchValue(input);
-    searchDestinationRef.current = {
+    const searchDestination = {
       folder: query ? undefined : isOnIndex ? folder : undefined,
       q: query || undefined,
     };
+    desiredLocationRef.current = { type: 'search', search: searchDestination };
     searchRevisionRef.current += 1;
     const revision = searchRevisionRef.current;
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -116,8 +131,25 @@ export function Layout({
       debounceRef.current = null;
       void navigate({
         to: '/',
-        search: searchDestinationRef.current,
+        search: searchDestination,
         state: (previous) => ({ ...previous, bkmkSearchRevision: revision }),
+      }).then(() => {
+        if (revision === searchRevisionRef.current) return;
+
+        const desiredLocation = desiredLocationRef.current;
+        if (desiredLocation.type === 'external') {
+          router.history.replace(desiredLocation.href);
+          return;
+        }
+        void navigate({
+          to: '/',
+          search: desiredLocation.search,
+          replace: true,
+          state: (previous) => ({
+            ...previous,
+            bkmkSearchRevision: searchRevisionRef.current,
+          }),
+        });
       });
       setSidebarOpen(false);
     }, 300);
