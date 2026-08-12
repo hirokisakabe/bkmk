@@ -54,7 +54,8 @@ describe('IndexPage', () => {
     expect(searchInput).toHaveAttribute('placeholder', 'ブックマークを検索...');
     expect(searchInput.closest('aside')).not.toBeInTheDocument();
     expect(searchInput.closest('main')).toBeInTheDocument();
-    expect(searchInput.parentElement).toHaveClass('float-right', 'max-w-[22rem]');
+    expect(searchInput.parentElement).toHaveClass('max-w-[22rem]');
+    expect(searchInput.parentElement?.parentElement).toHaveClass('justify-end');
   });
 
   it('検索語を300msデバウンスしてURLと検索結果へ反映し、入力値を維持する', async () => {
@@ -236,10 +237,9 @@ describe('IndexPage', () => {
     expect(mobileSearchInput.parentElement).toHaveClass('min-w-0', 'flex-1');
     expect(mobileSearchInput.parentElement?.parentElement).toHaveClass('md:hidden');
     expect(mobileSearchInput.closest('aside')).not.toBeInTheDocument();
-    expect(screen.getByRole('textbox', { name: 'ブックマークを検索' }).parentElement).toHaveClass(
-      'hidden',
-      'md:block',
-    );
+    expect(
+      screen.getByRole('textbox', { name: 'ブックマークを検索' }).parentElement?.parentElement,
+    ).toHaveClass('hidden', 'md:flex');
     expect(screen.getByRole('button', { name: 'サイドバーを閉じる' }).closest('aside')).toHaveClass(
       '-translate-x-full',
     );

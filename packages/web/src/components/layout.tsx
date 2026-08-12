@@ -264,12 +264,14 @@ export function Layout({
             )}
           </div>
           <main className="flex-1 overflow-y-auto p-4">
-            <SearchInput
-              value={searchValue}
-              onChange={handleSearchChange}
-              ariaLabel="ブックマークを検索"
-              className="float-right mb-4 ml-4 hidden w-full max-w-[22rem] md:block"
-            />
+            <div className="mb-4 hidden justify-end md:flex">
+              <SearchInput
+                value={searchValue}
+                onChange={handleSearchChange}
+                ariaLabel="ブックマークを検索"
+                className="w-full max-w-[22rem]"
+              />
+            </div>
             {children}
           </main>
         </div>
