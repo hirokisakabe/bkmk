@@ -162,13 +162,22 @@ test('ポインタが外側でもカード中心が入ったフォルダをハ�
   const cardCenterX = cardBox.x + cardBox.width / 2;
   const cardCenterY = cardBox.y + cardBox.height / 2;
 
-  // Grab offset を保ったまま、カード中心だけを Folder B の右端内側へ入れる。
+  // Grab offset を保ったまま、カード中心だけを Folder B の右端から十分内側へ入れる。
   // 右上 handle から掴んでいるため、pointer 自体は folder row の右外側に残る。
-  const desiredCardCenterX = targetBox.x + targetBox.width - 2;
+  const targetRight = targetBox.x + targetBox.width;
+  const insideMargin = Math.min(12, targetBox.width / 4);
+  const desiredCardCenterX = targetRight - insideMargin;
   const desiredCardCenterY = targetBox.y + targetBox.height / 2;
   const tx = desiredCardCenterX + (fx - cardCenterX);
   const ty = desiredCardCenterY + (fy - cardCenterY);
-  expect(tx).toBeGreaterThan(targetBox.x + targetBox.width);
+  const translatedCardCenterX = cardCenterX + (tx - fx);
+  const translatedCardCenterY = cardCenterY + (ty - fy);
+
+  expect(tx).toBeGreaterThan(targetRight);
+  expect(translatedCardCenterX).toBeGreaterThan(targetBox.x);
+  expect(translatedCardCenterX).toBeLessThan(targetRight);
+  expect(translatedCardCenterY).toBeGreaterThan(targetBox.y);
+  expect(translatedCardCenterY).toBeLessThan(targetBox.y + targetBox.height);
 
   // ドラッグ開始 → センサー起動（5px 以上移動）
   await page.mouse.move(fx, fy);

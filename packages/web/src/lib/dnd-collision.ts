@@ -8,7 +8,9 @@ export const collisionDetection: CollisionDetection = (args) => {
       (container) => container.data.current?.type === 'bookmark',
     );
     const folderContainers = args.droppableContainers.filter(
-      (container) => container.data.current?.type !== 'bookmark',
+      (container) =>
+        container.data.current?.type === 'folder' ||
+        container.data.current?.type === 'folder-uncategorized',
     );
 
     const activeCenter = {
