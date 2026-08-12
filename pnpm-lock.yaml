@@ -55,10 +55,10 @@ importers:
     dependencies:
       '@hono/node-server':
         specifier: ^1.14.1
-        version: 1.19.14(hono@4.12.25)
+        version: 1.19.14(hono@4.12.34)
       '@hono/zod-validator':
         specifier: ^0.7.6
-        version: 0.7.6(hono@4.12.25)(zod@4.3.6)
+        version: 0.7.6(hono@4.12.34)(zod@4.3.6)
       better-auth:
         specifier: ^1.6.22
         version: 1.6.22(@opentelemetry/api@1.9.1)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@electric-sql/pglite@0.4.5)(@neondatabase/serverless@1.0.2)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(kysely@0.29.4)(pg@8.21.0))(pg@8.21.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(vitest@4.1.4(@opentelemetry/api@1.9.1)(@types/node@22.19.17)(jsdom@29.0.2(@noble/hashes@2.2.0))(msw@2.13.4(@types/node@22.19.17)(typescript@6.0.2))(vite@8.0.16(@types/node@22.19.17)(esbuild@0.27.7)(jiti@2.6.1)(terser@5.50.0)(tsx@4.21.0)(yaml@2.8.3)))
@@ -66,11 +66,11 @@ importers:
         specifier: ^0.45.2
         version: 0.45.2(@electric-sql/pglite@0.4.5)(@neondatabase/serverless@1.0.2)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(kysely@0.29.4)(pg@8.21.0)
       hono:
-        specifier: ^4.12.25
-        version: 4.12.25
+        specifier: ^4.12.34
+        version: 4.12.34
       hono-pino:
         specifier: ^0.10.3
-        version: 0.10.3(hono@4.12.25)(pino@10.3.1)
+        version: 0.10.3(hono@4.12.34)(pino@10.3.1)
       pg:
         specifier: ^8.13.1
         version: 8.21.0
@@ -106,8 +106,8 @@ importers:
         specifier: ^13.1.0
         version: 13.1.0
       hono:
-        specifier: ^4.12.25
-        version: 4.12.25
+        specifier: ^4.12.34
+        version: 4.12.34
     devDependencies:
       '@bkmk/api':
         specifier: workspace:*
@@ -158,8 +158,8 @@ importers:
         specifier: ^1.6.22
         version: 1.6.22(@opentelemetry/api@1.9.1)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@electric-sql/pglite@0.4.5)(@neondatabase/serverless@1.0.2)(@opentelemetry/api@1.9.1)(@types/pg@8.21.0)(kysely@0.29.4)(pg@8.21.0))(pg@8.21.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(vitest@4.1.4(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(jsdom@29.0.2(@noble/hashes@2.2.0))(msw@2.13.4(@types/node@24.12.2)(typescript@6.0.2))(vite@8.0.16(@types/node@24.12.2)(esbuild@0.27.7)(jiti@2.6.1)(terser@5.50.0)(tsx@4.21.0)(yaml@2.8.3)))
       hono:
-        specifier: ^4.12.25
-        version: 4.12.25
+        specifier: ^4.12.34
+        version: 4.12.34
       react:
         specifier: ^19.2.4
         version: 19.2.5
@@ -3778,8 +3778,8 @@ packages:
       hono: '>=4.0.0'
       pino: '>=7.1.0'
 
-  hono@4.12.25:
-    resolution: {integrity: sha512-2NFaIyNVgJmBs/ecmtGzlmluTFs5cHEWGTdu0t1HBwYzoGXOL5nUQBRMXsXWla5i4KkG//QMzVP88m1+I3fdAQ==}
+  hono@4.12.34:
+    resolution: {integrity: sha512-GqXJqY/xJkJmuloTrnV1ZEXG3fqte+VjkUqoRNZXcrUidiUOP4fMSIHHY4tsqZBK++kVyWmt/AAfSUuy57/eSA==}
     engines: {node: '>=16.9.0'}
 
   html-encoding-sniffer@6.0.0:
@@ -6714,13 +6714,13 @@ snapshots:
 
   '@floating-ui/utils@0.2.11': {}
 
-  '@hono/node-server@1.19.14(hono@4.12.25)':
+  '@hono/node-server@1.19.14(hono@4.12.34)':
     dependencies:
-      hono: 4.12.25
+      hono: 4.12.34
 
-  '@hono/zod-validator@0.7.6(hono@4.12.25)(zod@4.3.6)':
+  '@hono/zod-validator@0.7.6(hono@4.12.34)(zod@4.3.6)':
     dependencies:
-      hono: 4.12.25
+      hono: 4.12.34
       zod: 4.3.6
 
   '@humanfs/core@0.19.1': {}
@@ -7679,7 +7679,7 @@ snapshots:
 
   '@types/pg@8.21.0':
     dependencies:
-      '@types/node': 22.20.1
+      '@types/node': 24.12.2
       pg-protocol: 1.16.0
       pg-types: 2.2.0
     optional: true
@@ -8818,13 +8818,13 @@ snapshots:
     dependencies:
       hermes-estree: 0.25.1
 
-  hono-pino@0.10.3(hono@4.12.25)(pino@10.3.1):
+  hono-pino@0.10.3(hono@4.12.34)(pino@10.3.1):
     dependencies:
       defu: 6.1.7
-      hono: 4.12.25
+      hono: 4.12.34
       pino: 10.3.1
 
-  hono@4.12.25: {}
+  hono@4.12.34: {}
 
   html-encoding-sniffer@6.0.0(@noble/hashes@2.2.0):
     dependencies:
