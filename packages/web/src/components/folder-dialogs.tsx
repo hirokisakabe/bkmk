@@ -1,12 +1,12 @@
 import * as Dialog from '@radix-ui/react-dialog';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 
 import { useCreateFolder } from '../hooks/use-create-folder';
-import { getChildFolders, useAllFolders } from '../hooks/use-folders';
 import { useMoveBookmark } from '../hooks/use-move-bookmark';
 import { useMoveFolder } from '../hooks/use-move-folder';
 import { useRenameFolder } from '../hooks/use-rename-folder';
 import type { Bookmark, Folder } from '../types';
+import { MoveTargetRow, MoveTargetTree } from './move-target-tree';
 
 /* ------------------------------------------------------------------ */
 /*  CreateFolderDialog                                                 */
@@ -206,20 +206,15 @@ export function MoveFolderDialog({
           />
 
           <div className="max-h-64 overflow-y-auto rounded border border-gray-200">
-            <button
-              type="button"
-              onClick={() => setSelectedParent(null)}
-              className={`w-full px-3 py-2 text-left text-sm ${
-                selectedParent === null
-                  ? 'bg-blue-100 font-semibold text-blue-800'
-                  : 'text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              / (ルート)
-            </button>
-            <MoveFolderTree
+            <MoveTargetRow
+              label="ルート"
+              path={null}
+              selected={selectedParent === null}
+              onSelect={setSelectedParent}
+            />
+            <MoveTargetTree
               excludePath={folder.path}
-              selectedParent={selectedParent}
+              selectedPath={selectedParent}
               onSelect={setSelectedParent}
               searchQuery={searchQuery}
             />
@@ -303,19 +298,14 @@ export function MoveBookmarkDialog({
           />
 
           <div className="max-h-64 overflow-y-auto rounded border border-gray-200">
-            <button
-              type="button"
-              onClick={() => setSelectedFolder(null)}
-              className={`w-full px-3 py-2 text-left text-sm ${
-                selectedFolder === null
-                  ? 'bg-blue-100 font-semibold text-blue-800'
-                  : 'text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              未分類
-            </button>
-            <MoveBookmarkTree
-              selectedFolder={selectedFolder}
+            <MoveTargetRow
+              label="未分類"
+              path={null}
+              selected={selectedFolder === null}
+              onSelect={setSelectedFolder}
+            />
+            <MoveTargetTree
+              selectedPath={selectedFolder}
               onSelect={setSelectedFolder}
               searchQuery={searchQuery}
             />
@@ -347,221 +337,4 @@ export function MoveBookmarkDialog({
       </Dialog.Portal>
     </Dialog.Root>
   );
-}
-
-function MoveBookmarkTree({
-  selectedFolder,
-  onSelect,
-  searchQuery,
-}: {
-  selectedFolder: string | null;
-  onSelect: (path: string | null) => void;
-  searchQuery: string;
-}) {
-  const { data: allFolders } = useAllFolders();
-  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => new Set());
-
-  const hasChildren = useMemo(() => {
-    if (!allFolders) return new Set<string | null>();
-    const set = new Set<string | null>();
-    for (const f of allFolders) {
-      set.add(f.parentPath);
-    }
-    return set;
-  }, [allFolders]);
-
-  const isSearching = searchQuery.trim().length > 0;
-  const normalizedQuery = searchQuery.trim().toLowerCase();
-
-  const visiblePaths = useMemo(() => {
-    if (!isSearching || !allFolders) return null;
-    const matched = allFolders.filter((f) => f.name.toLowerCase().includes(normalizedQuery));
-    const visible = new Set<string>();
-    for (const f of matched) {
-      visible.add(f.path);
-      for (const ancestor of getAncestorPaths(f.path)) {
-        visible.add(ancestor);
-      }
-    }
-    return visible;
-  }, [allFolders, isSearching, normalizedQuery]);
-
-  const toggleExpand = (path: string) => {
-    setExpandedPaths((prev) => {
-      const next = new Set(prev);
-      if (next.has(path)) {
-        next.delete(path);
-      } else {
-        next.add(path);
-      }
-      return next;
-    });
-  };
-
-  if (!allFolders) return null;
-
-  const renderTree = (parentPath: string | null, depth: number): React.ReactNode[] => {
-    const children = getChildFolders(allFolders, parentPath);
-    const nodes: React.ReactNode[] = [];
-
-    for (const f of children) {
-      if (isSearching && visiblePaths && !visiblePaths.has(f.path)) continue;
-
-      const isExpanded = isSearching || expandedPaths.has(f.path);
-      const hasSub = hasChildren.has(f.path);
-
-      nodes.push(
-        <div key={f.id} className="flex w-full items-center">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              toggleExpand(f.path);
-            }}
-            className="flex shrink-0 items-center justify-center text-gray-400"
-            style={{ width: '20px', marginLeft: `${depth * 16 + 8}px` }}
-            tabIndex={-1}
-          >
-            {hasSub && !isSearching && <span className="text-xs">{isExpanded ? '▼' : '▶'}</span>}
-          </button>
-          <button
-            type="button"
-            onClick={() => onSelect(f.path)}
-            className={`min-w-0 flex-1 py-2 pr-3 text-left text-sm ${
-              selectedFolder === f.path
-                ? 'bg-blue-100 font-semibold text-blue-800'
-                : 'text-gray-700 hover:bg-gray-100'
-            }`}
-          >
-            {f.name}
-          </button>
-        </div>,
-      );
-
-      if (isExpanded) {
-        nodes.push(...renderTree(f.path, depth + 1));
-      }
-    }
-
-    return nodes;
-  };
-
-  return <>{renderTree(null, 0)}</>;
-}
-
-function getAncestorPaths(path: string): string[] {
-  const parts = path.split('/').filter(Boolean);
-  const ancestors: string[] = [];
-  for (let i = 1; i < parts.length; i++) {
-    ancestors.push('/' + parts.slice(0, i).join('/'));
-  }
-  return ancestors;
-}
-
-function MoveFolderTree({
-  excludePath,
-  selectedParent,
-  onSelect,
-  searchQuery,
-}: {
-  excludePath: string;
-  selectedParent: string | null;
-  onSelect: (path: string | null) => void;
-  searchQuery: string;
-}) {
-  const { data: allFolders } = useAllFolders();
-  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => new Set());
-
-  const filtered = useMemo(() => {
-    if (!allFolders) return [];
-    return allFolders.filter(
-      (f) => f.path !== excludePath && !f.path.startsWith(excludePath + '/'),
-    );
-  }, [allFolders, excludePath]);
-
-  const hasChildren = useMemo(() => {
-    const set = new Set<string | null>();
-    for (const f of filtered) {
-      set.add(f.parentPath);
-    }
-    return set;
-  }, [filtered]);
-
-  const isSearching = searchQuery.trim().length > 0;
-  const normalizedQuery = searchQuery.trim().toLowerCase();
-
-  const visiblePaths = useMemo(() => {
-    if (!isSearching) return null;
-    const matched = filtered.filter((f) => f.name.toLowerCase().includes(normalizedQuery));
-    const visible = new Set<string>();
-    for (const f of matched) {
-      visible.add(f.path);
-      for (const ancestor of getAncestorPaths(f.path)) {
-        visible.add(ancestor);
-      }
-    }
-    return visible;
-  }, [filtered, isSearching, normalizedQuery]);
-
-  const toggleExpand = (path: string) => {
-    setExpandedPaths((prev) => {
-      const next = new Set(prev);
-      if (next.has(path)) {
-        next.delete(path);
-      } else {
-        next.add(path);
-      }
-      return next;
-    });
-  };
-
-  if (!allFolders) return null;
-
-  const renderTree = (parentPath: string | null, depth: number): React.ReactNode[] => {
-    const children = getChildFolders(filtered, parentPath);
-    const nodes: React.ReactNode[] = [];
-
-    for (const f of children) {
-      if (isSearching && visiblePaths && !visiblePaths.has(f.path)) continue;
-
-      const isExpanded = isSearching || expandedPaths.has(f.path);
-      const hasSub = hasChildren.has(f.path);
-
-      nodes.push(
-        <div key={f.id} className="flex w-full items-center">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              toggleExpand(f.path);
-            }}
-            className="flex shrink-0 items-center justify-center text-gray-400"
-            style={{ width: '20px', marginLeft: `${depth * 16 + 8}px` }}
-            tabIndex={-1}
-          >
-            {hasSub && !isSearching && <span className="text-xs">{isExpanded ? '▼' : '▶'}</span>}
-          </button>
-          <button
-            type="button"
-            onClick={() => onSelect(f.path)}
-            className={`min-w-0 flex-1 py-2 pr-3 text-left text-sm ${
-              selectedParent === f.path
-                ? 'bg-blue-100 font-semibold text-blue-800'
-                : 'text-gray-700 hover:bg-gray-100'
-            }`}
-          >
-            {f.name}
-          </button>
-        </div>,
-      );
-
-      if (isExpanded) {
-        nodes.push(...renderTree(f.path, depth + 1));
-      }
-    }
-
-    return nodes;
-  };
-
-  return <>{renderTree(null, 0)}</>;
 }
