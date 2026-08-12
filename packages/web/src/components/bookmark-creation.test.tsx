@@ -136,4 +136,65 @@ describe('bookmark creation card', () => {
     finishRequest();
     expect(await screen.findByTestId(`bookmark-card-${created.id}`)).toBeInTheDocument();
   });
+
+  it('成功後の一覧refetchが遅くても正式カードを表示してフォームを再有効化する', async () => {
+    const user = userEvent.setup();
+    const url = 'https://slow-refetch.example.com';
+    const created: Bookmark = {
+      id: 'slow-refetch-bookmark',
+      userId: 'test-user',
+      url,
+      title: '取得済みタイトル',
+      description: '取得済み説明',
+      imageUrl: null,
+      faviconUrl: null,
+      folderPath: null,
+      position: 0,
+      deletedAt: null,
+      createdAt: '2026-08-12T00:00:00.000Z',
+      updatedAt: '2026-08-12T00:00:00.000Z',
+    };
+    let getCount = 0;
+    let finishRefetch!: () => void;
+    server.use(
+      http.get('/api/bookmarks', async ({ request }) => {
+        const requestUrl = new URL(request.url);
+        if (!requestUrl.searchParams.has('limit')) return;
+        getCount += 1;
+        if (getCount === 1) {
+          return HttpResponse.json({ data: mockBookmarks, nextCursor: null });
+        }
+        await new Promise<void>((resolve) => {
+          finishRefetch = resolve;
+        });
+        return HttpResponse.json({ data: [created, ...mockBookmarks], nextCursor: null });
+      }),
+      http.post('/api/bookmarks', () => HttpResponse.json(created, { status: 201 })),
+    );
+
+    renderWithProviders({ initialUrl: '/' });
+    await screen.findByText(mockBookmarks[0].title!);
+    const input = screen.getByPlaceholderText('URLを入力してブックマークを追加');
+    await user.type(input, url);
+    await user.click(screen.getByRole('button', { name: '追加' }));
+
+    const successCard = await screen.findByTestId('bookmark-creation-success');
+    expect(within(successCard).getByText(created.title!)).toBeInTheDocument();
+    expect(within(successCard).queryByRole('button', { name: '削除' })).not.toBeInTheDocument();
+    expect(within(successCard).queryByText('移動')).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(input).toHaveValue('');
+      expect(input).toBeEnabled();
+      expect(screen.getByRole('button', { name: '追加' })).toBeInTheDocument();
+      expect(finishRefetch).toBeDefined();
+    });
+    await user.type(input, 'https://next.example.com');
+    expect(screen.getByRole('button', { name: '追加' })).toBeEnabled();
+
+    finishRefetch();
+    expect(await screen.findByTestId(`bookmark-card-${created.id}`)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByTestId('bookmark-creation-success')).not.toBeInTheDocument();
+    });
+  });
 });

@@ -38,28 +38,6 @@ export function isBookmarkInScope(
   return folderPath === folder || folderPath?.startsWith(`${folder}/`) === true;
 }
 
-function containsBookmark(data: unknown, bookmarkId: string): boolean {
-  if (Array.isArray(data)) {
-    return data.some(
-      (bookmark) =>
-        bookmark !== null &&
-        typeof bookmark === 'object' &&
-        'id' in bookmark &&
-        bookmark.id === bookmarkId,
-    );
-  }
-  if (!data || typeof data !== 'object' || !('pages' in data) || !Array.isArray(data.pages)) {
-    return false;
-  }
-  return data.pages.some(
-    (page) =>
-      page !== null &&
-      typeof page === 'object' &&
-      'data' in page &&
-      containsBookmark(page.data, bookmarkId),
-  );
-}
-
 export function useBookmarkCreations(resolvedBookmarks: Bookmark[] = []) {
   const queryClient = useQueryClient();
   const query = useQuery<BookmarkCreation[]>({
@@ -135,20 +113,8 @@ export function useCreateBookmark() {
         ),
       );
     },
-    onSettled: async (created, _error, _variables, context) => {
-      if (!created || !context) {
-        void queryClient.invalidateQueries({ queryKey: ['bookmarks'] });
-        return;
-      }
-
-      await queryClient.invalidateQueries({ queryKey: ['bookmarks'] });
-      const createdIsCached = queryClient
-        .getQueriesData({ queryKey: ['bookmarks'] })
-        .some(([, data]) => containsBookmark(data, created.id));
-      if (!createdIsCached) return;
-      queryClient.setQueryData<BookmarkCreation[]>(bookmarkCreationsKey, (current = []) =>
-        current.filter((creation) => creation.clientId !== context.clientId),
-      );
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['bookmarks'] });
     },
   });
 }

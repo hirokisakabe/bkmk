@@ -2,7 +2,7 @@ import { useDraggable } from '@dnd-kit/core';
 import { SortableContext, useSortable, rectSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import * as ContextMenu from '@radix-ui/react-context-menu';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { useBookmarks, useBookmarksPaginated } from '../hooks/use-bookmarks';
 import {
@@ -75,7 +75,10 @@ function ReorderableBookmarkList({
 }) {
   const { data: bookmarks, isLoading } = useBookmarks(folderPath, deep);
   // deep=true のとき複数フォルダのブックマークが混在するため、現在のフォルダのみに絞る
-  const currentFolderBookmarks = bookmarks?.filter((b) => b.folderPath === folderPath);
+  const currentFolderBookmarks = useMemo(
+    () => bookmarks?.filter((bookmark) => bookmark.folderPath === folderPath),
+    [bookmarks, folderPath],
+  );
   const { data: creations = [] } = useBookmarkCreations(currentFolderBookmarks);
   const deleteBookmark = useDeleteBookmark();
   const visibleCreations = creations.filter(
@@ -149,7 +152,7 @@ function PaginatedBookmarkList({
     folderPath,
     deep,
   );
-  const bookmarks = data?.pages.flatMap((page) => page.data) ?? [];
+  const bookmarks = useMemo(() => data?.pages.flatMap((page) => page.data) ?? [], [data]);
   const { data: creations = [] } = useBookmarkCreations(bookmarks);
   const deleteBookmark = useDeleteBookmark();
 
@@ -230,7 +233,6 @@ function PaginatedBookmarkList({
 }
 
 function BookmarkCreationCards({ creations }: { creations: BookmarkCreation[] }) {
-  const deleteBookmark = useDeleteBookmark();
   if (creations.length === 0) return null;
 
   return (
@@ -238,10 +240,7 @@ function BookmarkCreationCards({ creations }: { creations: BookmarkCreation[] })
       {creations.map((creation) => (
         <div key={creation.clientId} data-testid={`bookmark-creation-${creation.status}`}>
           {creation.status === 'success' ? (
-            <BookmarkCard
-              bookmark={creation.bookmark}
-              onDelete={() => deleteBookmark.mutate({ id: creation.bookmark.id })}
-            />
+            <BookmarkCardPreview bookmark={creation.bookmark} />
           ) : (
             <div
               className={`flex h-full flex-col overflow-hidden rounded-lg border bg-white ${

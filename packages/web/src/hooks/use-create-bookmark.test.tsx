@@ -57,7 +57,7 @@ function createWrapper() {
 }
 
 describe('useCreateBookmark', () => {
-  it('正式レスポンスを表示しながらserver refetchを待ち、複数ページのdataとcursorを手動変更しない', async () => {
+  it('正式レスポンスを表示してserver refetchを待たず、複数ページのdataとcursorを手動変更しない', async () => {
     const created = makeBookmark('created', 0, '/work', {
       url: 'https://new.example.com',
       title: '取得したタイトル',
@@ -94,13 +94,9 @@ describe('useCreateBookmark', () => {
     queryClient.setQueryData<Bookmark[]>(bookmarkKey('/work'), shiftedDirect);
     queryClient.setQueryData<InfiniteData<Page>>(paginatedKey('/work'), paginatedBefore);
 
-    let finishInvalidation!: () => void;
-    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries').mockImplementation(
-      () =>
-        new Promise<void>((resolve) => {
-          finishInvalidation = resolve;
-        }),
-    );
+    const invalidateSpy = vi
+      .spyOn(queryClient, 'invalidateQueries')
+      .mockImplementation(() => new Promise(() => {}));
 
     const { result } = renderHook(() => useCreateBookmark(), { wrapper: Wrapper });
     const mutation = act(() =>
@@ -122,11 +118,11 @@ describe('useCreateBookmark', () => {
       paginatedBefore,
     );
 
-    queryClient.setQueryData<Bookmark[]>(bookmarkKey('/work'), [created, ...shiftedDirect]);
-    finishInvalidation();
     await mutation;
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['bookmarks'] });
-    expect(queryClient.getQueryData<BookmarkCreation[]>(['bookmark-creations'])).toEqual([]);
+    expect(queryClient.getQueryData<BookmarkCreation[]>(['bookmark-creations'])).toEqual([
+      expect.objectContaining({ status: 'success', bookmark: created }),
+    ]);
   });
 
   it('一覧refetchで正式IDを確認できない場合は成功カードを保持する', async () => {
