@@ -10,6 +10,7 @@ import {
   type BookmarkQueryData,
 } from '../lib/folder-paths';
 import type { Folder } from '../types';
+import { acquireFolderPathMutationLock } from './folder-path-mutation-lock';
 
 interface FolderPathSelection {
   selectedFolder: string | null;
@@ -17,6 +18,7 @@ interface FolderPathSelection {
 }
 
 interface MutationContext {
+  releaseMutationLock: () => void;
   previousFolderQueries: [queryKey: QueryKey, data: Folder[] | undefined][];
   previousBookmarkQueries: [queryKey: QueryKey, data: BookmarkQueryData | undefined][];
   bookmarkQueryMigrations: [sourceQueryKey: QueryKey, destinationQueryKey: QueryKey][];
@@ -50,78 +52,86 @@ export function useRenameFolder(selection: FolderPathSelection) {
       return (await res.json()) as Folder;
     },
     onMutate: async ({ id, name }) => {
-      await Promise.all([
-        queryClient.cancelQueries({ queryKey: ['folders'] }),
-        queryClient.cancelQueries({ queryKey: ['bookmarks'] }),
-      ]);
-      const previousFolderQueries = queryClient.getQueriesData<Folder[]>({
-        queryKey: ['folders'],
-      });
-      const previousBookmarkQueries = queryClient.getQueriesData<BookmarkQueryData>({
-        queryKey: ['bookmarks'],
-      });
-      const folder = previousFolderQueries
-        .flatMap(([, data]) => data ?? [])
-        .find((candidate) => candidate.id === id);
-      const previousSelectedFolder = selectedFolderRef.current;
+      const releaseMutationLock = await acquireFolderPathMutationLock(queryClient);
+      try {
+        await Promise.all([
+          queryClient.cancelQueries({ queryKey: ['folders'] }),
+          queryClient.cancelQueries({ queryKey: ['bookmarks'] }),
+        ]);
+        const previousFolderQueries = queryClient.getQueriesData<Folder[]>({
+          queryKey: ['folders'],
+        });
+        const previousBookmarkQueries = queryClient.getQueriesData<BookmarkQueryData>({
+          queryKey: ['bookmarks'],
+        });
+        const folder = previousFolderQueries
+          .flatMap(([, data]) => data ?? [])
+          .find((candidate) => candidate.id === id);
+        const previousSelectedFolder = selectedFolderRef.current;
 
-      if (!folder) {
+        if (!folder) {
+          return {
+            releaseMutationLock,
+            previousFolderQueries,
+            previousBookmarkQueries,
+            bookmarkQueryMigrations: [],
+            previousSelectedFolder,
+            optimisticSelectedFolder: previousSelectedFolder,
+            selectionChanged: false,
+          };
+        }
+
+        const oldPath = folder.path;
+        const newPath = folder.parentPath === null ? `/${name}` : `${folder.parentPath}/${name}`;
+
+        queryClient.setQueriesData<Folder[]>({ queryKey: ['folders'] }, (old) => {
+          if (!old) return old;
+          return rebaseFolders(old, {
+            folderId: id,
+            oldPath,
+            newPath,
+            newParentPath: folder.parentPath,
+            newName: name,
+            moved: false,
+          });
+        });
+
+        const bookmarkQueryMigrations: [QueryKey, QueryKey][] = [];
+        const migratedBookmarkQueries: [QueryKey, BookmarkQueryData | undefined][] = [];
+        for (const [queryKey, data] of previousBookmarkQueries) {
+          const optimisticData = rebaseBookmarkQueryData(data, oldPath, newPath);
+          const optimisticQueryKey = rebaseBookmarkQueryKey(queryKey, oldPath, newPath);
+          if (optimisticQueryKey === queryKey) {
+            queryClient.setQueryData(queryKey, optimisticData);
+          } else {
+            bookmarkQueryMigrations.push([queryKey, optimisticQueryKey]);
+            migratedBookmarkQueries.push([optimisticQueryKey, optimisticData]);
+          }
+        }
+        migratedBookmarkQueries.forEach(([queryKey, data]) => {
+          queryClient.setQueryData(queryKey, data);
+        });
+
+        const optimisticSelectedFolder = rebaseFolderPath(previousSelectedFolder, oldPath, newPath);
+        const selectionChanged = optimisticSelectedFolder !== previousSelectedFolder;
+        if (selectionChanged) {
+          selectedFolderRef.current = optimisticSelectedFolder;
+          selection.onSelectFolder(optimisticSelectedFolder);
+        }
+
         return {
+          releaseMutationLock,
           previousFolderQueries,
           previousBookmarkQueries,
-          bookmarkQueryMigrations: [],
+          bookmarkQueryMigrations,
           previousSelectedFolder,
-          optimisticSelectedFolder: previousSelectedFolder,
-          selectionChanged: false,
+          optimisticSelectedFolder,
+          selectionChanged,
         };
+      } catch (error) {
+        releaseMutationLock();
+        throw error;
       }
-
-      const oldPath = folder.path;
-      const newPath = folder.parentPath === null ? `/${name}` : `${folder.parentPath}/${name}`;
-
-      queryClient.setQueriesData<Folder[]>({ queryKey: ['folders'] }, (old) => {
-        if (!old) return old;
-        return rebaseFolders(old, {
-          folderId: id,
-          oldPath,
-          newPath,
-          newParentPath: folder.parentPath,
-          newName: name,
-          moved: false,
-        });
-      });
-
-      const bookmarkQueryMigrations: [QueryKey, QueryKey][] = [];
-      const migratedBookmarkQueries: [QueryKey, BookmarkQueryData | undefined][] = [];
-      for (const [queryKey, data] of previousBookmarkQueries) {
-        const optimisticData = rebaseBookmarkQueryData(data, oldPath, newPath);
-        const optimisticQueryKey = rebaseBookmarkQueryKey(queryKey, oldPath, newPath);
-        if (optimisticQueryKey === queryKey) {
-          queryClient.setQueryData(queryKey, optimisticData);
-        } else {
-          bookmarkQueryMigrations.push([queryKey, optimisticQueryKey]);
-          migratedBookmarkQueries.push([optimisticQueryKey, optimisticData]);
-        }
-      }
-      migratedBookmarkQueries.forEach(([queryKey, data]) => {
-        queryClient.setQueryData(queryKey, data);
-      });
-
-      const optimisticSelectedFolder = rebaseFolderPath(previousSelectedFolder, oldPath, newPath);
-      const selectionChanged = optimisticSelectedFolder !== previousSelectedFolder;
-      if (selectionChanged) {
-        selectedFolderRef.current = optimisticSelectedFolder;
-        selection.onSelectFolder(optimisticSelectedFolder);
-      }
-
-      return {
-        previousFolderQueries,
-        previousBookmarkQueries,
-        bookmarkQueryMigrations,
-        previousSelectedFolder,
-        optimisticSelectedFolder,
-        selectionChanged,
-      };
     },
     onError: (_err, _vars, context) => {
       context?.bookmarkQueryMigrations.forEach(([, destinationQueryKey]) => {
@@ -152,9 +162,10 @@ export function useRenameFolder(selection: FolderPathSelection) {
         queryClient.removeQueries({ queryKey: sourceQueryKey, exact: true });
       });
     },
-    onSettled: () => {
+    onSettled: (_data, _error, _vars, context) => {
       queryClient.invalidateQueries({ queryKey: ['folders'] });
       queryClient.invalidateQueries({ queryKey: ['bookmarks'] });
+      context?.releaseMutationLock();
     },
   });
 }

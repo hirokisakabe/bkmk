@@ -106,6 +106,43 @@ function delayedFolderPatchFailure(error: string) {
   return { patchStarted, resolvePatch: () => resolvePatch() };
 }
 
+function controlledFolderPatches(responses: ({ data: Folder } | { error: string })[]) {
+  const controls = responses.map(() => {
+    let markStarted!: () => void;
+    let resolvePatch!: () => void;
+    return {
+      started: new Promise<void>((resolve) => {
+        markStarted = resolve;
+      }),
+      markStarted: () => markStarted(),
+      waitForResolution: new Promise<void>((resolve) => {
+        resolvePatch = resolve;
+      }),
+      resolvePatch: () => resolvePatch(),
+    };
+  });
+  let requestCount = 0;
+
+  server.use(
+    http.patch('/api/folders/:id', async () => {
+      const index = requestCount++;
+      const control = controls[index];
+      const response = responses[index];
+      if (!control || !response) {
+        return HttpResponse.json({ error: 'unexpected folder patch' }, { status: 500 });
+      }
+
+      control.markStarted();
+      await control.waitForResolution;
+      return 'data' in response
+        ? HttpResponse.json(response.data)
+        : HttpResponse.json({ error: response.error }, { status: 500 });
+    }),
+  );
+
+  return { controls, requestCount: () => requestCount };
+}
+
 describe('folder path mutation hooks', () => {
   it('パス置換は対象自身と子孫だけに適用する', () => {
     expect(rebaseFolderPath('/work', '/work', '/archive/work')).toBe('/archive/work');
@@ -154,7 +191,10 @@ describe('folder path mutation hooks', () => {
       () => useMoveFolder({ selectedFolder: '/work/project', onSelectFolder }),
       { wrapper: Wrapper },
     );
-    const mutation = act(() => result.current.mutateAsync({ id: 'work', parentPath: '/archive' }));
+    let mutation!: Promise<Folder>;
+    act(() => {
+      mutation = result.current.mutateAsync({ id: 'work', parentPath: '/archive' });
+    });
     await delayedPatch.patchStarted;
 
     expect(queryClient.getQueryData<Folder[]>(foldersKey)).toEqual([
@@ -185,8 +225,10 @@ describe('folder path mutation hooks', () => {
     ]);
     expect(onSelectFolder).toHaveBeenCalledWith('/archive/work/project');
 
-    delayedPatch.resolvePatch();
-    await mutation;
+    await act(async () => {
+      delayedPatch.resolvePatch();
+      await mutation;
+    });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['folders'] });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['bookmarks'] });
   });
@@ -259,8 +301,10 @@ describe('folder path mutation hooks', () => {
       expect.objectContaining({ id: 'source', folderPath: '/archive/work' }),
     ]);
 
-    delayedPatch.resolvePatch();
-    await mutation;
+    await act(async () => {
+      delayedPatch.resolvePatch();
+      await mutation;
+    });
     expect(queryClient.getQueryData(bookmarksKey('/work'))).toBeUndefined();
   });
 
@@ -286,8 +330,10 @@ describe('folder path mutation hooks', () => {
     await delayedPatch.patchStarted;
     rerender({ selectedFolder: '/personal' });
 
-    delayedPatch.resolvePatch();
-    await expect(mutation).rejects.toThrow('移動に失敗しました');
+    await act(async () => {
+      delayedPatch.resolvePatch();
+      await expect(mutation).rejects.toThrow('移動に失敗しました');
+    });
     expect(onSelectFolder.mock.calls).toEqual([['/archive/work']]);
   });
 
@@ -332,8 +378,10 @@ describe('folder path mutation hooks', () => {
     ]);
     expect(onSelectFolder).toHaveBeenCalledWith('/job/project');
 
-    delayedPatch.resolvePatch();
-    await mutation;
+    await act(async () => {
+      delayedPatch.resolvePatch();
+      await mutation;
+    });
   });
 
   it('rename のAPI失敗時はfolders、bookmarks、選択パスをrollbackする', async () => {
@@ -399,8 +447,10 @@ describe('folder path mutation hooks', () => {
       expect.objectContaining({ id: 'source', folderPath: '/job' }),
     ]);
 
-    delayedPatch.resolvePatch();
-    await mutation;
+    await act(async () => {
+      delayedPatch.resolvePatch();
+      await mutation;
+    });
     expect(queryClient.getQueryData(bookmarksKey('/work'))).toBeUndefined();
   });
 
@@ -425,8 +475,82 @@ describe('folder path mutation hooks', () => {
     await delayedPatch.patchStarted;
     rerender({ selectedFolder: '/personal' });
 
-    delayedPatch.resolvePatch();
-    await expect(mutation).rejects.toThrow('rename failed');
+    await act(async () => {
+      delayedPatch.resolvePatch();
+      await expect(mutation).rejects.toThrow('rename failed');
+    });
     expect(onSelectFolder.mock.calls).toEqual([['/job']]);
+  });
+
+  it('pending 中に開始した rename の失敗が成功済み move のcacheを巻き戻さない', async () => {
+    const beforeFolders = [
+      makeFolder({ id: 'archive', name: 'archive', path: '/archive', parentPath: null }),
+      makeFolder({ id: 'work', name: 'work', path: '/work', parentPath: null }),
+    ];
+    const sourceBookmarks = [makeBookmark('source', '/work')];
+    const movedFolder = makeFolder({
+      id: 'work',
+      name: 'work',
+      path: '/archive/work',
+      parentPath: '/archive',
+    });
+    const patches = controlledFolderPatches([{ data: movedFolder }, { error: 'rename failed' }]);
+    const { queryClient, Wrapper } = createWrapper();
+    queryClient.setQueryData(foldersKey, beforeFolders);
+    queryClient.setQueryData(bookmarksKey('/work'), sourceBookmarks);
+
+    const { result } = renderHook(
+      () => ({
+        move: useMoveFolder({ selectedFolder: null, onSelectFolder: vi.fn() }),
+        rename: useRenameFolder({ selectedFolder: null, onSelectFolder: vi.fn() }),
+      }),
+      { wrapper: Wrapper },
+    );
+    let moveMutation!: Promise<Folder>;
+    act(() => {
+      moveMutation = result.current.move.mutateAsync({ id: 'work', parentPath: '/archive' });
+    });
+    await patches.controls[0].started;
+
+    let renameMutation!: Promise<Folder>;
+    act(() => {
+      renameMutation = result.current.rename.mutateAsync({ id: 'work', name: 'job' });
+    });
+
+    expect(patches.requestCount()).toBe(1);
+    expect(queryClient.getQueryData(bookmarksKey('/work'))).toEqual(sourceBookmarks);
+    expect(queryClient.getQueryData<Bookmark[]>(bookmarksKey('/archive/work'))).toEqual([
+      expect.objectContaining({ id: 'source', folderPath: '/archive/work' }),
+    ]);
+
+    await act(async () => {
+      patches.controls[0].resolvePatch();
+      await moveMutation;
+    });
+    await patches.controls[1].started;
+
+    expect(queryClient.getQueryData(bookmarksKey('/work'))).toBeUndefined();
+    expect(queryClient.getQueryData<Bookmark[]>(bookmarksKey('/archive/job'))).toEqual([
+      expect.objectContaining({ id: 'source', folderPath: '/archive/job' }),
+    ]);
+
+    await act(async () => {
+      patches.controls[1].resolvePatch();
+      await expect(renameMutation).rejects.toThrow('rename failed');
+    });
+
+    expect(queryClient.getQueryData(bookmarksKey('/work'))).toBeUndefined();
+    expect(queryClient.getQueryData(bookmarksKey('/archive/job'))).toBeUndefined();
+    expect(queryClient.getQueryData<Bookmark[]>(bookmarksKey('/archive/work'))).toEqual([
+      expect.objectContaining({ id: 'source', folderPath: '/archive/work' }),
+    ]);
+    expect(queryClient.getQueryData<Folder[]>(foldersKey)).toEqual([
+      beforeFolders[0],
+      expect.objectContaining({
+        id: 'work',
+        path: '/archive/work',
+        parentPath: '/archive',
+      }),
+    ]);
   });
 });
