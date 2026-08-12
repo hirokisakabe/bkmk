@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { BOOKMARKS, FOLDERS, dragTo, makeBookmark, setupMocks } from './helpers';
+import { BOOKMARKS, FOLDERS, dragItemCenterTo, dragTo, makeBookmark, setupMocks } from './helpers';
 
 test('同一階層のフォルダをDnDソートすると並び替えAPIが呼ばれる', async ({ page }) => {
   await setupMocks(page);
@@ -108,8 +108,9 @@ test('ブックマークを別フォルダへDnD移動すると移動APIが呼�
   await page.goto('/?folder=/folder-a');
   await expect(page.locator('h3', { hasText: 'Alpha' })).toBeVisible();
 
-  await dragTo(
+  await dragItemCenterTo(
     page,
+    page.getByTestId(`bookmark-card-${BOOKMARKS[0].id}`),
     page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[0].id}`),
     page.getByTestId(`folder-drop-target-${FOLDERS[1].id}`),
   );
@@ -173,6 +174,7 @@ test('展開した親ではなくchild rowへブックマークをドロップ�
   const req = await patchRequest;
   const body = (await req.postDataJSON()) as { folderPath: string | null };
   expect(body.folderPath).toBe('/folder-a/child');
+  await page.goto('/?folder=/folder-a');
   await expect(page.locator('h3', { hasText: 'Alpha' })).toBeHidden();
 });
 
@@ -493,11 +495,17 @@ test.describe('フォルダ内3件ソート（deep=false）全パターン', () 
   test('連続ソート: 1→3移動後にさらに2番目を1番目に移動', async ({ page }) => {
     const { bk1, bk2, bk3 } = await setup3Bookmarks(page);
     // 1回目: A→C で B,C,A
+    const firstPatch = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PATCH' &&
+        response.url().includes(`/api/bookmarks/${bk1.id}/position`),
+    );
     await dragTo(
       page,
       page.getByTestId(`bookmark-drag-handle-${bk1.id}`),
       page.getByTestId(`bookmark-drag-handle-${bk3.id}`),
     );
+    await firstPatch;
     await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText([
       'SortB',
       'SortC',
