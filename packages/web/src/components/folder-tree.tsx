@@ -130,6 +130,8 @@ export function FolderTree({
           open
           onOpenChange={(open) => !open && setDialogState(null)}
           folder={dialogState.folder}
+          selectedFolder={selectedFolder}
+          onSelectFolder={onSelectFolder}
         />
       )}
 
@@ -138,7 +140,8 @@ export function FolderTree({
           open
           onOpenChange={(open) => !open && setDialogState(null)}
           folder={dialogState.folder}
-          onMoved={() => handleDeleteOrMove(dialogState.folder)}
+          selectedFolder={selectedFolder}
+          onSelectFolder={onSelectFolder}
         />
       )}
     </nav>
