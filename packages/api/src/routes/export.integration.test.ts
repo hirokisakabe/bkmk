@@ -91,4 +91,26 @@ describe('GET /api/export/bookmarks integration', () => {
     expect(csv).not.toContain(TEST_USER.id);
     expect(csv).not.toContain('00000000-0000-0000-0000-000000000001');
   });
+
+  it('同じマイクロ秒のブックマークが 500 件を超えても重複せず完走する', async () => {
+    await client.exec(`
+      INSERT INTO bookmarks (id, user_id, url, title, created_at, updated_at)
+      SELECT
+        ('10000000-0000-0000-0000-' || lpad(value::text, 12, '0'))::uuid,
+        '${TEST_USER.id}',
+        'https://bulk.example.com/' || value,
+        'bulk ' || value,
+        TIMESTAMPTZ '2026-08-14 00:00:00.123456+00',
+        TIMESTAMPTZ '2026-08-14 00:00:00.123456+00'
+      FROM generate_series(1, 501) AS series(value)
+    `);
+
+    const res = await app.request('/api/export/bookmarks');
+    const csv = await res.text();
+    const rows = csv.split('\r\n').slice(1, -1);
+
+    expect(rows).toHaveLength(502);
+    expect(rows.filter((row) => row.startsWith('https://bulk.example.com/1,'))).toHaveLength(1);
+    expect(rows.filter((row) => row.startsWith('https://bulk.example.com/501,'))).toHaveLength(1);
+  });
 });

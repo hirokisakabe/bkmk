@@ -1,4 +1,4 @@
-import { and, eq, gt, isNull, or } from 'drizzle-orm';
+import { and, eq, gt, isNull } from 'drizzle-orm';
 import { Hono } from 'hono';
 import type { Env as HonoPinoEnv } from 'hono-pino';
 
@@ -70,18 +70,11 @@ function serializeBookmark(bookmark: ExportBookmark): string {
     .join(',');
 }
 
-type ExportCursor = Pick<ExportBookmark, 'id' | 'createdAt'>;
-
 async function fetchExportBatch(
   userId: string,
-  cursor: ExportCursor | null,
+  cursorId: string | null,
 ): Promise<ExportBookmark[]> {
-  const cursorCondition = cursor
-    ? or(
-        gt(bookmarks.createdAt, cursor.createdAt),
-        and(eq(bookmarks.createdAt, cursor.createdAt), gt(bookmarks.id, cursor.id)),
-      )
-    : undefined;
+  const cursorCondition = cursorId ? gt(bookmarks.id, cursorId) : undefined;
 
   return db
     .select({
@@ -98,7 +91,7 @@ async function fetchExportBatch(
     })
     .from(bookmarks)
     .where(and(eq(bookmarks.userId, userId), isNull(bookmarks.deletedAt), cursorCondition))
-    .orderBy(bookmarks.createdAt, bookmarks.id)
+    .orderBy(bookmarks.id)
     .limit(EXPORT_BATCH_SIZE);
 }
 
@@ -106,7 +99,7 @@ function createCsvStream(userId: string): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
   let rows: ExportBookmark[] = [];
   let index = 0;
-  let cursor: ExportCursor | null = null;
+  let cursorId: string | null = null;
   let reachedEnd = false;
 
   return new ReadableStream({
@@ -115,12 +108,12 @@ function createCsvStream(userId: string): ReadableStream<Uint8Array> {
     },
     async pull(controller) {
       if (index >= rows.length && !reachedEnd) {
-        rows = await fetchExportBatch(userId, cursor);
+        rows = await fetchExportBatch(userId, cursorId);
         index = 0;
         reachedEnd = rows.length < EXPORT_BATCH_SIZE;
         const last = rows.at(-1);
         if (last) {
-          cursor = { id: last.id, createdAt: last.createdAt };
+          cursorId = last.id;
         }
       }
 
