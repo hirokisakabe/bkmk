@@ -84,6 +84,7 @@ export function CreateFolderDialog({
               onChange={(e) => {
                 setName(e.target.value);
                 setHasInteracted(true);
+                createFolder.reset();
               }}
               placeholder="フォルダ名"
               aria-invalid={displayedError ? true : undefined}
@@ -179,6 +180,7 @@ export function RenameFolderDialog({
               onChange={(e) => {
                 setName(e.target.value);
                 setHasInteracted(true);
+                renameFolder.reset();
               }}
               placeholder="フォルダ名"
               aria-invalid={displayedError ? true : undefined}

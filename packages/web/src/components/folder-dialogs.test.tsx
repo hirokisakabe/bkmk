@@ -103,6 +103,23 @@ describe('フォルダ名の入力検証', () => {
 
       await waitFor(() => expect(requests).toEqual([`/${allowedName}`]));
     });
+
+    it('API エラー後に入力を変更すると古いエラーを解除する', async () => {
+      mockFolderRequestError('post');
+      const user = userEvent.setup();
+      renderDialog(<CreateFolderDialog open onOpenChange={vi.fn()} parentPath={null} />);
+
+      const input = screen.getByRole('textbox', { name: 'フォルダ名' });
+      await user.type(input, 'duplicate');
+      await user.click(screen.getByRole('button', { name: '作成' }));
+      expect(await screen.findByRole('alert')).toHaveTextContent('同名フォルダがあります');
+
+      await user.type(input, '-fixed');
+
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expect(input).not.toHaveAttribute('aria-invalid');
+      expect(input).not.toHaveAttribute('aria-describedby');
+    });
   });
 
   describe('名前変更ダイアログ', () => {
@@ -168,6 +185,24 @@ describe('フォルダ名の入力検証', () => {
       await user.click(screen.getByRole('button', { name: '変更' }));
 
       await waitFor(() => expect(requests).toEqual([allowedName]));
+    });
+
+    it('API エラー後に入力を変更すると古いエラーを解除する', async () => {
+      mockFolderRequestError('patch');
+      const user = userEvent.setup();
+      renderRenameDialog();
+
+      const input = screen.getByRole('textbox', { name: 'フォルダ名' });
+      await user.clear(input);
+      await user.type(input, 'duplicate');
+      await user.click(screen.getByRole('button', { name: '変更' }));
+      expect(await screen.findByRole('alert')).toHaveTextContent('同名フォルダがあります');
+
+      await user.type(input, '-fixed');
+
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expect(input).not.toHaveAttribute('aria-invalid');
+      expect(input).not.toHaveAttribute('aria-describedby');
     });
   });
 });
@@ -345,6 +380,15 @@ function mockRenameFolderRequest(requests: string[]) {
       requests.push(name);
       return HttpResponse.json({ ...currentFolder, name, path: `/${name}` });
     }),
+  );
+}
+
+function mockFolderRequestError(method: 'post' | 'patch') {
+  const handler = () => HttpResponse.json({ error: '同名フォルダがあります' }, { status: 409 });
+  server.use(
+    method === 'post'
+      ? http.post('/api/folders', handler)
+      : http.patch('/api/folders/:id', handler),
   );
 }
 
