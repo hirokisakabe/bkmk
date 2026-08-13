@@ -2,12 +2,59 @@ import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { getOptionalSession } from '../lib/auth-guard';
 import { mockBookmarks } from '../test/handlers';
 import { renderWithProviders } from '../test/render';
 
 describe('IndexPage', () => {
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it('未ログイン時はランディングページを表示し、ログイン画面へリダイレクトしない', async () => {
+    vi.mocked(getOptionalSession).mockResolvedValueOnce({ session: null });
+
+    const { router } = renderWithProviders({ initialUrl: '/' });
+
+    expect(
+      await screen.findByRole('heading', { name: '気になったページを、すぐ保存。' }),
+    ).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/');
+    expect(screen.getByRole('link', { name: '無料でアカウント作成' })).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: 'ログイン' }).length).toBeGreaterThan(0);
+  });
+
+  it('ログイン済みの場合は既存のブックマーク管理画面を表示する', async () => {
+    renderWithProviders({ initialUrl: '/' });
+
+    expect(
+      await screen.findByPlaceholderText('URLを入力してブックマークを追加'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Save now. Find later.')).not.toBeInTheDocument();
+  });
+
+  it('ランディングページのCTAからログインとアカウント作成へ遷移できる', async () => {
+    vi.mocked(getOptionalSession)
+      .mockResolvedValueOnce({ session: null })
+      .mockResolvedValueOnce({ session: null });
+    const user = userEvent.setup();
+    const { router } = renderWithProviders({ initialUrl: '/' });
+
+    await user.click(await screen.findByRole('link', { name: '無料でアカウント作成' }));
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe('/login');
+      expect(router.state.location.search).toEqual({ mode: 'signup' });
+    });
+
+    await act(async () => {
+      await router.navigate({ to: '/', search: {} });
+    });
+    const [loginLink] = await screen.findAllByRole('link', { name: 'ログイン' });
+    await user.click(loginLink);
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe('/login');
+      expect(router.state.location.search).toEqual({});
+    });
   });
 
   it('「すべて」選択時にフォルダ内含む全ブックマークが表示される', async () => {

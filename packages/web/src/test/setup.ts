@@ -6,6 +6,19 @@ import { server } from './server';
 
 // better-auth クライアントは MSW をバイパスするため、auth-guard をモック
 vi.mock('../lib/auth-guard', () => ({
+  getOptionalSession: vi.fn().mockResolvedValue({
+    session: {
+      user: {
+        id: 'test-user',
+        name: 'Test User',
+        email: 'test@example.com',
+      },
+      session: {
+        id: 'test-session',
+        userId: 'test-user',
+      },
+    },
+  }),
   requireAuth: vi.fn().mockResolvedValue({
     user: {
       id: 'test-user',

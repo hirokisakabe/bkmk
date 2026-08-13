@@ -5,16 +5,24 @@ import { authClient } from '../lib/auth-client';
 import { requireGuest } from '../lib/auth-guard';
 import { rootRoute } from './__root';
 
+interface LoginSearch {
+  mode?: 'signup';
+}
+
 export const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/login',
   beforeLoad: requireGuest,
+  validateSearch: (search: Record<string, unknown>): LoginSearch => ({
+    mode: search.mode === 'signup' ? ('signup' as const) : undefined,
+  }),
   component: LoginPage,
 });
 
 function LoginPage() {
   const router = useRouter();
-  const [mode, setMode] = useState<'login' | 'signup'>('login');
+  const { mode: searchMode } = loginRoute.useSearch();
+  const mode = searchMode === 'signup' ? 'signup' : 'login';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -95,8 +103,8 @@ function LoginPage() {
               <button
                 type="button"
                 onClick={() => {
-                  setMode('signup');
                   setError('');
+                  void router.navigate({ to: '/login', search: { mode: 'signup' } });
                 }}
                 className="text-blue-600 hover:underline"
               >
@@ -109,8 +117,8 @@ function LoginPage() {
               <button
                 type="button"
                 onClick={() => {
-                  setMode('login');
                   setError('');
+                  void router.navigate({ to: '/login', search: {} });
                 }}
                 className="text-blue-600 hover:underline"
               >
