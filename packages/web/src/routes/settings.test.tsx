@@ -39,7 +39,7 @@ describe('SettingsPage', () => {
       expect(click).toHaveBeenCalled();
     });
 
-    const anchor = click.mock.instances[0];
+    const anchor = click.mock.instances[0] as HTMLAnchorElement;
     expect(anchor.download).toBe('bkmk-export-2026-08-14.csv');
     expect(anchor.href).toBe('blob:export');
     expect(revokeObjectUrl).toHaveBeenCalledWith('blob:export');

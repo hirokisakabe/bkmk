@@ -48,7 +48,6 @@ describe('GET /api/export/bookmarks', () => {
     expect(csv).toBe(
       `${header}https://example.com/?q=日本語,"絵文字 🔖, title","first line\nsecond ""line""",/work/project,https://example.com/image.png,https://example.com/favicon.ico,3,2026-08-13T01:02:03.000Z,2026-08-14T04:05:06.000Z\r\n`,
     );
-    expect(csv.replaceAll('\r\n', '')).not.toContain('\n');
   });
 
   it.each(['=1+1', '+SUM(A1:A2)', '-2+3', '@command'])(
