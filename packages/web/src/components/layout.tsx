@@ -286,9 +286,7 @@ export function Layout({
           <main className="flex-1 overflow-y-auto p-4">
             <div
               className={
-                heading
-                  ? 'mb-6 flex min-w-0 items-center gap-4'
-                  : 'mb-4 hidden justify-end md:flex'
+                heading ? 'mb-6 flex min-w-0 items-center gap-4' : 'mb-4 hidden justify-end md:flex'
               }
               data-testid={heading ? 'main-header' : undefined}
             >
