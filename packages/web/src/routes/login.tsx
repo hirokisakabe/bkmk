@@ -5,11 +5,15 @@ import { authClient } from '../lib/auth-client';
 import { requireGuest } from '../lib/auth-guard';
 import { rootRoute } from './__root';
 
+interface LoginSearch {
+  mode?: 'signup';
+}
+
 export const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/login',
   beforeLoad: requireGuest,
-  validateSearch: (search: Record<string, unknown>) => ({
+  validateSearch: (search: Record<string, unknown>): LoginSearch => ({
     mode: search.mode === 'signup' ? ('signup' as const) : undefined,
   }),
   component: LoginPage,
