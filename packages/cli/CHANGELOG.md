@@ -1,5 +1,11 @@
 # @bkmk/cli
 
+## 0.1.1
+
+### Patch Changes
+
+- 18d6b02: CLI のデフォルト API URL を https://bkmk.tokyo に変更
+
 ## 0.1.0
 
 ### Minor Changes
