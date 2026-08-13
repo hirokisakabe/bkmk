@@ -96,7 +96,9 @@ test('同一フォルダ内でブックマークをDnDソートすると並び�
   await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText(['Beta', 'Alpha']);
 });
 
-test('作成カード表示中も既存ブックマークだけをDnDソートできる', async ({ page }) => {
+test('pendingカードは並び替え対象外のまま、表示中も既存カード同士をDnDソートできる', async ({
+  page,
+}) => {
   await setupMocks(page);
 
   let finishCreate!: () => void;
@@ -118,16 +120,6 @@ test('作成カード表示中も既存ブックマークだけをDnDソート�
     },
   );
 
-  const positionRequests: string[] = [];
-  page.on('request', (request) => {
-    if (
-      request.method() === 'PATCH' &&
-      /\/api\/bookmarks\/[^/]+\/position$/.test(new URL(request.url()).pathname)
-    ) {
-      positionRequests.push(request.url());
-    }
-  });
-
   await page.goto('/?folder=/folder-a');
   await page
     .getByPlaceholder('URLを入力してブックマークを追加')
@@ -137,9 +129,15 @@ test('作成カード表示中も既存ブックマークだけをDnDソート�
   const creationCard = page.getByTestId('bookmark-creation-pending');
   await expect(creationCard).toBeVisible();
   await expect(creationCard.getByRole('button', { name: '並び替え' })).toHaveCount(0);
+  await expect(creationCard.locator('[data-testid^="bookmark-drag-handle-"]')).toHaveCount(0);
+  await expect(page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[0].id}`)).toBeVisible();
+  await expect(page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[1].id}`)).toBeVisible();
 
-  await dragTo(page, page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[0].id}`), creationCard);
-  expect(positionRequests).toEqual([]);
+  const patchRequest = page.waitForRequest(
+    (request) =>
+      request.method() === 'PATCH' &&
+      /\/api\/bookmarks\/[^/]+\/position$/.test(new URL(request.url()).pathname),
+  );
 
   await dragTo(
     page,
@@ -147,8 +145,11 @@ test('作成カード表示中も既存ブックマークだけをDnDソート�
     page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[1].id}`),
   );
 
-  await expect.poll(() => positionRequests).toHaveLength(1);
-  expect(positionRequests[0]).toContain(`/api/bookmarks/${BOOKMARKS[0].id}/position`);
+  const request = await patchRequest;
+  const body = (await request.postDataJSON()) as { position: number };
+
+  expect(request.url()).toContain(`/api/bookmarks/${BOOKMARKS[0].id}/position`);
+  expect(body.position).toBe(BOOKMARKS[1].position);
   await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText(['Beta', 'Alpha']);
   await expect(creationCard).toBeVisible();
 
