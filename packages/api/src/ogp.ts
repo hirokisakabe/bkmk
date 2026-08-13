@@ -1,3 +1,8 @@
+import createMetascraper from 'metascraper';
+import descriptionRules from 'metascraper-description';
+import imageRules from 'metascraper-image';
+import titleRules from 'metascraper-title';
+
 type OgpMetadata = {
   title: string | null;
   description: string | null;
@@ -7,25 +12,46 @@ type OgpMetadata = {
 
 const MAX_HTML_BYTES = 512 * 1024; // 512KB
 
-function extractMetaContent(html: string, property: string): string | null {
-  // Match both property="og:..." and name="og:..."
-  const regex = new RegExp(
-    `<meta\\s+(?:[^>]*?(?:property|name)=["']${property}["'][^>]*?content=["']([^"']*?)["']|[^>]*?content=["']([^"']*?)["'][^>]*?(?:property|name)=["']${property}["'])`,
-    'i',
-  );
-  const match = html.match(regex);
-  return match?.[1] ?? match?.[2] ?? null;
+function resolveHttpUrl(value: string, baseUrl: string): string | null {
+  try {
+    const url = new URL(value, baseUrl);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : null;
+  } catch {
+    return null;
+  }
 }
 
-function extractTitle(html: string): string | null {
-  const match = html.match(/<title[^>]*>([^<]*)<\/title>/i);
-  return match?.[1]?.trim() ?? null;
-}
+const faviconRules: createMetascraper.Rules = {
+  favicon: [
+    ({ htmlDom, url }) => {
+      let faviconUrl: string | undefined;
 
-function resolveFaviconUrl(baseUrl: string): string {
-  const url = new URL(baseUrl);
-  return `${url.origin}/favicon.ico`;
-}
+      htmlDom('link[rel][href]').each((_index, element) => {
+        const link = htmlDom(element);
+        const relValues = (link.attr('rel') ?? '').toLowerCase().split(/\s+/);
+        if (!relValues.includes('icon')) return;
+
+        const href = link.attr('href');
+        if (!href) return;
+
+        const resolved = resolveHttpUrl(href, url);
+        if (resolved) {
+          faviconUrl = resolved;
+          return false;
+        }
+      });
+
+      return faviconUrl;
+    },
+  ],
+};
+
+const scrapeMetadata = createMetascraper([
+  titleRules(),
+  descriptionRules(),
+  imageRules(),
+  faviconRules,
+]);
 
 /**
  * URL のスキームが http/https であり、プライベートアドレスでないことを検証する。
@@ -215,20 +241,14 @@ export async function fetchOgpMetadata(targetUrl: string): Promise<OgpMetadata> 
     }
 
     const html = await readLimitedBody(response);
-
-    const ogTitle = extractMetaContent(html, 'og:title');
-    const ogDescription = extractMetaContent(html, 'og:description');
-    const ogImage = extractMetaContent(html, 'og:image');
-
-    const title = ogTitle ?? extractTitle(html);
-    const description = ogDescription ?? extractMetaContent(html, 'description');
-    const faviconUrl = resolveFaviconUrl(targetUrl);
+    const pageUrl = response.url || targetUrl;
+    const metadata = await scrapeMetadata({ html, url: pageUrl });
 
     return {
-      title: title ?? null,
-      description: description ?? null,
-      imageUrl: ogImage ?? null,
-      faviconUrl,
+      title: metadata.title ?? null,
+      description: metadata.description ?? null,
+      imageUrl: metadata.image ? resolveHttpUrl(metadata.image, pageUrl) : null,
+      faviconUrl: metadata.favicon ?? resolveHttpUrl('/favicon.ico', new URL(pageUrl).origin),
     };
   } catch {
     return empty;
