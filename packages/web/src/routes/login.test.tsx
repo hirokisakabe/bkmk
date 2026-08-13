@@ -16,7 +16,7 @@ describe('LoginPage', () => {
   });
 
   it('アカウント作成モードに切り替えられる', async () => {
-    renderWithProviders({ initialUrl: '/login' });
+    const { router } = renderWithProviders({ initialUrl: '/login' });
 
     await waitFor(() => {
       expect(screen.getByText('こちら')).toBeInTheDocument();
@@ -26,6 +26,7 @@ describe('LoginPage', () => {
     await user.click(screen.getByText('こちら'));
 
     expect(screen.getByRole('button', { name: 'アカウント作成' })).toBeInTheDocument();
+    expect(router.state.location.search).toEqual({ mode: 'signup' });
   });
 
   it('mode=signupの場合はアカウント作成フォームを初期表示する', async () => {
@@ -35,7 +36,7 @@ describe('LoginPage', () => {
   });
 
   it('ログインモードに戻れる', async () => {
-    renderWithProviders({ initialUrl: '/login' });
+    const { router } = renderWithProviders({ initialUrl: '/login' });
 
     const user = userEvent.setup();
 
@@ -50,5 +51,6 @@ describe('LoginPage', () => {
     // ログインモードに戻す
     await user.click(screen.getByText('こちら'));
     expect(screen.getByRole('button', { name: 'ログイン' })).toBeInTheDocument();
+    expect(router.state.location.search).toEqual({});
   });
 });

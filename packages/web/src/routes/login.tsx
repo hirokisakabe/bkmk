@@ -17,10 +17,8 @@ export const loginRoute = createRoute({
 
 function LoginPage() {
   const router = useRouter();
-  const { mode: initialMode } = loginRoute.useSearch();
-  const [mode, setMode] = useState<'login' | 'signup'>(
-    initialMode === 'signup' ? 'signup' : 'login',
-  );
+  const { mode: searchMode } = loginRoute.useSearch();
+  const mode = searchMode === 'signup' ? 'signup' : 'login';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -101,8 +99,8 @@ function LoginPage() {
               <button
                 type="button"
                 onClick={() => {
-                  setMode('signup');
                   setError('');
+                  void router.navigate({ to: '/login', search: { mode: 'signup' } });
                 }}
                 className="text-blue-600 hover:underline"
               >
@@ -115,8 +113,8 @@ function LoginPage() {
               <button
                 type="button"
                 onClick={() => {
-                  setMode('login');
                   setError('');
+                  void router.navigate({ to: '/login', search: {} });
                 }}
                 className="text-blue-600 hover:underline"
               >
