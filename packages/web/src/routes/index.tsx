@@ -1,6 +1,7 @@
 import { type DragEndEvent } from '@dnd-kit/core';
 import { useQueryClient } from '@tanstack/react-query';
-import { createRoute } from '@tanstack/react-router';
+import { createRoute, useRouter, useRouterState } from '@tanstack/react-router';
+import { useEffect } from 'react';
 
 import { BookmarkList } from '../components/bookmark-list';
 import { LandingPage } from '../components/landing-page';
@@ -11,7 +12,11 @@ import { useReorderFolder } from '../hooks/use-reorder-folder';
 import { Layout } from '../components/layout';
 import { SearchResults } from '../components/search-results';
 import { getOptionalSession } from '../lib/auth-guard';
-import { UNCATEGORIZED_FOLDER } from '../lib/constants';
+import {
+  LEGACY_UNCATEGORIZED_FOLDER,
+  UNCATEGORIZED_VIEW,
+  type BookmarkView,
+} from '../lib/constants';
 import {
   resolveBookmarkMoveTarget,
   resolveBookmarkReorderTarget,
@@ -24,21 +29,68 @@ import { rootRoute } from './__root';
 interface IndexSearch {
   folder?: string;
   q?: string;
+  view?: BookmarkView;
+}
+
+function firstSearchValue(value: unknown) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function canonicalizeSearch(search: Record<string, unknown>): IndexSearch {
+  const q = firstSearchValue(search.q);
+  const folder = firstSearchValue(search.folder);
+  const view = firstSearchValue(search.view);
+
+  if (typeof q === 'string' && q.trim().length > 0) {
+    return { q: q.trim() };
+  }
+  if (typeof folder === 'string' && folder.startsWith('/')) {
+    return { folder };
+  }
+  if (view === UNCATEGORIZED_VIEW || folder === LEGACY_UNCATEGORIZED_FOLDER) {
+    return { view: UNCATEGORIZED_VIEW };
+  }
+  return {};
+}
+
+function buildIndexHref(search: IndexSearch) {
+  const searchParams = new URLSearchParams();
+  if (search.q) searchParams.set('q', search.q);
+  if (search.folder) searchParams.set('folder', search.folder);
+  if (search.view) searchParams.set('view', search.view);
+  const searchString = searchParams.toString();
+  return searchString ? `/?${searchString}` : '/';
+}
+
+function isCanonicalSearch(rawSearchString: string, search: IndexSearch) {
+  return rawSearchString === buildIndexHref(search).slice(1);
 }
 
 export const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
   beforeLoad: getOptionalSession,
-  validateSearch: (search: Record<string, unknown>): IndexSearch => ({
-    folder: typeof search.folder === 'string' ? search.folder : undefined,
-    q: typeof search.q === 'string' && search.q.trim().length > 0 ? search.q.trim() : undefined,
-  }),
+  validateSearch: canonicalizeSearch,
   component: IndexPage,
 });
 
 function IndexPage() {
   const { session } = indexRoute.useRouteContext();
+  const router = useRouter();
+  const location = useRouterState({ select: (state) => state.location });
+
+  useEffect(() => {
+    const rawLocation = router.history.location;
+    if (rawLocation.pathname !== '/') return;
+    const rawSearchString = rawLocation.search;
+    const canonicalSearch = canonicalizeSearch(router.options.parseSearch(rawSearchString));
+    if (!isCanonicalSearch(rawSearchString, canonicalSearch)) {
+      router.history.replace(
+        `${buildIndexHref(canonicalSearch)}${rawLocation.hash}`,
+        rawLocation.state,
+      );
+    }
+  }, [location, router]);
 
   if (!session) return <LandingPage />;
 
@@ -46,7 +98,7 @@ function IndexPage() {
 }
 
 function BookmarkManager() {
-  const { folder, q } = indexRoute.useSearch();
+  const { folder, q, view } = indexRoute.useSearch();
   const [settings] = useSettings();
 
   const queryClient = useQueryClient();
@@ -55,9 +107,9 @@ function BookmarkManager() {
   const moveBookmark = useMoveBookmark();
 
   const { data: allFolders = [], isLoading: isFoldersLoading } = useAllFolders();
-  const isAllBookmarks = folder === undefined;
-  const isUncategorized = folder === UNCATEGORIZED_FOLDER;
-  const currentFolderPath = isUncategorized ? null : (folder ?? null);
+  const isUncategorized = view === UNCATEGORIZED_VIEW;
+  const isAllBookmarks = folder === undefined && !isUncategorized;
+  const currentFolderPath = folder ?? null;
   const deep = isAllBookmarks
     ? true
     : !isUncategorized && folder !== undefined && settings.includeSubfolders;
@@ -106,12 +158,11 @@ function BookmarkManager() {
     }
   };
 
-  const folderName =
-    folder === UNCATEGORIZED_FOLDER
-      ? '未分類'
-      : folder
-        ? folder.split('/').pop() || folder
-        : 'すべて';
+  const folderName = isUncategorized
+    ? '未分類'
+    : folder
+      ? folder.split('/').pop() || folder
+      : 'すべて';
   const isSearching = !!q;
 
   return (
@@ -119,7 +170,7 @@ function BookmarkManager() {
       {isSearching ? (
         <SearchResults query={q!} />
       ) : (
-        <BookmarkList folderPath={folder ?? null} folderName={folderName} />
+        <BookmarkList folderPath={currentFolderPath} folderName={folderName} view={view} />
       )}
     </Layout>
   );

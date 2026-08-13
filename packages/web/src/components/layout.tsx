@@ -11,6 +11,7 @@ import { Link, useNavigate, useRouter, useRouterState } from '@tanstack/react-ro
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { collisionDetection } from '../lib/dnd-collision';
+import { UNCATEGORIZED_VIEW, type BookmarkView } from '../lib/constants';
 import type { Bookmark } from '../types';
 import { BookmarkCardPreview } from './bookmark-list';
 import { FolderTree } from './folder-tree';
@@ -31,13 +32,15 @@ export function Layout({
   const search = location.search as Record<string, unknown>;
   const isOnIndex = location.pathname === '/';
   const folder = typeof search.folder === 'string' ? search.folder : undefined;
+  const view = search.view === UNCATEGORIZED_VIEW ? UNCATEGORIZED_VIEW : undefined;
   const q =
     typeof search.q === 'string' && search.q.trim().length > 0 ? search.q.trim() : undefined;
   const isSearching = !!q;
   const urlSearchValue = isOnIndex ? (q ?? '') : '';
   const [searchValue, setSearchValue] = useState(urlSearchValue);
   const desiredLocationRef = useRef<
-    { type: 'search'; search: { folder?: string; q?: string } } | { type: 'external'; href: string }
+    | { type: 'search'; search: { folder?: string; q?: string; view?: BookmarkView } }
+    | { type: 'external'; href: string }
   >({ type: 'external', href: location.href });
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
   const searchRevisionRef = useRef(0);
@@ -119,6 +122,7 @@ export function Layout({
     const searchDestination = {
       folder: query ? undefined : isOnIndex ? folder : undefined,
       q: query || undefined,
+      view: query ? undefined : isOnIndex ? view : undefined,
     };
     desiredLocationRef.current = { type: 'search', search: searchDestination };
     searchRevisionRef.current += 1;
@@ -158,12 +162,21 @@ export function Layout({
   const handleSelectFolder = (path: string | null) => {
     navigate({
       to: '/',
-      search: { folder: path ?? undefined, q: undefined },
+      search: { folder: path ?? undefined, q: undefined, view: undefined },
+    });
+    setSidebarOpen(false);
+  };
+
+  const handleSelectUncategorized = () => {
+    navigate({
+      to: '/',
+      search: { folder: undefined, q: undefined, view: UNCATEGORIZED_VIEW },
     });
     setSidebarOpen(false);
   };
 
   const selectedFolder = isOnIndex && !isSearching ? (folder ?? null) : null;
+  const selectedView = isOnIndex && !isSearching ? view : undefined;
 
   return (
     <DndContext
@@ -199,7 +212,12 @@ export function Layout({
               <CloseIcon />
             </button>
           </div>
-          <FolderTree selectedFolder={selectedFolder} onSelectFolder={handleSelectFolder} />
+          <FolderTree
+            selectedFolder={selectedFolder}
+            selectedView={selectedView}
+            onSelectFolder={handleSelectFolder}
+            onSelectUncategorized={handleSelectUncategorized}
+          />
           <div className="mt-auto space-y-1">
             <Link
               to="/trash"

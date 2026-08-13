@@ -12,7 +12,7 @@ import {
 } from '../hooks/use-create-bookmark';
 import { useDeleteBookmark } from '../hooks/use-delete-bookmark';
 import { useAllFolders } from '../hooks/use-folders';
-import { UNCATEGORIZED_FOLDER } from '../lib/constants';
+import { UNCATEGORIZED_VIEW, type BookmarkView } from '../lib/constants';
 import { resolveCanReorderBookmarks, resolveCanSortBookmarkList } from '../lib/dnd-reorder';
 import { useSettings } from '../lib/settings-store';
 import type { Bookmark } from '../types';
@@ -22,15 +22,17 @@ import { MoveBookmarkDialog } from './folder-dialogs';
 export function BookmarkList({
   folderPath,
   folderName,
+  view,
 }: {
   folderPath: string | null;
   folderName: string;
+  view?: BookmarkView;
 }) {
   const [settings] = useSettings();
   const { data: allFolders = [], isLoading: isFoldersLoading } = useAllFolders();
-  const isUncategorized = folderPath === UNCATEGORIZED_FOLDER;
-  const isAllBookmarks = folderPath === null;
-  const apiFolderPath = isUncategorized ? null : folderPath;
+  const isUncategorized = view === UNCATEGORIZED_VIEW;
+  const isAllBookmarks = folderPath === null && !isUncategorized;
+  const apiFolderPath = folderPath;
   const deep = isAllBookmarks
     ? true
     : !isUncategorized && folderPath !== null && settings.includeSubfolders;
@@ -39,7 +41,7 @@ export function BookmarkList({
   const hasSubfolders =
     deep && isFoldersLoading ? true : allFolders.some((f) => f.parentPath === folderPath);
   const canReorder = resolveCanReorderBookmarks({ isAllBookmarks, deep, hasSubfolders });
-  const addBookmarkFolderPath = isUncategorized ? null : folderPath;
+  const addBookmarkFolderPath = folderPath;
 
   if (canReorder) {
     return (

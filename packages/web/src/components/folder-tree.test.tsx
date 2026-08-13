@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { UNCATEGORIZED_FOLDER } from '../lib/constants';
+import { UNCATEGORIZED_VIEW, type BookmarkView } from '../lib/constants';
 import type { Folder } from '../types';
 import { FolderTree } from './folder-tree';
 
@@ -45,10 +45,15 @@ vi.mock('./folder-dialogs', () => ({
   RenameFolderDialog: () => null,
 }));
 
-function renderFolderTree(selectedFolder: string | null = null) {
+function renderFolderTree(selectedFolder: string | null = null, selectedView?: BookmarkView) {
   return render(
     <DndContext>
-      <FolderTree selectedFolder={selectedFolder} onSelectFolder={vi.fn()} />
+      <FolderTree
+        selectedFolder={selectedFolder}
+        selectedView={selectedView}
+        onSelectFolder={vi.fn()}
+        onSelectUncategorized={vi.fn()}
+      />
     </DndContext>,
   );
 }
@@ -67,7 +72,7 @@ describe('FolderTree', () => {
 
   it('フォルダセクションの作成ボタンからトップ階層フォルダを作成できる', async () => {
     const user = userEvent.setup();
-    renderFolderTree(UNCATEGORIZED_FOLDER);
+    renderFolderTree(null, UNCATEGORIZED_VIEW);
 
     const heading = screen.getByRole('heading', { name: 'フォルダ' });
     const createButton = screen.getByRole('button', { name: '新しいフォルダを作成' });

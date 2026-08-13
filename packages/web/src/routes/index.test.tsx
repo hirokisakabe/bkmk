@@ -300,9 +300,121 @@ describe('IndexPage', () => {
     });
   });
 
+  it('正規URLを直接開くと未分類だけを表示し、サイドバーも選択状態になる', async () => {
+    const { router } = renderWithProviders({ initialUrl: '/?view=uncategorized' });
+
+    expect(await screen.findByRole('heading', { name: '未分類' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '未分類' })).toHaveClass(
+      'bg-blue-100',
+      'font-semibold',
+    );
+    expect(await screen.findByText(mockBookmarks[0].title!)).toBeInTheDocument();
+    expect(await screen.findByText(mockBookmarks[1].title!)).toBeInTheDocument();
+    expect(screen.queryByText(mockBookmarks[2].title!)).not.toBeInTheDocument();
+    expect(router.state.location.search).toEqual({ view: 'uncategorized' });
+  });
+
+  it('旧URLは履歴を増やさず未分類の正規URLへ置換する', async () => {
+    const { router } = renderWithProviders({ initialUrl: '/?folder=__uncategorized__' });
+
+    expect(await screen.findByRole('heading', { name: '未分類' })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(router.state.location.href).toBe('/?view=uncategorized');
+    });
+    expect(router.history.length).toBe(1);
+    expect(router.history.canGoBack()).toBe(false);
+  });
+
+  it('正規化時にhashを維持し、履歴を増やさない', async () => {
+    const { router } = renderWithProviders({
+      initialUrl: '/?folder=__uncategorized__#bookmark-1',
+    });
+
+    await waitFor(() => {
+      expect(router.history.location.href).toBe('/?view=uncategorized#bookmark-1');
+    });
+    expect(router.history.location.hash).toBe('#bookmark-1');
+    expect(router.history.length).toBe(1);
+    expect(router.history.canGoBack()).toBe(false);
+  });
+
+  it('正規化時にhistory stateを維持し、履歴を増やさない', async () => {
+    const { router } = renderWithProviders({
+      initialUrl: '/?view=unknown',
+      initialState: {
+        bkmkSearchRevision: 7,
+        callerState: 'preserved',
+      },
+    });
+
+    await waitFor(() => expect(router.history.location.href).toBe('/'));
+    expect(router.history.location.state).toMatchObject({
+      bkmkSearchRevision: 7,
+      callerState: 'preserved',
+    });
+    expect(router.history.location.state.__TSR_key).toEqual(expect.any(String));
+    expect(router.history.length).toBe(1);
+    expect(router.history.canGoBack()).toBe(false);
+  });
+
+  it.each([
+    ['未対応view', '/?view=unknown', {}, '/'],
+    ['q優先', '/?q=keyword&folder=%2Fwork&view=uncategorized', { q: 'keyword' }, '/?q=keyword'],
+    [
+      '実在形式のfolder優先',
+      '/?folder=%2Fwork&view=uncategorized',
+      { folder: '/work' },
+      '/?folder=%2Fwork',
+    ],
+    [
+      '不正folderより未分類view優先',
+      '/?folder=not-a-path&view=uncategorized',
+      { view: 'uncategorized' },
+      '/?view=uncategorized',
+    ],
+  ])('%sの競合parameterをreplaceで正規化する', async (_name, initialUrl, search, href) => {
+    const { router } = renderWithProviders({ initialUrl });
+
+    await waitFor(() => expect(router.state.location.href).toBe(href));
+    expect(router.state.location.search).toEqual(search);
+    expect(router.history.length).toBe(1);
+    expect(router.history.canGoBack()).toBe(false);
+  });
+
+  it.each([
+    ['q', '/?q=keyword&q=keyword', { q: 'keyword' }, '/?q=keyword'],
+    ['folder', '/?folder=%2Fwork&folder=%2Fother', { folder: '/work' }, '/?folder=%2Fwork'],
+    [
+      'view',
+      '/?view=uncategorized&view=uncategorized',
+      { view: 'uncategorized' },
+      '/?view=uncategorized',
+    ],
+  ])('%sの重複parameterを1つにreplaceで正規化する', async (_name, initialUrl, search, href) => {
+    const { router } = renderWithProviders({ initialUrl });
+
+    await waitFor(() => expect(router.state.location.href).toBe(href));
+    expect(router.state.location.search).toEqual(search);
+    expect(router.history.length).toBe(1);
+    expect(router.history.canGoBack()).toBe(false);
+  });
+
+  it.each([
+    ['slash未escape', '/?folder=/work', { folder: '/work' }, '/?folder=%2Fwork'],
+    ['小文字percent escape', '/?folder=%2fwork', { folder: '/work' }, '/?folder=%2Fwork'],
+    ['spaceのpercent escape', '/?q=hello%20world', { q: 'hello world' }, '/?q=hello+world'],
+  ])('%sの非正規表記を履歴を増やさずreplaceする', async (_name, initialUrl, search, href) => {
+    const { router } = renderWithProviders({ initialUrl });
+
+    await waitFor(() => expect(router.history.location.href).toBe(href));
+    expect(router.state.location.search).toEqual(search);
+    expect(router.history.length).toBe(1);
+    expect(router.history.canGoBack()).toBe(false);
+  });
+
   it('「未分類」をクリックするとフォルダ未所属のブックマークのみ表示される', async () => {
     const user = userEvent.setup();
-    renderWithProviders({ initialUrl: '/' });
+    const { router } = renderWithProviders({ initialUrl: '/' });
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: '未分類' })).toBeInTheDocument();
@@ -313,12 +425,28 @@ describe('IndexPage', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: '未分類' })).toBeInTheDocument();
     });
+    expect(router.state.location.search).toEqual({ view: 'uncategorized' });
 
     await waitFor(() => {
       expect(screen.getByText(mockBookmarks[0].title!)).toBeInTheDocument();
     });
     expect(screen.getByText(mockBookmarks[1].title!)).toBeInTheDocument();
     expect(screen.queryByText(mockBookmarks[2].title!)).not.toBeInTheDocument();
+  });
+
+  it('未分類からフォルダ、検索、すべてへ移動すると不要なparameterを残さない', async () => {
+    const user = userEvent.setup();
+    const { router } = renderWithProviders({ initialUrl: '/?view=uncategorized' });
+
+    await user.click(await screen.findByRole('button', { name: 'work' }));
+    await waitFor(() => expect(router.state.location.search).toEqual({ folder: '/work' }));
+
+    const searchInput = screen.getByRole('textbox', { name: 'ブックマークを検索' });
+    await user.type(searchInput, 'keyword');
+    await waitFor(() => expect(router.state.location.search).toEqual({ q: 'keyword' }));
+
+    await user.click(screen.getByRole('button', { name: 'すべて' }));
+    await waitFor(() => expect(router.state.location.search).toEqual({}));
   });
 
   it('削除ボタンをクリックすると確認ダイアログなしで即座にゴミ箱へ移動する', async () => {
