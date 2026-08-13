@@ -164,13 +164,14 @@ function BookmarkManager() {
       ? folder.split('/').pop() || folder
       : 'すべて';
   const isSearching = !!q;
+  const heading = isSearching ? `「${q}」の検索結果` : folderName;
 
   return (
-    <Layout onDragEnd={handleDragEnd}>
+    <Layout heading={heading} onDragEnd={handleDragEnd}>
       {isSearching ? (
         <SearchResults query={q!} />
       ) : (
-        <BookmarkList folderPath={currentFolderPath} folderName={folderName} view={view} />
+        <BookmarkList folderPath={currentFolderPath} view={view} />
       )}
     </Layout>
   );

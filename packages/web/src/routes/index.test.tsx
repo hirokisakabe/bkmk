@@ -94,16 +94,33 @@ describe('IndexPage', () => {
     });
   });
 
-  it('検索バーがサイドバーではなくメイン領域の右上に表示される', async () => {
-    renderWithProviders({ initialUrl: '/' });
+  it.each([
+    ['すべて', '/', 'すべて'],
+    ['フォルダ選択', '/?folder=%2Fwork', 'work'],
+    ['検索結果', '/?q=TypeScript', '「TypeScript」の検索結果'],
+  ])(
+    '%sでは見出しと検索バーがメイン領域の同じヘッダー行に表示される',
+    async (_, initialUrl, heading) => {
+      renderWithProviders({ initialUrl });
 
-    const searchInput = await screen.findByRole('textbox', { name: 'ブックマークを検索' });
-    expect(searchInput).toHaveAttribute('placeholder', 'ブックマークを検索...');
-    expect(searchInput.closest('aside')).not.toBeInTheDocument();
-    expect(searchInput.closest('main')).toBeInTheDocument();
-    expect(searchInput.parentElement).toHaveClass('max-w-[22rem]');
-    expect(searchInput.parentElement?.parentElement).toHaveClass('justify-end');
-  });
+      const searchInput = await screen.findByRole('textbox', { name: 'ブックマークを検索' });
+      const pageHeading = await screen.findByRole('heading', { name: heading });
+      const header = screen.getByTestId('main-header');
+      expect(searchInput).toHaveAttribute('placeholder', 'ブックマークを検索...');
+      expect(searchInput.closest('aside')).not.toBeInTheDocument();
+      expect(searchInput.closest('main')).toBeInTheDocument();
+      expect(header).toContainElement(pageHeading);
+      expect(header).toContainElement(searchInput);
+      expect(header).toHaveClass('mb-6', 'flex', 'min-w-0', 'items-center');
+      expect(pageHeading).toHaveClass('min-w-0', 'flex-1', 'truncate');
+      expect(searchInput.parentElement).toHaveClass(
+        'max-w-[20rem]',
+        'shrink-0',
+        'md:mr-6',
+        'md:block',
+      );
+    },
+  );
 
   it('検索語を300msデバウンスしてURLと検索結果へ反映し、入力値を維持する', async () => {
     const { router } = renderWithProviders({ initialUrl: '/' });
@@ -284,9 +301,10 @@ describe('IndexPage', () => {
     expect(mobileSearchInput.parentElement).toHaveClass('min-w-0', 'flex-1');
     expect(mobileSearchInput.parentElement?.parentElement).toHaveClass('md:hidden');
     expect(mobileSearchInput.closest('aside')).not.toBeInTheDocument();
-    expect(
-      screen.getByRole('textbox', { name: 'ブックマークを検索' }).parentElement?.parentElement,
-    ).toHaveClass('hidden', 'md:flex');
+    expect(screen.getByRole('textbox', { name: 'ブックマークを検索' }).parentElement).toHaveClass(
+      'hidden',
+      'md:block',
+    );
     expect(screen.getByRole('button', { name: 'サイドバーを閉じる' }).closest('aside')).toHaveClass(
       '-translate-x-full',
     );
