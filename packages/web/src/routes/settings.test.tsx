@@ -61,9 +61,7 @@ describe('SettingsPage', () => {
     await user.click(await screen.findByRole('button', { name: 'CSV をダウンロード' }));
 
     expect(
-      await screen.findByText(
-        'エクスポートに失敗しました。時間をおいてもう一度お試しください。',
-      ),
+      await screen.findByText('エクスポートに失敗しました。時間をおいてもう一度お試しください。'),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'CSV をダウンロード' })).toBeEnabled();
   });
