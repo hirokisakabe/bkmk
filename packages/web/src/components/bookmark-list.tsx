@@ -97,10 +97,18 @@ function ReorderableBookmarkList({
 
       <AddBookmarkForm folderPath={addBookmarkFolderPath} />
 
-      <LoadingSkeleton isLoading={isLoading} />
-
       {!isLoading && currentFolderBookmarks?.length === 0 && visibleCreations.length === 0 && (
         <EmptyState />
+      )}
+
+      {isLoading && (
+        <div
+          className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6"
+          data-testid="bookmark-grid"
+        >
+          <BookmarkCreationCards creations={visibleCreations} />
+          <LoadingSkeleton />
+        </div>
       )}
 
       {!isLoading && currentFolderBookmarks && currentFolderBookmarks.length > 0 && canReorder && (
@@ -199,23 +207,25 @@ function PaginatedBookmarkList({
 
       <AddBookmarkForm folderPath={addBookmarkFolderPath} />
 
-      <LoadingSkeleton isLoading={isLoading} />
-
       {!isLoading && bookmarks.length === 0 && visibleCreations.length === 0 && <EmptyState />}
 
-      {!isLoading && (bookmarks.length > 0 || visibleCreations.length > 0) && (
+      {(isLoading || bookmarks.length > 0 || visibleCreations.length > 0) && (
         <div
           className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6"
           data-testid="bookmark-grid"
         >
           <BookmarkCreationCards creations={visibleCreations} />
-          {bookmarks.map((bookmark) => (
-            <DraggableBookmarkCard
-              key={bookmark.id}
-              bookmark={bookmark}
-              onDelete={() => deleteBookmark.mutate({ id: bookmark.id })}
-            />
-          ))}
+          {isLoading ? (
+            <LoadingSkeleton />
+          ) : (
+            bookmarks.map((bookmark) => (
+              <DraggableBookmarkCard
+                key={bookmark.id}
+                bookmark={bookmark}
+                onDelete={() => deleteBookmark.mutate({ id: bookmark.id })}
+              />
+            ))
+          )}
         </div>
       )}
 
@@ -308,12 +318,15 @@ function BookmarkCreationCards({ creations }: { creations: BookmarkCreation[] })
   );
 }
 
-function LoadingSkeleton({ isLoading }: { isLoading: boolean }) {
-  if (!isLoading) return null;
+function LoadingSkeleton() {
   return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+    <>
       {[...Array(6)].map((_, i) => (
-        <div key={i} className="animate-pulse overflow-hidden rounded-lg border border-gray-200">
+        <div
+          key={i}
+          className="animate-pulse overflow-hidden rounded-lg border border-gray-200"
+          data-testid="bookmark-loading-skeleton"
+        >
           <div className="aspect-[1.91/1] overflow-hidden bg-gray-200" />
           <div className="space-y-2 p-3">
             <div className="min-h-[2.5rem]">
@@ -323,7 +336,7 @@ function LoadingSkeleton({ isLoading }: { isLoading: boolean }) {
           </div>
         </div>
       ))}
-    </div>
+    </>
   );
 }
 
