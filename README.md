@@ -10,6 +10,8 @@ URL をフォルダで整理し、OGP プレビュー付きで管理できるブ
 
 </div>
 
+![フォルダ、検索、ブックマークカードが表示された bkmk の管理画面](packages/web/public/app-screenshot.png)
+
 <br />
 
 ## はじめる

@@ -3,13 +3,14 @@ import { useQueryClient } from '@tanstack/react-query';
 import { createRoute } from '@tanstack/react-router';
 
 import { BookmarkList } from '../components/bookmark-list';
+import { LandingPage } from '../components/landing-page';
 import { useMoveBookmark } from '../hooks/use-move-bookmark';
 import { useAllFolders } from '../hooks/use-folders';
 import { useReorderBookmark } from '../hooks/use-reorder-bookmark';
 import { useReorderFolder } from '../hooks/use-reorder-folder';
 import { Layout } from '../components/layout';
 import { SearchResults } from '../components/search-results';
-import { requireAuth } from '../lib/auth-guard';
+import { getOptionalSession } from '../lib/auth-guard';
 import { UNCATEGORIZED_FOLDER } from '../lib/constants';
 import {
   resolveBookmarkMoveTarget,
@@ -28,7 +29,7 @@ interface IndexSearch {
 export const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
-  beforeLoad: requireAuth,
+  beforeLoad: getOptionalSession,
   validateSearch: (search: Record<string, unknown>): IndexSearch => ({
     folder: typeof search.folder === 'string' ? search.folder : undefined,
     q: typeof search.q === 'string' && search.q.trim().length > 0 ? search.q.trim() : undefined,
@@ -37,6 +38,14 @@ export const indexRoute = createRoute({
 });
 
 function IndexPage() {
+  const { session } = indexRoute.useRouteContext();
+
+  if (!session) return <LandingPage />;
+
+  return <BookmarkManager />;
+}
+
+function BookmarkManager() {
   const { folder, q } = indexRoute.useSearch();
   const [settings] = useSettings();
 

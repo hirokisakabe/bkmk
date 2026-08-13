@@ -9,12 +9,18 @@ export const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/login',
   beforeLoad: requireGuest,
+  validateSearch: (search: Record<string, unknown>) => ({
+    mode: search.mode === 'signup' ? ('signup' as const) : undefined,
+  }),
   component: LoginPage,
 });
 
 function LoginPage() {
   const router = useRouter();
-  const [mode, setMode] = useState<'login' | 'signup'>('login');
+  const { mode: initialMode } = loginRoute.useSearch();
+  const [mode, setMode] = useState<'login' | 'signup'>(
+    initialMode === 'signup' ? 'signup' : 'login',
+  );
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');

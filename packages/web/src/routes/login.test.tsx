@@ -28,6 +28,12 @@ describe('LoginPage', () => {
     expect(screen.getByRole('button', { name: 'アカウント作成' })).toBeInTheDocument();
   });
 
+  it('mode=signupの場合はアカウント作成フォームを初期表示する', async () => {
+    renderWithProviders({ initialUrl: '/login?mode=signup' });
+
+    expect(await screen.findByRole('button', { name: 'アカウント作成' })).toBeInTheDocument();
+  });
+
   it('ログインモードに戻れる', async () => {
     renderWithProviders({ initialUrl: '/login' });
 
