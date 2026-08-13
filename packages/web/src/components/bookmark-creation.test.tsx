@@ -114,6 +114,7 @@ describe('bookmark creation card', () => {
         queryClient.getQueryState(['bookmarks', { folder: '/work', deep: false }])?.status,
       ).toBe('error');
     });
+    expect(screen.queryByText('ブックマークはありません')).not.toBeInTheDocument();
 
     const input = screen.getByPlaceholderText('URLを入力してブックマークを追加');
     await user.type(input, failedUrl);

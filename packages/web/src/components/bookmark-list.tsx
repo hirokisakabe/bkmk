@@ -73,7 +73,7 @@ function ReorderableBookmarkList({
   deep: boolean;
   addBookmarkFolderPath: string | null;
 }) {
-  const { data: bookmarks, isLoading } = useBookmarks(folderPath, deep);
+  const { data: bookmarks, isLoading, isError } = useBookmarks(folderPath, deep);
   // deep=true のとき複数フォルダのブックマークが混在するため、現在のフォルダのみに絞る
   const currentFolderBookmarks = useMemo(
     () => bookmarks?.filter((bookmark) => bookmark.folderPath === folderPath) ?? [],
@@ -97,9 +97,10 @@ function ReorderableBookmarkList({
 
       <AddBookmarkForm folderPath={addBookmarkFolderPath} />
 
-      {!isLoading && currentFolderBookmarks.length === 0 && visibleCreations.length === 0 && (
-        <EmptyState />
-      )}
+      {!isLoading &&
+        !isError &&
+        currentFolderBookmarks.length === 0 &&
+        visibleCreations.length === 0 && <EmptyState />}
 
       {isLoading && (
         <div
@@ -164,10 +165,8 @@ function PaginatedBookmarkList({
   deep: boolean;
   addBookmarkFolderPath: string | null;
 }) {
-  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useBookmarksPaginated(
-    folderPath,
-    deep,
-  );
+  const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useBookmarksPaginated(folderPath, deep);
   const bookmarks = useMemo(() => data?.pages.flatMap((page) => page.data) ?? [], [data]);
   const { data: creations = [] } = useBookmarkCreations(bookmarks);
   const deleteBookmark = useDeleteBookmark();
@@ -206,7 +205,9 @@ function PaginatedBookmarkList({
 
       <AddBookmarkForm folderPath={addBookmarkFolderPath} />
 
-      {!isLoading && bookmarks.length === 0 && visibleCreations.length === 0 && <EmptyState />}
+      {!isLoading && !isError && bookmarks.length === 0 && visibleCreations.length === 0 && (
+        <EmptyState />
+      )}
 
       {(isLoading || bookmarks.length > 0 || visibleCreations.length > 0) && (
         <div
