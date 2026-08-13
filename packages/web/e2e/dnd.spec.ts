@@ -96,6 +96,65 @@ test('同一フォルダ内でブックマークをDnDソートすると並び�
   await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText(['Beta', 'Alpha']);
 });
 
+test('作成カード表示中も既存ブックマークだけをDnDソートできる', async ({ page }) => {
+  await setupMocks(page);
+
+  let finishCreate!: () => void;
+  await page.route(
+    (url) => url.pathname === '/api/bookmarks',
+    async (route) => {
+      if (route.request().method() !== 'POST') {
+        await route.fallback();
+        return;
+      }
+
+      await new Promise<void>((resolve) => {
+        finishCreate = resolve;
+      });
+      await route.fulfill({
+        status: 201,
+        json: makeBookmark('bk-created', 'Created', '/folder-a', 0),
+      });
+    },
+  );
+
+  const positionRequests: string[] = [];
+  page.on('request', (request) => {
+    if (
+      request.method() === 'PATCH' &&
+      /\/api\/bookmarks\/[^/]+\/position$/.test(new URL(request.url()).pathname)
+    ) {
+      positionRequests.push(request.url());
+    }
+  });
+
+  await page.goto('/?folder=/folder-a');
+  await page
+    .getByPlaceholder('URLを入力してブックマークを追加')
+    .fill('https://pending.example.com');
+  await page.getByRole('button', { name: '追加' }).click();
+
+  const creationCard = page.getByTestId('bookmark-creation-pending');
+  await expect(creationCard).toBeVisible();
+  await expect(creationCard.getByRole('button', { name: '並び替え' })).toHaveCount(0);
+
+  await dragTo(page, page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[0].id}`), creationCard);
+  expect(positionRequests).toEqual([]);
+
+  await dragTo(
+    page,
+    page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[0].id}`),
+    page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[1].id}`),
+  );
+
+  await expect.poll(() => positionRequests).toHaveLength(1);
+  expect(positionRequests[0]).toContain(`/api/bookmarks/${BOOKMARKS[0].id}/position`);
+  await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText(['Beta', 'Alpha']);
+  await expect(creationCard).toBeVisible();
+
+  finishCreate();
+});
+
 test('ブックマークを別フォルダへDnD移動すると移動APIが呼ばれる', async ({ page }) => {
   await setupMocks(page);
 

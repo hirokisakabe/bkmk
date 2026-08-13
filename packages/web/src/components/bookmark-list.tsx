@@ -73,10 +73,10 @@ function ReorderableBookmarkList({
   deep: boolean;
   addBookmarkFolderPath: string | null;
 }) {
-  const { data: bookmarks, isLoading, isError } = useBookmarks(folderPath, deep);
+  const { data: bookmarks, isLoading } = useBookmarks(folderPath, deep);
   // deep=true のとき複数フォルダのブックマークが混在するため、現在のフォルダのみに絞る
   const currentFolderBookmarks = useMemo(
-    () => bookmarks?.filter((bookmark) => bookmark.folderPath === folderPath) ?? [],
+    () => bookmarks?.filter((bookmark) => bookmark.folderPath === folderPath),
     [bookmarks, folderPath],
   );
   const { data: creations = [] } = useBookmarkCreations(currentFolderBookmarks);
@@ -85,7 +85,7 @@ function ReorderableBookmarkList({
     (creation) =>
       isBookmarkInScope(creation.folderPath, folderPath, deep) &&
       (creation.status !== 'success' ||
-        !currentFolderBookmarks.some((bookmark) => bookmark.id === creation.bookmark.id)),
+        !currentFolderBookmarks?.some((bookmark) => bookmark.id === creation.bookmark.id)),
   );
   const canReorder = resolveCanSortBookmarkList(currentFolderBookmarks);
 
@@ -97,10 +97,9 @@ function ReorderableBookmarkList({
 
       <AddBookmarkForm folderPath={addBookmarkFolderPath} />
 
-      {!isLoading &&
-        !isError &&
-        currentFolderBookmarks.length === 0 &&
-        visibleCreations.length === 0 && <EmptyState />}
+      {!isLoading && currentFolderBookmarks?.length === 0 && visibleCreations.length === 0 && (
+        <EmptyState />
+      )}
 
       {isLoading && (
         <div
@@ -112,7 +111,7 @@ function ReorderableBookmarkList({
         </div>
       )}
 
-      {!isLoading && currentFolderBookmarks.length > 0 && canReorder && (
+      {!isLoading && currentFolderBookmarks && currentFolderBookmarks.length > 0 && canReorder && (
         <SortableContext
           items={currentFolderBookmarks.map((b) => b.id)}
           strategy={rectSortingStrategy}
@@ -134,14 +133,14 @@ function ReorderableBookmarkList({
       )}
 
       {!isLoading &&
-        (currentFolderBookmarks.length > 0 || visibleCreations.length > 0) &&
+        ((currentFolderBookmarks?.length ?? 0) > 0 || visibleCreations.length > 0) &&
         !canReorder && (
           <div
             className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6"
             data-testid="bookmark-grid"
           >
             <BookmarkCreationCards creations={visibleCreations} />
-            {currentFolderBookmarks.map((bookmark) => (
+            {currentFolderBookmarks?.map((bookmark) => (
               <DraggableBookmarkCard
                 key={bookmark.id}
                 bookmark={bookmark}
@@ -165,8 +164,10 @@ function PaginatedBookmarkList({
   deep: boolean;
   addBookmarkFolderPath: string | null;
 }) {
-  const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage } =
-    useBookmarksPaginated(folderPath, deep);
+  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useBookmarksPaginated(
+    folderPath,
+    deep,
+  );
   const bookmarks = useMemo(() => data?.pages.flatMap((page) => page.data) ?? [], [data]);
   const { data: creations = [] } = useBookmarkCreations(bookmarks);
   const deleteBookmark = useDeleteBookmark();
@@ -205,9 +206,7 @@ function PaginatedBookmarkList({
 
       <AddBookmarkForm folderPath={addBookmarkFolderPath} />
 
-      {!isLoading && !isError && bookmarks.length === 0 && visibleCreations.length === 0 && (
-        <EmptyState />
-      )}
+      {!isLoading && bookmarks.length === 0 && visibleCreations.length === 0 && <EmptyState />}
 
       {(isLoading || bookmarks.length > 0 || visibleCreations.length > 0) && (
         <div
