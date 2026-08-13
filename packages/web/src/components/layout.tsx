@@ -7,7 +7,7 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
-import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
+import { Link, useNavigate, useRouter, useRouterState } from '@tanstack/react-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { collisionDetection } from '../lib/dnd-collision';
@@ -23,8 +23,10 @@ export function Layout({
   onDragEnd?: (event: DragEndEvent) => void;
 }) {
   const navigate = useNavigate();
+  const router = useRouter();
   const location = useRouterState({ select: (s) => s.location });
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
 
   const search = location.search as Record<string, unknown>;
   const isOnIndex = location.pathname === '/';
@@ -32,6 +34,78 @@ export function Layout({
   const q =
     typeof search.q === 'string' && search.q.trim().length > 0 ? search.q.trim() : undefined;
   const isSearching = !!q;
+  const urlSearchValue = isOnIndex ? (q ?? '') : '';
+  const [searchValue, setSearchValue] = useState(urlSearchValue);
+  const desiredLocationRef = useRef<
+    { type: 'search'; search: { folder?: string; q?: string } } | { type: 'external'; href: string }
+  >({ type: 'external', href: location.href });
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
+  const searchRevisionRef = useRef(0);
+  const isHistoryNavigationRef = useRef(false);
+  const submittedRevision = (location.state as unknown as Record<string, unknown>)
+    .bkmkSearchRevision;
+  const locationKey = location.state.__TSR_key;
+
+  useEffect(() => {
+    return router.history.subscribe(({ action, location: nextLocation }) => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+      const isHistoryNavigation =
+        action.type === 'BACK' || action.type === 'FORWARD' || action.type === 'GO';
+      const nextRevision = (nextLocation.state as unknown as Record<string, unknown>)
+        .bkmkSearchRevision;
+      if (isHistoryNavigation || typeof nextRevision !== 'number') {
+        searchRevisionRef.current += 1;
+        desiredLocationRef.current = { type: 'external', href: nextLocation.href };
+      }
+      if (isHistoryNavigation) {
+        isHistoryNavigationRef.current = true;
+      }
+    });
+  }, [router]);
+
+  useEffect(() => {
+    const isHistoryNavigation = isHistoryNavigationRef.current;
+    isHistoryNavigationRef.current = false;
+
+    if (!isHistoryNavigation && typeof submittedRevision === 'number') {
+      if (submittedRevision < searchRevisionRef.current) {
+        const desiredLocation = desiredLocationRef.current;
+        if (desiredLocation.type === 'external') {
+          router.history.replace(desiredLocation.href);
+        } else {
+          void navigate({
+            to: '/',
+            search: desiredLocation.search,
+            replace: true,
+            state: (previous) => ({
+              ...previous,
+              bkmkSearchRevision: searchRevisionRef.current,
+            }),
+          });
+        }
+      }
+      if (submittedRevision <= searchRevisionRef.current) return;
+    }
+
+    searchRevisionRef.current += 1;
+    if (isHistoryNavigation || typeof submittedRevision !== 'number') {
+      desiredLocationRef.current = {
+        type: 'external',
+        href: location.href,
+      };
+    }
+    // URL/history is external state; an external navigation intentionally replaces local input.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSearchValue(urlSearchValue);
+  }, [location.href, locationKey, navigate, router, submittedRevision, urlSearchValue]);
+
+  useEffect(() => {
+    return () => {
+      searchRevisionRef.current += 1;
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -39,15 +113,46 @@ export function Layout({
     }),
   );
 
-  const handleSearch = (query: string) => {
-    navigate({
-      to: '/',
-      search: {
-        folder: query ? undefined : isOnIndex ? folder : undefined,
-        q: query || undefined,
-      },
-    });
-    setSidebarOpen(false);
+  const handleSearchChange = (input: string) => {
+    const query = input.trim();
+    setSearchValue(input);
+    const searchDestination = {
+      folder: query ? undefined : isOnIndex ? folder : undefined,
+      q: query || undefined,
+    };
+    desiredLocationRef.current = { type: 'search', search: searchDestination };
+    searchRevisionRef.current += 1;
+    const revision = searchRevisionRef.current;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      if (revision !== searchRevisionRef.current) return;
+
+      setSearchValue(query);
+      debounceRef.current = null;
+      void navigate({
+        to: '/',
+        search: searchDestination,
+        state: (previous) => ({ ...previous, bkmkSearchRevision: revision }),
+      }).then(() => {
+        if (revision === searchRevisionRef.current) return;
+
+        const desiredLocation = desiredLocationRef.current;
+        if (desiredLocation.type === 'external') {
+          router.history.replace(desiredLocation.href);
+          return;
+        }
+        void navigate({
+          to: '/',
+          search: desiredLocation.search,
+          replace: true,
+          state: (previous) => ({
+            ...previous,
+            bkmkSearchRevision: searchRevisionRef.current,
+          }),
+        });
+      });
+      setSidebarOpen(false);
+    }, 300);
   };
 
   const handleSelectFolder = (path: string | null) => {
@@ -94,11 +199,6 @@ export function Layout({
               <CloseIcon />
             </button>
           </div>
-          <SearchInput
-            key={isOnIndex ? (q ?? '') : ''}
-            defaultValue={isOnIndex ? (q ?? '') : ''}
-            onSearch={handleSearch}
-          />
           <FolderTree selectedFolder={selectedFolder} onSelectFolder={handleSelectFolder} />
           <div className="mt-auto space-y-1">
             <Link
@@ -130,7 +230,7 @@ export function Layout({
         </aside>
 
         <div className="flex flex-1 flex-col overflow-hidden">
-          <div className="flex shrink-0 items-center gap-3 border-b border-gray-200 bg-gray-50 px-2 md:hidden">
+          <div className="flex shrink-0 items-center gap-2 border-b border-gray-200 bg-gray-50 px-2 md:hidden">
             <button
               type="button"
               onClick={() => setSidebarOpen(true)}
@@ -139,11 +239,41 @@ export function Layout({
             >
               <HamburgerIcon />
             </button>
-            <Link to="/">
-              <span className="text-base font-bold">bkmk</span>
-            </Link>
+            {mobileSearchOpen || q ? (
+              <SearchInput
+                value={searchValue}
+                onChange={handleSearchChange}
+                ariaLabel="モバイルでブックマークを検索"
+                className="min-w-0 flex-1"
+                autoFocus={mobileSearchOpen}
+              />
+            ) : (
+              <>
+                <Link to="/" className="mr-auto">
+                  <span className="text-base font-bold">bkmk</span>
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setMobileSearchOpen(true)}
+                  className="flex h-11 w-11 items-center justify-center rounded text-gray-600 hover:bg-gray-200"
+                  aria-label="検索を開く"
+                >
+                  <SearchGlyph className="h-5 w-5" />
+                </button>
+              </>
+            )}
           </div>
-          <main className="flex-1 overflow-y-auto p-4">{children}</main>
+          <main className="flex-1 overflow-y-auto p-4">
+            <div className="mb-4 hidden justify-end md:flex">
+              <SearchInput
+                value={searchValue}
+                onChange={handleSearchChange}
+                ariaLabel="ブックマークを検索"
+                className="w-full max-w-[22rem]"
+              />
+            </div>
+            {children}
+          </main>
         </div>
       </div>
       <DragOverlay dropAnimation={null}>
@@ -171,36 +301,27 @@ function BookmarkDragOverlayContent() {
 }
 
 function SearchInput({
-  defaultValue,
-  onSearch,
+  value,
+  onChange,
+  ariaLabel,
+  className,
+  autoFocus = false,
 }: {
-  defaultValue: string;
-  onSearch: (query: string) => void;
+  value: string;
+  onChange: (query: string) => void;
+  ariaLabel: string;
+  className?: string;
+  autoFocus?: boolean;
 }) {
-  const [value, setValue] = useState(defaultValue);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
-
-  useEffect(() => {
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, []);
-
-  const handleChange = (input: string) => {
-    setValue(input);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      onSearch(input.trim());
-    }, 300);
-  };
-
   return (
-    <div className="relative mb-4">
-      <SearchIcon />
+    <div className={`relative ${className ?? ''}`}>
+      <SearchGlyph className="pointer-events-none absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-gray-400" />
       <input
         type="text"
         value={value}
-        onChange={(e) => handleChange(e.target.value)}
+        onChange={(e) => onChange(e.target.value)}
+        aria-label={ariaLabel}
+        autoFocus={autoFocus}
         placeholder="ブックマークを検索..."
         className="w-full rounded-md border border-gray-300 py-1.5 pr-2 pl-8 text-sm placeholder-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
       />
@@ -232,13 +353,9 @@ function TrashIcon() {
   );
 }
 
-function SearchIcon() {
+function SearchGlyph({ className }: { className: string }) {
   return (
-    <svg
-      className="pointer-events-none absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-gray-400"
-      viewBox="0 0 20 20"
-      fill="currentColor"
-    >
+    <svg className={className} viewBox="0 0 20 20" fill="currentColor">
       <path
         fillRule="evenodd"
         d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z"
