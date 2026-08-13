@@ -85,7 +85,10 @@ function IndexPage() {
     const rawSearchString = rawLocation.search;
     const canonicalSearch = canonicalizeSearch(router.options.parseSearch(rawSearchString));
     if (!isCanonicalSearch(rawSearchString, canonicalSearch)) {
-      router.history.replace(buildIndexHref(canonicalSearch));
+      router.history.replace(
+        `${buildIndexHref(canonicalSearch)}${rawLocation.hash}`,
+        rawLocation.state,
+      );
     }
   }, [location, router]);
 

@@ -325,6 +325,38 @@ describe('IndexPage', () => {
     expect(router.history.canGoBack()).toBe(false);
   });
 
+  it('正規化時にhashを維持し、履歴を増やさない', async () => {
+    const { router } = renderWithProviders({
+      initialUrl: '/?folder=__uncategorized__#bookmark-1',
+    });
+
+    await waitFor(() => {
+      expect(router.history.location.href).toBe('/?view=uncategorized#bookmark-1');
+    });
+    expect(router.history.location.hash).toBe('#bookmark-1');
+    expect(router.history.length).toBe(1);
+    expect(router.history.canGoBack()).toBe(false);
+  });
+
+  it('正規化時にhistory stateを維持し、履歴を増やさない', async () => {
+    const { router } = renderWithProviders({
+      initialUrl: '/?view=unknown',
+      initialState: {
+        bkmkSearchRevision: 7,
+        callerState: 'preserved',
+      },
+    });
+
+    await waitFor(() => expect(router.history.location.href).toBe('/'));
+    expect(router.history.location.state).toMatchObject({
+      bkmkSearchRevision: 7,
+      callerState: 'preserved',
+    });
+    expect(router.history.location.state.__TSR_key).toEqual(expect.any(String));
+    expect(router.history.length).toBe(1);
+    expect(router.history.canGoBack()).toBe(false);
+  });
+
   it.each([
     ['未対応view', '/?view=unknown', {}, '/'],
     ['q優先', '/?q=keyword&folder=%2Fwork&view=uncategorized', { q: 'keyword' }, '/?q=keyword'],

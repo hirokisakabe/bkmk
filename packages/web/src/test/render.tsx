@@ -11,11 +11,12 @@ import { rootRoute } from '../routes/__root';
 const routeTree = rootRoute.addChildren([indexRoute, loginRoute, settingsRoute, trashRoute]);
 
 interface RenderOptions {
+  initialState?: Record<string, unknown>;
   initialUrl?: string;
 }
 
 export function renderWithProviders(options: RenderOptions = {}) {
-  const { initialUrl = '/' } = options;
+  const { initialState, initialUrl = '/' } = options;
 
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -29,6 +30,7 @@ export function renderWithProviders(options: RenderOptions = {}) {
   const memoryHistory = createMemoryHistory({
     initialEntries: [initialUrl],
   });
+  if (initialState) memoryHistory.replace(initialUrl, initialState);
 
   const testRouter = createRouter({
     routeTree,
