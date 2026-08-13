@@ -6,6 +6,7 @@ import { Layout } from '../components/layout';
 import { useDeleteAccount } from '../hooks/use-user';
 import { authClient } from '../lib/auth-client';
 import { requireAuth } from '../lib/auth-guard';
+import { downloadBookmarkExport } from '../lib/bookmark-export';
 import { useSettings } from '../lib/settings-store';
 import { rootRoute } from './__root';
 
@@ -20,6 +21,8 @@ function SettingsPage() {
   const [settings, updateSettings] = useSettings();
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const deleteAccount = useDeleteAccount();
 
@@ -41,6 +44,18 @@ function SettingsPage() {
         await router.navigate({ to: '/login' });
       },
     });
+  };
+
+  const handleExport = async () => {
+    setExporting(true);
+    setExportError(null);
+    try {
+      await downloadBookmarkExport();
+    } catch {
+      setExportError('エクスポートに失敗しました。時間をおいてもう一度お試しください。');
+    } finally {
+      setExporting(false);
+    }
   };
 
   return (
@@ -72,6 +87,30 @@ function SettingsPage() {
                 className="h-4 w-4 rounded border-gray-300"
               />
             </label>
+          </div>
+        </div>
+
+        <div className="mt-6 rounded-lg border border-gray-200 bg-white">
+          <div className="border-b border-gray-200 px-4 py-3">
+            <h3 className="font-medium text-gray-900">データのエクスポート</h3>
+          </div>
+          <div className="px-4 py-4">
+            <p className="mb-3 text-sm text-gray-500">
+              すべてのブックマークを CSV ファイルでダウンロードします。
+            </p>
+            <button
+              type="button"
+              onClick={handleExport}
+              disabled={exporting}
+              className="rounded-md bg-gray-900 px-4 py-2 text-sm text-white hover:bg-gray-700 disabled:opacity-50"
+            >
+              {exporting ? 'エクスポート中...' : 'CSV をダウンロード'}
+            </button>
+            {exportError && (
+              <p role="alert" className="mt-3 text-sm text-red-600">
+                {exportError}
+              </p>
+            )}
           </div>
         </div>
 

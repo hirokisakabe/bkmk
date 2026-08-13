@@ -8,6 +8,7 @@ import { auth } from './auth.js';
 import { errorHandler } from './error-handler.js';
 import { logger, rootLogger } from './logger.js';
 import { bookmarksRoute } from './routes/bookmarks.js';
+import { exportRoute } from './routes/export.js';
 import { foldersRoute } from './routes/folders.js';
 import { searchRoute } from './routes/search.js';
 import { trashRoute } from './routes/trash.js';
@@ -62,6 +63,7 @@ app.use('/api/*', async (c, next) => {
 const routes = app
   .route('/api/folders', foldersRoute)
   .route('/api/bookmarks', bookmarksRoute)
+  .route('/api/export', exportRoute)
   .route('/api/trash', trashRoute)
   .route('/api/search', searchRoute)
   .route('/api/user', userRoute);

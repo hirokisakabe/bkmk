@@ -36,6 +36,10 @@ vi.mock('../lib/auth-guard', () => ({
 // jsdom 未実装の scrollTo をスタブ
 window.scrollTo = vi.fn() as unknown as typeof window.scrollTo;
 
+// jsdom 未実装の Blob URL API をスタブ
+URL.createObjectURL = vi.fn();
+URL.revokeObjectURL = vi.fn();
+
 // jsdom 未実装の IntersectionObserver をスタブ
 class MockIntersectionObserver {
   observe() {}

@@ -1,8 +1,10 @@
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { http, HttpResponse } from 'msw';
 import { describe, expect, it, vi } from 'vitest';
 
 import { renderWithProviders } from '../test/render';
+import { server } from '../test/server';
 
 const { mockSignOut } = vi.hoisted(() => ({
   mockSignOut: vi.fn().mockResolvedValue({ data: null, error: null }),
@@ -20,6 +22,50 @@ describe('SettingsPage', () => {
     });
 
     expect(screen.getByText('サブフォルダを含む')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'データのエクスポート' })).toBeInTheDocument();
+  });
+
+  it('CSV をレスポンスのファイル名でダウンロードする', async () => {
+    const user = userEvent.setup();
+    const createObjectUrl = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:export');
+    const revokeObjectUrl = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+
+    renderWithProviders({ initialUrl: '/settings' });
+    await user.click(await screen.findByRole('button', { name: 'CSV をダウンロード' }));
+
+    await waitFor(() => {
+      expect(createObjectUrl).toHaveBeenCalledWith(expect.any(Blob));
+      expect(click).toHaveBeenCalled();
+    });
+
+    const anchor = click.mock.instances[0];
+    expect(anchor.download).toBe('bkmk-export-2026-08-14.csv');
+    expect(anchor.href).toBe('blob:export');
+    expect(revokeObjectUrl).toHaveBeenCalledWith('blob:export');
+
+    createObjectUrl.mockRestore();
+    revokeObjectUrl.mockRestore();
+    click.mockRestore();
+  });
+
+  it('ダウンロードに失敗した場合はエラーを表示して再操作できる', async () => {
+    server.use(
+      http.get('/api/export/bookmarks', () =>
+        HttpResponse.json({ error: 'Internal Server Error' }, { status: 500 }),
+      ),
+    );
+    const user = userEvent.setup();
+
+    renderWithProviders({ initialUrl: '/settings' });
+    await user.click(await screen.findByRole('button', { name: 'CSV をダウンロード' }));
+
+    expect(
+      await screen.findByText(
+        'エクスポートに失敗しました。時間をおいてもう一度お試しください。',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'CSV をダウンロード' })).toBeEnabled();
   });
 
   it('サブフォルダを含むトグルを切り替えできる', async () => {

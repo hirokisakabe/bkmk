@@ -83,6 +83,15 @@ const mockTrashData = {
 };
 
 export const handlers = [
+  http.get('/api/export/bookmarks', () => {
+    return new HttpResponse('﻿url,title\r\nhttps://example.com,Example\r\n', {
+      headers: {
+        'Content-Disposition': 'attachment; filename="bkmk-export-2026-08-14.csv"',
+        'Content-Type': 'text/csv; charset=utf-8',
+      },
+    });
+  }),
+
   // Bookmarks
   http.get('/api/bookmarks', ({ request }) => {
     const url = new URL(request.url);
