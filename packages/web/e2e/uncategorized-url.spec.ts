@@ -2,8 +2,9 @@ import { expect, test } from '@playwright/test';
 
 import { makeBookmark, setupMocks } from './helpers';
 
-test('未分類URLを正規化し、各ビューのURLに不要なparameterを残さない', async ({ page }) => {
+test('旧未分類URLを正規化し、フォルダとの遷移で不要なparameterを残さない', async ({ page }) => {
   await setupMocks(page, [makeBookmark('bk-uncategorized', 'Uncategorized', null, 0)]);
+  await page.setViewportSize({ width: 1280, height: 900 });
 
   await page.goto('/?folder=__uncategorized__');
 
@@ -15,11 +16,22 @@ test('未分類URLを正規化し、各ビューのURLに不要なparameterを�
 
   await page.getByRole('button', { name: 'Folder A', exact: true }).click();
   await expect(page).toHaveURL('/?folder=%2Ffolder-a');
+  await expect(page.getByRole('heading', { name: 'Alpha' })).toBeVisible();
 
   await page.getByRole('button', { name: '未分類' }).click();
   await expect(page).toHaveURL('/?view=uncategorized');
+  await expect(page.getByRole('heading', { name: 'Uncategorized' })).toBeVisible();
+});
 
-  await page.getByRole('textbox', { name: 'ブックマークを検索', exact: true }).fill('keyword');
+test('未分類から検索とすべてへ移動すると不要なparameterを残さない', async ({ page }) => {
+  await setupMocks(page, [makeBookmark('bk-uncategorized', 'Uncategorized', null, 0)]);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/?view=uncategorized');
+  await expect(page.getByRole('heading', { name: 'Uncategorized' })).toBeVisible();
+
+  await page
+    .getByRole('textbox', { name: 'ブックマークを検索', exact: true })
+    .pressSequentially('keyword');
   await expect(page).toHaveURL('/?q=keyword');
 
   await page.getByRole('button', { name: 'すべて', exact: true }).click();
