@@ -101,6 +101,7 @@ pnpm モノレポ（Node.js 24+, TypeScript 6, ES modules）。
 ### API エンドポイント
 
 - **`/api/bookmarks`**: GET（一覧）, POST（作成+OGP取得）, PATCH /:id（更新）, PATCH /:id/position（並び替え）, DELETE /:id（ソフトデリート）
+- **`/api/export/bookmarks`**: GET（ゴミ箱外のブックマークを BOM 付き UTF-8 CSV でエクスポート）
 - **`/api/folders`**: GET（一覧）, POST（作成）, PATCH /:id（リネーム/移動）, PATCH /:id/position（並び替え）, DELETE /:id（ソフトデリート）
 - **`/api/search`**: GET（全文検索、クエリ `q`）
 - **`/api/trash`**: GET（一覧）, POST /:id/restore（復元）, DELETE /:id（完全削除）, DELETE /（全削除）

@@ -1,4 +1,4 @@
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, gt, isNull, or } from 'drizzle-orm';
 import { Hono } from 'hono';
 import type { Env as HonoPinoEnv } from 'hono-pino';
 
@@ -24,8 +24,10 @@ const CSV_HEADER = [
   'created_at',
   'updated_at',
 ] as const;
+const EXPORT_BATCH_SIZE = 500;
 
 type ExportBookmark = {
+  id: string;
   url: string;
   title: string | null;
   description: string | null;
@@ -41,7 +43,7 @@ function escapeCsvValue(value: string | number | null): string {
   let text = value === null ? '' : String(value);
 
   // Spreadsheet applications may interpret these prefixes as formulas.
-  if (/^[=+@-]/.test(text)) {
+  if (/^[\t\r\n =+@\-＝＋＠－]/.test(text)) {
     text = `'${text}`;
   }
 
@@ -68,15 +70,60 @@ function serializeBookmark(bookmark: ExportBookmark): string {
     .join(',');
 }
 
-function createCsvStream(rows: ExportBookmark[]): ReadableStream<Uint8Array> {
+type ExportCursor = Pick<ExportBookmark, 'id' | 'createdAt'>;
+
+async function fetchExportBatch(
+  userId: string,
+  cursor: ExportCursor | null,
+): Promise<ExportBookmark[]> {
+  const cursorCondition = cursor
+    ? or(
+        gt(bookmarks.createdAt, cursor.createdAt),
+        and(eq(bookmarks.createdAt, cursor.createdAt), gt(bookmarks.id, cursor.id)),
+      )
+    : undefined;
+
+  return db
+    .select({
+      id: bookmarks.id,
+      url: bookmarks.url,
+      title: bookmarks.title,
+      description: bookmarks.description,
+      folderPath: bookmarks.folderPath,
+      imageUrl: bookmarks.imageUrl,
+      faviconUrl: bookmarks.faviconUrl,
+      position: bookmarks.position,
+      createdAt: bookmarks.createdAt,
+      updatedAt: bookmarks.updatedAt,
+    })
+    .from(bookmarks)
+    .where(and(eq(bookmarks.userId, userId), isNull(bookmarks.deletedAt), cursorCondition))
+    .orderBy(bookmarks.createdAt, bookmarks.id)
+    .limit(EXPORT_BATCH_SIZE);
+}
+
+function createCsvStream(userId: string): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
+  let rows: ExportBookmark[] = [];
   let index = 0;
+  let cursor: ExportCursor | null = null;
+  let reachedEnd = false;
 
   return new ReadableStream({
     start(controller) {
       controller.enqueue(encoder.encode(`\uFEFF${CSV_HEADER.join(',')}\r\n`));
     },
-    pull(controller) {
+    async pull(controller) {
+      if (index >= rows.length && !reachedEnd) {
+        rows = await fetchExportBatch(userId, cursor);
+        index = 0;
+        reachedEnd = rows.length < EXPORT_BATCH_SIZE;
+        const last = rows.at(-1);
+        if (last) {
+          cursor = { id: last.id, createdAt: last.createdAt };
+        }
+      }
+
       const row = rows[index];
       if (!row) {
         controller.close();
@@ -95,23 +142,8 @@ function exportFilename(now = new Date()): string {
 
 export const exportRoute = new Hono<Env>().get('/bookmarks', async (c) => {
   const currentUser = c.var.user;
-  const rows = await db
-    .select({
-      url: bookmarks.url,
-      title: bookmarks.title,
-      description: bookmarks.description,
-      folderPath: bookmarks.folderPath,
-      imageUrl: bookmarks.imageUrl,
-      faviconUrl: bookmarks.faviconUrl,
-      position: bookmarks.position,
-      createdAt: bookmarks.createdAt,
-      updatedAt: bookmarks.updatedAt,
-    })
-    .from(bookmarks)
-    .where(and(eq(bookmarks.userId, currentUser.id), isNull(bookmarks.deletedAt)))
-    .orderBy(bookmarks.createdAt, bookmarks.id);
 
-  return new Response(createCsvStream(rows), {
+  return new Response(createCsvStream(currentUser.id), {
     headers: {
       'Content-Disposition': `attachment; filename="${exportFilename()}"`,
       'Content-Type': 'text/csv; charset=utf-8',

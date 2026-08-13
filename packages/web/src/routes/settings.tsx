@@ -6,7 +6,6 @@ import { Layout } from '../components/layout';
 import { useDeleteAccount } from '../hooks/use-user';
 import { authClient } from '../lib/auth-client';
 import { requireAuth } from '../lib/auth-guard';
-import { downloadBookmarkExport } from '../lib/bookmark-export';
 import { useSettings } from '../lib/settings-store';
 import { rootRoute } from './__root';
 
@@ -21,8 +20,6 @@ function SettingsPage() {
   const [settings, updateSettings] = useSettings();
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
-  const [exporting, setExporting] = useState(false);
-  const [exportError, setExportError] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const deleteAccount = useDeleteAccount();
 
@@ -44,18 +41,6 @@ function SettingsPage() {
         await router.navigate({ to: '/login' });
       },
     });
-  };
-
-  const handleExport = async () => {
-    setExporting(true);
-    setExportError(null);
-    try {
-      await downloadBookmarkExport();
-    } catch {
-      setExportError('エクスポートに失敗しました。時間をおいてもう一度お試しください。');
-    } finally {
-      setExporting(false);
-    }
   };
 
   return (
@@ -98,19 +83,13 @@ function SettingsPage() {
             <p className="mb-3 text-sm text-gray-500">
               すべてのブックマークを CSV ファイルでダウンロードします。
             </p>
-            <button
-              type="button"
-              onClick={handleExport}
-              disabled={exporting}
-              className="rounded-md bg-gray-900 px-4 py-2 text-sm text-white hover:bg-gray-700 disabled:opacity-50"
+            <a
+              href="/api/export/bookmarks"
+              download
+              className="inline-block rounded-md bg-gray-900 px-4 py-2 text-sm text-white hover:bg-gray-700"
             >
-              {exporting ? 'エクスポート中...' : 'CSV をダウンロード'}
-            </button>
-            {exportError && (
-              <p role="alert" className="mt-3 text-sm text-red-600">
-                {exportError}
-              </p>
-            )}
+              CSV をダウンロード
+            </a>
           </div>
         </div>
 

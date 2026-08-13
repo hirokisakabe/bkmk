@@ -17,6 +17,7 @@ const header =
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.clearAllMocks();
 });
 
 describe('GET /api/export/bookmarks', () => {
@@ -24,6 +25,7 @@ describe('GET /api/export/bookmarks', () => {
     vi.mocked(db.select).mockReturnValue(
       mockQueryChain([
         {
+          id: '00000000-0000-0000-0000-000000000001',
           url: 'https://example.com/?q=日本語',
           title: '絵文字 🔖, title',
           description: 'first line\nsecond "line"',
@@ -50,33 +52,44 @@ describe('GET /api/export/bookmarks', () => {
     );
   });
 
-  it.each(['=1+1', '+SUM(A1:A2)', '-2+3', '@command'])(
-    '%s を数式として解釈されない形にする',
-    async (title) => {
-      vi.mocked(db.select).mockReturnValue(
-        mockQueryChain([
-          {
-            url: 'https://example.com',
-            title,
-            description: null,
-            folderPath: null,
-            imageUrl: null,
-            faviconUrl: null,
-            position: 0,
-            createdAt: new Date('2026-08-13T00:00:00.000Z'),
-            updatedAt: new Date('2026-08-13T00:00:00.000Z'),
-          },
-        ]) as never,
-      );
+  it.each([
+    '=1+1',
+    '+SUM(A1:A2)',
+    '-2+3',
+    '@command',
+    '\t=1+1',
+    '\r=1+1',
+    '\n=1+1',
+    ' =1+1',
+    '＝1+1',
+    '＋1+1',
+    '－1+1',
+    '＠command',
+  ])('%s を数式として解釈されない形にする', async (title) => {
+    vi.mocked(db.select).mockReturnValue(
+      mockQueryChain([
+        {
+          id: '00000000-0000-0000-0000-000000000001',
+          url: 'https://example.com',
+          title,
+          description: null,
+          folderPath: null,
+          imageUrl: null,
+          faviconUrl: null,
+          position: 0,
+          createdAt: new Date('2026-08-13T00:00:00.000Z'),
+          updatedAt: new Date('2026-08-13T00:00:00.000Z'),
+        },
+      ]) as never,
+    );
 
-      const res = await app.request('/api/export/bookmarks');
-      const csv = await res.text();
-      const fields = csv.split('\r\n')[1].split(',');
+    const res = await app.request('/api/export/bookmarks');
+    const csv = await res.text();
+    const sanitized = `'${title}`;
+    const escaped = /[",\r\n]/.test(sanitized) ? `"${sanitized.replaceAll('"', '""')}"` : sanitized;
 
-      expect(fields[1]).toBe(`'${title}`);
-      expect(fields[3]).toBe('');
-    },
-  );
+    expect(csv).toContain(`https://example.com,${escaped},,,`);
+  });
 
   it('0 件でもヘッダー行だけを返す', async () => {
     vi.mocked(db.select).mockReturnValue(mockQueryChain([]) as never);
@@ -84,6 +97,34 @@ describe('GET /api/export/bookmarks', () => {
     const res = await app.request('/api/export/bookmarks');
 
     expect(await res.text()).toBe(header);
+  });
+
+  it('500 件を超える場合は次のバッチも続けて出力する', async () => {
+    const createBookmark = (index: number) => ({
+      id: String(index).padStart(36, '0'),
+      url: `https://example.com/${index}`,
+      title: `Bookmark ${index}`,
+      description: null,
+      folderPath: null,
+      imageUrl: null,
+      faviconUrl: null,
+      position: index,
+      createdAt: new Date(`2026-08-13T00:00:${String(index % 60).padStart(2, '0')}.000Z`),
+      updatedAt: new Date('2026-08-14T00:00:00.000Z'),
+    });
+    vi.mocked(db.select)
+      .mockReturnValueOnce(
+        mockQueryChain(Array.from({ length: 500 }, (_, index) => createBookmark(index))) as never,
+      )
+      .mockReturnValueOnce(mockQueryChain([createBookmark(500)]) as never);
+
+    const res = await app.request('/api/export/bookmarks');
+    const csv = await res.text();
+
+    expect(db.select).toHaveBeenCalledTimes(2);
+    expect(csv).toContain('https://example.com/0,Bookmark 0');
+    expect(csv).toContain('https://example.com/500,Bookmark 500');
+    expect(csv.split('\r\n')).toHaveLength(503);
   });
 
   it('出力日を含むファイル名を返す', async () => {
