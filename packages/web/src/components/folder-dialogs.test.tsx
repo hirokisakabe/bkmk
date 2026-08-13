@@ -120,6 +120,30 @@ describe('フォルダ名の入力検証', () => {
       expect(input).not.toHaveAttribute('aria-invalid');
       expect(input).not.toHaveAttribute('aria-describedby');
     });
+
+    it('送信中に入力が変わっても成功時の完了処理を維持する', async () => {
+      const responseGate = createDeferred<void>();
+      const requestStarted = vi.fn();
+      const onOpenChange = vi.fn();
+      server.use(
+        http.post('/api/folders', async () => {
+          requestStarted();
+          await responseGate.promise;
+          return HttpResponse.json(currentFolder, { status: 201 });
+        }),
+      );
+      const user = userEvent.setup();
+      renderDialog(<CreateFolderDialog open onOpenChange={onOpenChange} parentPath={null} />);
+
+      const input = screen.getByRole('textbox', { name: 'フォルダ名' });
+      await user.type(input, 'project');
+      await user.click(screen.getByRole('button', { name: '作成' }));
+      await waitFor(() => expect(requestStarted).toHaveBeenCalledOnce());
+      fireEvent.change(input, { target: { value: 'project-updated' } });
+      responseGate.resolve();
+
+      await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    });
   });
 
   describe('名前変更ダイアログ', () => {
@@ -203,6 +227,31 @@ describe('フォルダ名の入力検証', () => {
       expect(screen.queryByRole('alert')).not.toBeInTheDocument();
       expect(input).not.toHaveAttribute('aria-invalid');
       expect(input).not.toHaveAttribute('aria-describedby');
+    });
+
+    it('送信中に入力が変わっても成功時の完了処理を維持する', async () => {
+      const responseGate = createDeferred<void>();
+      const requestStarted = vi.fn();
+      const onOpenChange = vi.fn();
+      server.use(
+        http.patch('/api/folders/:id', async () => {
+          requestStarted();
+          await responseGate.promise;
+          return HttpResponse.json({ ...currentFolder, name: 'renamed', path: '/renamed' });
+        }),
+      );
+      const user = userEvent.setup();
+      renderRenameDialog(onOpenChange);
+
+      const input = screen.getByRole('textbox', { name: 'フォルダ名' });
+      await user.clear(input);
+      await user.type(input, 'renamed');
+      await user.click(screen.getByRole('button', { name: '変更' }));
+      await waitFor(() => expect(requestStarted).toHaveBeenCalledOnce());
+      fireEvent.change(input, { target: { value: 'renamed-again' } });
+      responseGate.resolve();
+
+      await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
     });
   });
 });
@@ -392,16 +441,24 @@ function mockFolderRequestError(method: 'post' | 'patch') {
   );
 }
 
-function renderRenameDialog() {
+function renderRenameDialog(onOpenChange = vi.fn()) {
   return renderDialog(
     <RenameFolderDialog
       open
-      onOpenChange={vi.fn()}
+      onOpenChange={onOpenChange}
       folder={currentFolder}
       selectedFolder={currentFolder.path}
       onSelectFolder={vi.fn()}
     />,
   );
+}
+
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((promiseResolve) => {
+    resolve = promiseResolve;
+  });
+  return { promise, resolve };
 }
 
 function renderDialog(element: ReactElement) {
