@@ -97,8 +97,6 @@ function ReorderableBookmarkList({
 
       <AddBookmarkForm folderPath={addBookmarkFolderPath} />
 
-      <BookmarkCreationCards creations={visibleCreations} />
-
       <LoadingSkeleton isLoading={isLoading} />
 
       {!isLoading && currentFolderBookmarks?.length === 0 && visibleCreations.length === 0 && (
@@ -110,7 +108,11 @@ function ReorderableBookmarkList({
           items={currentFolderBookmarks.map((b) => b.id)}
           strategy={rectSortingStrategy}
         >
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+          <div
+            className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6"
+            data-testid="bookmark-grid"
+          >
+            <BookmarkCreationCards creations={visibleCreations} />
             {currentFolderBookmarks.map((bookmark) => (
               <SortableBookmarkCard
                 key={bookmark.id}
@@ -122,17 +124,24 @@ function ReorderableBookmarkList({
         </SortableContext>
       )}
 
-      {!isLoading && currentFolderBookmarks && currentFolderBookmarks.length > 0 && !canReorder && (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-          {currentFolderBookmarks.map((bookmark) => (
-            <DraggableBookmarkCard
-              key={bookmark.id}
-              bookmark={bookmark}
-              onDelete={() => deleteBookmark.mutate({ id: bookmark.id })}
-            />
-          ))}
-        </div>
-      )}
+      {!isLoading &&
+        currentFolderBookmarks &&
+        (currentFolderBookmarks.length > 0 || visibleCreations.length > 0) &&
+        !canReorder && (
+          <div
+            className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6"
+            data-testid="bookmark-grid"
+          >
+            <BookmarkCreationCards creations={visibleCreations} />
+            {currentFolderBookmarks.map((bookmark) => (
+              <DraggableBookmarkCard
+                key={bookmark.id}
+                bookmark={bookmark}
+                onDelete={() => deleteBookmark.mutate({ id: bookmark.id })}
+              />
+            ))}
+          </div>
+        )}
     </div>
   );
 }
@@ -190,14 +199,16 @@ function PaginatedBookmarkList({
 
       <AddBookmarkForm folderPath={addBookmarkFolderPath} />
 
-      <BookmarkCreationCards creations={visibleCreations} />
-
       <LoadingSkeleton isLoading={isLoading} />
 
       {!isLoading && bookmarks.length === 0 && visibleCreations.length === 0 && <EmptyState />}
 
-      {!isLoading && bookmarks.length > 0 && (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+      {!isLoading && (bookmarks.length > 0 || visibleCreations.length > 0) && (
+        <div
+          className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6"
+          data-testid="bookmark-grid"
+        >
+          <BookmarkCreationCards creations={visibleCreations} />
           {bookmarks.map((bookmark) => (
             <DraggableBookmarkCard
               key={bookmark.id}
@@ -236,7 +247,7 @@ function BookmarkCreationCards({ creations }: { creations: BookmarkCreation[] })
   if (creations.length === 0) return null;
 
   return (
-    <div className="mb-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+    <>
       {creations.map((creation) => (
         <div key={creation.clientId} data-testid={`bookmark-creation-${creation.status}`}>
           {creation.status === 'success' ? (
@@ -293,7 +304,7 @@ function BookmarkCreationCards({ creations }: { creations: BookmarkCreation[] })
           )}
         </div>
       ))}
-    </div>
+    </>
   );
 }
 

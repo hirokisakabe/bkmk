@@ -52,8 +52,16 @@ describe('bookmark creation card', () => {
     await user.click(screen.getByRole('button', { name: '追加' }));
 
     const pendingCard = await screen.findByTestId('bookmark-creation-pending');
+    const bookmarkGrid = screen.getByTestId('bookmark-grid');
     expect(within(pendingCard).getByText('情報を取得中')).toBeInTheDocument();
     expect(within(pendingCard).getByText(url)).toBeInTheDocument();
+    expect(pendingCard.parentElement).toBe(bookmarkGrid);
+    expect(
+      screen
+        .getByTestId(`bookmark-card-${mockBookmarks[0].id}`)
+        .closest('[data-testid="bookmark-grid"]'),
+    ).toBe(bookmarkGrid);
+    expect(bookmarkGrid.firstElementChild).toBe(pendingCard);
     expect(within(pendingCard).queryByRole('button', { name: '削除' })).not.toBeInTheDocument();
     expect(within(pendingCard).queryByRole('button', { name: '並び替え' })).not.toBeInTheDocument();
 
@@ -67,6 +75,46 @@ describe('bookmark creation card', () => {
     expect(within(officialCard).getByText(created.description!)).toBeInTheDocument();
     expect(officialCard.querySelector('img')).toHaveAttribute('src', created.imageUrl);
     expect(screen.getAllByText(created.title!)).toHaveLength(1);
+  });
+
+  it('並び替え可能な一覧でも仮カードと既存カードを同じグリッドに表示する', async () => {
+    const user = userEvent.setup();
+    const url = 'https://work-pending.example.com/article';
+    const secondWorkBookmark: Bookmark = {
+      ...mockBookmarks[2],
+      id: 'bk-work-2',
+      url: 'https://work-2.example.com',
+      title: 'Second Work Site',
+      position: 1,
+    };
+    let finishRequest!: () => void;
+    server.use(
+      http.get('/api/bookmarks', () => HttpResponse.json([mockBookmarks[2], secondWorkBookmark])),
+      http.post('/api/bookmarks', async () => {
+        await new Promise<void>((resolve) => {
+          finishRequest = resolve;
+        });
+        return HttpResponse.json({ ...mockBookmarks[2], url }, { status: 201 });
+      }),
+    );
+
+    renderWithProviders({ initialUrl: '/?folder=%2Fwork' });
+    const input = await screen.findByPlaceholderText('URLを入力してブックマークを追加');
+    await user.type(input, url);
+    await user.click(screen.getByRole('button', { name: '追加' }));
+
+    const pendingCard = await screen.findByTestId('bookmark-creation-pending');
+    const bookmarkGrid = screen.getByTestId('bookmark-grid');
+    expect(pendingCard.parentElement).toBe(bookmarkGrid);
+    expect(
+      screen
+        .getByTestId(`bookmark-card-${mockBookmarks[2].id}`)
+        .closest('[data-testid="bookmark-grid"]'),
+    ).toBe(bookmarkGrid);
+    expect(bookmarkGrid.firstElementChild).toBe(pendingCard);
+    expect(screen.getByTestId(`bookmark-drag-handle-${mockBookmarks[2].id}`)).toBeInTheDocument();
+
+    finishRequest();
   });
 
   it('失敗時はエラーカードと入力URLを残す', async () => {
