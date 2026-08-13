@@ -18,9 +18,11 @@ import { FolderTree } from './folder-tree';
 
 export function Layout({
   children,
+  heading,
   onDragEnd,
 }: {
   children: ReactNode;
+  heading?: string;
   onDragEnd?: (event: DragEndEvent) => void;
 }) {
   const navigate = useNavigate();
@@ -282,12 +284,24 @@ export function Layout({
             )}
           </div>
           <main className="flex-1 overflow-y-auto p-4">
-            <div className="mb-4 hidden justify-end md:flex">
+            <div
+              className={
+                heading
+                  ? 'mb-6 flex min-w-0 items-center gap-4'
+                  : 'mb-4 hidden justify-end md:flex'
+              }
+              data-testid={heading ? 'main-header' : undefined}
+            >
+              {heading && (
+                <h2 className="min-w-0 flex-1 truncate text-xl font-bold text-gray-900">
+                  {heading}
+                </h2>
+              )}
               <SearchInput
                 value={searchValue}
                 onChange={handleSearchChange}
                 ariaLabel="ブックマークを検索"
-                className="w-full max-w-[22rem]"
+                className="hidden w-full max-w-[20rem] shrink-0 md:mr-6 md:block"
               />
             </div>
             {children}

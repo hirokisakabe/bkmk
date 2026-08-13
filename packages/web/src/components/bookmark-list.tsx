@@ -21,11 +21,9 @@ import { MoveBookmarkDialog } from './folder-dialogs';
 
 export function BookmarkList({
   folderPath,
-  folderName,
   view,
 }: {
   folderPath: string | null;
-  folderName: string;
   view?: BookmarkView;
 }) {
   const [settings] = useSettings();
@@ -47,7 +45,6 @@ export function BookmarkList({
     return (
       <ReorderableBookmarkList
         folderPath={apiFolderPath}
-        folderName={folderName}
         deep={deep}
         addBookmarkFolderPath={addBookmarkFolderPath}
       />
@@ -57,7 +54,6 @@ export function BookmarkList({
   return (
     <PaginatedBookmarkList
       folderPath={apiFolderPath}
-      folderName={folderName}
       deep={deep}
       addBookmarkFolderPath={addBookmarkFolderPath}
     />
@@ -66,12 +62,10 @@ export function BookmarkList({
 
 function ReorderableBookmarkList({
   folderPath,
-  folderName,
   deep,
   addBookmarkFolderPath,
 }: {
   folderPath: string | null;
-  folderName: string;
   deep: boolean;
   addBookmarkFolderPath: string | null;
 }) {
@@ -93,10 +87,6 @@ function ReorderableBookmarkList({
 
   return (
     <div>
-      <div className="mb-6">
-        <h2 className="text-xl font-bold text-gray-900">{folderName}</h2>
-      </div>
-
       <AddBookmarkForm folderPath={addBookmarkFolderPath} />
 
       {!isLoading && currentFolderBookmarks?.length === 0 && visibleCreations.length === 0 && (
@@ -157,12 +147,10 @@ function ReorderableBookmarkList({
 
 function PaginatedBookmarkList({
   folderPath,
-  folderName,
   deep,
   addBookmarkFolderPath,
 }: {
   folderPath: string | null;
-  folderName: string;
   deep: boolean;
   addBookmarkFolderPath: string | null;
 }) {
@@ -202,10 +190,6 @@ function PaginatedBookmarkList({
 
   return (
     <div>
-      <div className="mb-6">
-        <h2 className="text-xl font-bold text-gray-900">{folderName}</h2>
-      </div>
-
       <AddBookmarkForm folderPath={addBookmarkFolderPath} />
 
       {!isLoading && bookmarks.length === 0 && visibleCreations.length === 0 && <EmptyState />}

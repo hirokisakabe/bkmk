@@ -8,8 +8,6 @@ export function SearchResults({ query }: { query: string }) {
 
   return (
     <div>
-      <h2 className="mb-6 text-xl font-bold text-gray-900">「{query}」の検索結果</h2>
-
       {isLoading && (
         <div className="space-y-4">
           {[...Array(3)].map((_, i) => (
