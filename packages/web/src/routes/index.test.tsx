@@ -367,6 +367,19 @@ describe('IndexPage', () => {
     expect(router.history.canGoBack()).toBe(false);
   });
 
+  it.each([
+    ['slash未escape', '/?folder=/work', { folder: '/work' }, '/?folder=%2Fwork'],
+    ['小文字percent escape', '/?folder=%2fwork', { folder: '/work' }, '/?folder=%2Fwork'],
+    ['spaceのpercent escape', '/?q=hello%20world', { q: 'hello world' }, '/?q=hello+world'],
+  ])('%sの非正規表記を履歴を増やさずreplaceする', async (_name, initialUrl, search, href) => {
+    const { router } = renderWithProviders({ initialUrl });
+
+    await waitFor(() => expect(router.history.location.href).toBe(href));
+    expect(router.state.location.search).toEqual(search);
+    expect(router.history.length).toBe(1);
+    expect(router.history.canGoBack()).toBe(false);
+  });
+
   it('「未分類」をクリックするとフォルダ未所属のブックマークのみ表示される', async () => {
     const user = userEvent.setup();
     const { router } = renderWithProviders({ initialUrl: '/' });

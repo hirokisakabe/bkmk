@@ -80,9 +80,11 @@ function IndexPage() {
   const location = useRouterState({ select: (state) => state.location });
 
   useEffect(() => {
-    if (location.pathname !== '/') return;
-    const canonicalSearch = canonicalizeSearch(location.search);
-    if (!isCanonicalSearch(location.searchStr, canonicalSearch)) {
+    const rawLocation = router.history.location;
+    if (rawLocation.pathname !== '/') return;
+    const rawSearchString = rawLocation.search;
+    const canonicalSearch = canonicalizeSearch(router.options.parseSearch(rawSearchString));
+    if (!isCanonicalSearch(rawSearchString, canonicalSearch)) {
       router.history.replace(buildIndexHref(canonicalSearch));
     }
   }, [location, router]);
