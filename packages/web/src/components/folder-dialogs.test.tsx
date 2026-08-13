@@ -36,7 +36,13 @@ const bookmark: Bookmark = {
 describe('移動先選択ダイアログ', () => {
   it('フォルダ移動とブックマーク移動で共通の通常フォルダ行を表示する', async () => {
     const folderView = renderDialog(
-      <MoveFolderDialog open onOpenChange={vi.fn()} folder={currentFolder} />,
+      <MoveFolderDialog
+        open
+        onOpenChange={vi.fn()}
+        folder={currentFolder}
+        selectedFolder={currentFolder.path}
+        onSelectFolder={vi.fn()}
+      />,
     );
 
     const folderRow = await screen.findByTestId('move-target-row-/projects');
@@ -62,7 +68,13 @@ describe('移動先選択ダイアログ', () => {
   it('行全体の選択状態を切り替え、トップ階層のラベルと移動不可条件を維持する', async () => {
     const user = userEvent.setup();
     const folderView = renderDialog(
-      <MoveFolderDialog open onOpenChange={vi.fn()} folder={currentFolder} />,
+      <MoveFolderDialog
+        open
+        onOpenChange={vi.fn()}
+        folder={currentFolder}
+        selectedFolder={currentFolder.path}
+        onSelectFolder={vi.fn()}
+      />,
     );
 
     const rootRow = screen.getByTestId('move-target-row-top');
@@ -85,7 +97,15 @@ describe('移動先選択ダイアログ', () => {
 
   it('フォルダ移動では自分自身と子孫を除外し、共通の検索・祖先表示を使う', async () => {
     const user = userEvent.setup();
-    renderDialog(<MoveFolderDialog open onOpenChange={vi.fn()} folder={currentFolder} />);
+    renderDialog(
+      <MoveFolderDialog
+        open
+        onOpenChange={vi.fn()}
+        folder={currentFolder}
+        selectedFolder={currentFolder.path}
+        onSelectFolder={vi.fn()}
+      />,
+    );
 
     await screen.findByRole('button', { name: 'projects' });
     expect(screen.queryByRole('button', { name: 'current' })).not.toBeInTheDocument();
@@ -119,7 +139,15 @@ describe('移動先選択ダイアログ', () => {
     );
 
     view.unmount();
-    renderDialog(<MoveFolderDialog open onOpenChange={vi.fn()} folder={currentFolder} />);
+    renderDialog(
+      <MoveFolderDialog
+        open
+        onOpenChange={vi.fn()}
+        folder={currentFolder}
+        selectedFolder={currentFolder.path}
+        onSelectFolder={vi.fn()}
+      />,
+    );
     await user.click(await screen.findByRole('button', { name: 'projectsを展開する' }));
     expect(screen.getByRole('button', { name: 'frontend' })).toBeInTheDocument();
   });
