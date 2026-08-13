@@ -1,5 +1,11 @@
 import * as Dialog from '@radix-ui/react-dialog';
-import { useState } from 'react';
+import { useId, useState } from 'react';
+
+import {
+  FOLDER_NAME_MAX_LENGTH,
+  validateFolderName,
+  type FolderNameValidationError,
+} from '@bkmk/api/folder-name-validation';
 
 import { useCreateFolder } from '../hooks/use-create-folder';
 import { useMoveBookmark } from '../hooks/use-move-bookmark';
@@ -7,6 +13,21 @@ import { useMoveFolder } from '../hooks/use-move-folder';
 import { useRenameFolder } from '../hooks/use-rename-folder';
 import type { Bookmark, Folder } from '../types';
 import { MoveTargetRow, MoveTargetTree } from './move-target-tree';
+
+const FOLDER_NAME_ERROR_MESSAGES: Record<FolderNameValidationError, string> = {
+  'invalid-length': `フォルダ名は${FOLDER_NAME_MAX_LENGTH}文字以内で入力してください。`,
+  'surrounding-whitespace': 'フォルダ名の先頭と末尾の空白を削除してください。',
+  'invalid-character':
+    '使用できる文字は、英数字（アクセント付き文字を含む）、日本語、絵文字、ピリオド、ハイフン、アンダースコア、空白、アンパサンド（&）です。',
+};
+
+function getFolderNameErrorMessage(name: string): string | null {
+  if (name.length === 0) {
+    return 'フォルダ名を入力してください。';
+  }
+  const error = validateFolderName(name);
+  return error ? FOLDER_NAME_ERROR_MESSAGES[error] : null;
+}
 
 /* ------------------------------------------------------------------ */
 /*  CreateFolderDialog                                                 */
@@ -22,14 +43,21 @@ export function CreateFolderDialog({
   parentPath: string | null;
 }) {
   const [name, setName] = useState('');
+  const [hasInteracted, setHasInteracted] = useState(false);
+  const inputId = useId();
+  const errorId = `${inputId}-error`;
   const createFolder = useCreateFolder();
+  const validationError = getFolderNameErrorMessage(name);
+  const displayedError =
+    (hasInteracted ? validationError : null) ??
+    (createFolder.isError ? createFolder.error.message : null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmed = name.trim();
-    if (!trimmed) return;
+    setHasInteracted(true);
+    if (validationError) return;
 
-    const path = parentPath ? `${parentPath}/${trimmed}` : `/${trimmed}`;
+    const path = parentPath ? `${parentPath}/${name}` : `/${name}`;
     createFolder.mutate(
       { path },
       {
@@ -46,16 +74,28 @@ export function CreateFolderDialog({
           <Dialog.Title className="mb-4 text-lg font-bold">新しいフォルダ</Dialog.Title>
 
           <form onSubmit={handleSubmit}>
+            <label htmlFor={inputId} className="sr-only">
+              フォルダ名
+            </label>
             <input
+              id={inputId}
               autoFocus
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                setHasInteracted(true);
+                if (createFolder.isError) createFolder.reset();
+              }}
               placeholder="フォルダ名"
+              aria-invalid={displayedError ? true : undefined}
+              aria-describedby={displayedError ? errorId : undefined}
               className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
             />
 
-            {createFolder.isError && (
-              <p className="mt-2 text-sm text-red-600">{createFolder.error.message}</p>
+            {displayedError && (
+              <p id={errorId} role="alert" className="mt-2 text-sm text-red-600">
+                {displayedError}
+              </p>
             )}
 
             <div className="mt-4 flex justify-end gap-2">
@@ -69,7 +109,7 @@ export function CreateFolderDialog({
               </Dialog.Close>
               <button
                 type="submit"
-                disabled={!name.trim() || createFolder.isPending}
+                disabled={validationError !== null || createFolder.isPending}
                 className="rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
               >
                 {createFolder.isPending ? '作成中...' : '作成'}
@@ -100,15 +140,22 @@ export function RenameFolderDialog({
   onSelectFolder: (path: string | null) => void;
 }) {
   const [name, setName] = useState(folder.name);
+  const [hasInteracted, setHasInteracted] = useState(false);
+  const inputId = useId();
+  const errorId = `${inputId}-error`;
   const renameFolder = useRenameFolder({ selectedFolder, onSelectFolder });
+  const validationError = getFolderNameErrorMessage(name);
+  const displayedError =
+    (hasInteracted ? validationError : null) ??
+    (renameFolder.isError ? renameFolder.error.message : null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmed = name.trim();
-    if (!trimmed || trimmed === folder.name) return;
+    setHasInteracted(true);
+    if (validationError || name === folder.name) return;
 
     renameFolder.mutate(
-      { id: folder.id, name: trimmed },
+      { id: folder.id, name },
       {
         onSuccess: () => onOpenChange(false),
       },
@@ -123,16 +170,28 @@ export function RenameFolderDialog({
           <Dialog.Title className="mb-4 text-lg font-bold">フォルダ名の変更</Dialog.Title>
 
           <form onSubmit={handleSubmit}>
+            <label htmlFor={inputId} className="sr-only">
+              フォルダ名
+            </label>
             <input
+              id={inputId}
               autoFocus
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                setHasInteracted(true);
+                if (renameFolder.isError) renameFolder.reset();
+              }}
               placeholder="フォルダ名"
+              aria-invalid={displayedError ? true : undefined}
+              aria-describedby={displayedError ? errorId : undefined}
               className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
             />
 
-            {renameFolder.isError && (
-              <p className="mt-2 text-sm text-red-600">{renameFolder.error.message}</p>
+            {displayedError && (
+              <p id={errorId} role="alert" className="mt-2 text-sm text-red-600">
+                {displayedError}
+              </p>
             )}
 
             <div className="mt-4 flex justify-end gap-2">
@@ -146,7 +205,9 @@ export function RenameFolderDialog({
               </Dialog.Close>
               <button
                 type="submit"
-                disabled={!name.trim() || name.trim() === folder.name || renameFolder.isPending}
+                disabled={
+                  validationError !== null || name === folder.name || renameFolder.isPending
+                }
                 className="rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
               >
                 {renameFolder.isPending ? '変更中...' : '変更'}

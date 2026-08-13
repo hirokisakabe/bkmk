@@ -7,6 +7,7 @@ import type { auth } from '../auth.js';
 import { db } from '../db/index.js';
 import { childPathCondition, rebasePath, selfOrChildPathCondition } from '../db/path-helpers.js';
 import { bookmarks, folders } from '../db/schema.js';
+import { validateFolderName, type FolderNameValidationError } from '../folder-name-validation.js';
 import { validationHook } from '../validation-hook.js';
 import type { Env as HonoPinoEnv } from 'hono-pino';
 
@@ -17,20 +18,18 @@ type Env = HonoPinoEnv & {
   };
 };
 
-const VALID_SEGMENT =
-  /^[a-zA-Z0-9\u00C0-\u024F\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF._\- &\p{Emoji_Presentation}\p{Extended_Pictographic}]+$/u;
-const MAX_NAME_LENGTH = 255;
+const SEGMENT_ERROR_MESSAGES: Record<FolderNameValidationError, string> = {
+  'invalid-length': 'Each path segment must be 1-255 characters',
+  'surrounding-whitespace': 'Path segments must not have leading or trailing whitespace',
+  'invalid-character':
+    'Path segments may only contain alphanumeric, CJK, emoji, dot, hyphen, underscore, space, or ampersand characters',
+};
 
 function validateSegments(segments: string[]): string | null {
   for (const seg of segments) {
-    if (seg.length === 0 || seg.length > MAX_NAME_LENGTH) {
-      return 'Each path segment must be 1-255 characters';
-    }
-    if (seg !== seg.trim()) {
-      return 'Path segments must not have leading or trailing whitespace';
-    }
-    if (!VALID_SEGMENT.test(seg)) {
-      return 'Path segments may only contain alphanumeric, CJK, emoji, dot, hyphen, underscore, space, or ampersand characters';
+    const error = validateFolderName(seg);
+    if (error) {
+      return SEGMENT_ERROR_MESSAGES[error];
     }
   }
   return null;
