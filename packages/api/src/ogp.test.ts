@@ -176,6 +176,131 @@ describe('fetchOgpMetadata', () => {
     expect(result.description).toBe('Page Description');
   });
 
+  it('属性順・引用符・HTMLエンティティの揺れをHTMLパーサーで処理する', async () => {
+    const html = `
+      <html>
+        <head>
+          <meta content='OG &amp; Title' property='og:title'>
+          <meta content='Fish &amp; Chips' property='og:description'>
+          <meta content='/images/cover.jpg?size=large&amp;format=webp' property='og:image'>
+          <link href='../icons/site.ico?theme=light&amp;v=2' rel='shortcut ICON'>
+        </head>
+      </html>
+    `;
+    const mockResponse = new Response(html, {
+      headers: { 'content-type': 'text/html' },
+    });
+    Object.defineProperty(mockResponse, 'url', {
+      value: 'https://example.com/articles/redirected/page',
+    });
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(mockResponse);
+
+    await expect(fetchOgpMetadata('https://example.com/articles/original')).resolves.toEqual({
+      title: 'OG & Title',
+      description: 'Fish & Chips',
+      imageUrl: 'https://example.com/images/cover.jpg?size=large&format=webp',
+      faviconUrl: 'https://example.com/articles/icons/site.ico?theme=light&v=2',
+    });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('OGPをTwitter CardとHTMLより優先する', async () => {
+    const html = `
+      <html>
+        <head>
+          <title>HTML Title</title>
+          <meta name="description" content="HTML Description">
+          <meta name="twitter:title" content="Twitter Title">
+          <meta name="twitter:description" content="Twitter Description">
+          <meta name="twitter:image" content="https://example.com/twitter.jpg">
+          <meta property="og:title" content="OG Title">
+          <meta property="og:description" content="OG Description">
+          <meta property="og:image" content="https://example.com/og.jpg">
+        </head>
+      </html>
+    `;
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(html, { headers: { 'content-type': 'text/html' } }),
+    );
+
+    await expect(fetchOgpMetadata('https://example.com')).resolves.toMatchObject({
+      title: 'OG Title',
+      description: 'OG Description',
+      imageUrl: 'https://example.com/og.jpg',
+    });
+  });
+
+  it('secure URL、URL、通常OGPの順で複数画像から選択する', async () => {
+    const html = `
+      <meta property="og:image" content="https://example.com/plain-first.jpg">
+      <meta property="og:image" content="https://example.com/plain-second.jpg">
+      <meta property="og:image:url" content="https://example.com/url.jpg">
+      <meta property="og:image:secure_url" content="https://example.com/secure.jpg">
+    `;
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(html, { headers: { 'content-type': 'text/html' } }),
+    );
+
+    const result = await fetchOgpMetadata('https://example.com');
+    expect(result.imageUrl).toBe('https://example.com/secure.jpg');
+  });
+
+  it('OGPがない場合はTwitter Cardへフォールバックする', async () => {
+    const html = `
+      <title>HTML Title</title>
+      <meta name="description" content="HTML Description">
+      <meta name="twitter:title" content="Twitter Title">
+      <meta name="twitter:description" content="Twitter Description">
+      <meta name="twitter:image" content="/twitter.jpg">
+    `;
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(html, { headers: { 'content-type': 'text/html' } }),
+    );
+
+    await expect(fetchOgpMetadata('https://example.com/posts/1')).resolves.toMatchObject({
+      title: 'Twitter Title',
+      description: 'Twitter Description',
+      imageUrl: 'https://example.com/twitter.jpg',
+    });
+  });
+
+  it('meta画像がない場合はJSON-LD画像へフォールバックする', async () => {
+    const html = `
+      <script type="application/ld+json">
+        {"@context":"https://schema.org","@type":"Article","image":{"url":"/json-ld.jpg"}}
+      </script>
+    `;
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(html, { headers: { 'content-type': 'text/html' } }),
+    );
+
+    const result = await fetchOgpMetadata('https://example.com/posts/1');
+    expect(result.imageUrl).toBe('https://example.com/json-ld.jpg');
+  });
+
+  it('構造化画像がない場合は本文画像へフォールバックする', async () => {
+    const html = '<article><img src="images/article.jpg" alt="Article image"></article>';
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(html, { headers: { 'content-type': 'text/html' } }),
+    );
+
+    const result = await fetchOgpMetadata('https://example.com/posts/1');
+    expect(result.imageUrl).toBe('https://example.com/posts/images/article.jpg');
+  });
+
+  it('icon linkがない場合は最終URLのorigin直下へフォールバックする', async () => {
+    const mockResponse = new Response('<title>Redirected</title>', {
+      headers: { 'content-type': 'text/html' },
+    });
+    Object.defineProperty(mockResponse, 'url', {
+      value: 'https://redirected.example.com/path/page',
+    });
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(mockResponse);
+
+    const result = await fetchOgpMetadata('https://example.com/original');
+    expect(result.faviconUrl).toBe('https://redirected.example.com/favicon.ico');
+  });
+
   it('fetchが失敗した場合は空のメタデータを返す', async () => {
     vi.spyOn(globalThis, 'fetch').mockRejectedValueOnce(new Error('Network error'));
 
