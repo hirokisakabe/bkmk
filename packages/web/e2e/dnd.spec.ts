@@ -96,6 +96,66 @@ test('同一フォルダ内でブックマークをDnDソートすると並び�
   await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText(['Beta', 'Alpha']);
 });
 
+test('pendingカードは並び替え対象外のまま、表示中も既存カード同士をDnDソートできる', async ({
+  page,
+}) => {
+  await setupMocks(page);
+
+  let finishCreate!: () => void;
+  await page.route(
+    (url) => url.pathname === '/api/bookmarks',
+    async (route) => {
+      if (route.request().method() !== 'POST') {
+        await route.fallback();
+        return;
+      }
+
+      await new Promise<void>((resolve) => {
+        finishCreate = resolve;
+      });
+      await route.fulfill({
+        status: 201,
+        json: makeBookmark('bk-created', 'Created', '/folder-a', 0),
+      });
+    },
+  );
+
+  await page.goto('/?folder=/folder-a');
+  await page
+    .getByPlaceholder('URLを入力してブックマークを追加')
+    .fill('https://pending.example.com');
+  await page.getByRole('button', { name: '追加' }).click();
+
+  const creationCard = page.getByTestId('bookmark-creation-pending');
+  await expect(creationCard).toBeVisible();
+  await expect(creationCard.getByRole('button', { name: '並び替え' })).toHaveCount(0);
+  await expect(creationCard.locator('[data-testid^="bookmark-drag-handle-"]')).toHaveCount(0);
+  await expect(page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[0].id}`)).toBeVisible();
+  await expect(page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[1].id}`)).toBeVisible();
+
+  const patchRequest = page.waitForRequest(
+    (request) =>
+      request.method() === 'PATCH' &&
+      /\/api\/bookmarks\/[^/]+\/position$/.test(new URL(request.url()).pathname),
+  );
+
+  await dragTo(
+    page,
+    page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[0].id}`),
+    page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[1].id}`),
+  );
+
+  const request = await patchRequest;
+  const body = (await request.postDataJSON()) as { position: number };
+
+  expect(request.url()).toContain(`/api/bookmarks/${BOOKMARKS[0].id}/position`);
+  expect(body.position).toBe(BOOKMARKS[1].position);
+  await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText(['Beta', 'Alpha']);
+  await expect(creationCard).toBeVisible();
+
+  finishCreate();
+});
+
 test('ブックマークを別フォルダへDnD移動すると移動APIが呼ばれる', async ({ page }) => {
   await setupMocks(page);
 
