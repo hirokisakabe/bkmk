@@ -18,16 +18,25 @@ describe('bookmark creation card', () => {
       url,
       title: '初回取得中に追加したブックマーク',
     };
+    let getCount = 0;
     let finishInitialRequest!: () => void;
     let finishCreateRequest!: () => void;
+    let finishRefetch!: () => void;
     server.use(
       http.get('/api/bookmarks', async ({ request }) => {
         const requestUrl = new URL(request.url);
         if (!requestUrl.searchParams.has('limit')) return;
+        getCount += 1;
+        if (getCount === 1) {
+          await new Promise<void>((resolve) => {
+            finishInitialRequest = resolve;
+          });
+          return HttpResponse.json({ data: mockBookmarks, nextCursor: null });
+        }
         await new Promise<void>((resolve) => {
-          finishInitialRequest = resolve;
+          finishRefetch = resolve;
         });
-        return HttpResponse.json({ data: mockBookmarks, nextCursor: null });
+        return HttpResponse.json({ data: [created, ...mockBookmarks], nextCursor: null });
       }),
       http.post('/api/bookmarks', async () => {
         await new Promise<void>((resolve) => {
@@ -54,7 +63,82 @@ describe('bookmark creation card', () => {
     expect(screen.getByTestId('bookmark-creation-pending')).toBeInTheDocument();
 
     finishCreateRequest();
-    expect(await screen.findByTestId('bookmark-creation-success')).toBeInTheDocument();
+    const successCard = await screen.findByTestId('bookmark-creation-success');
+    expect(successCard).toBeInTheDocument();
+    await waitFor(() => expect(finishRefetch).toBeDefined());
+
+    finishRefetch();
+    expect(await screen.findByTestId(`bookmark-card-${created.id}`)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByTestId('bookmark-creation-success')).not.toBeInTheDocument();
+    });
+  });
+
+  it('一覧GET失敗後も作成中・失敗・成功のフィードバックをグリッドに表示する', async () => {
+    const user = userEvent.setup();
+    const failedUrl = 'https://get-failed-and-create-failed.example.com';
+    const successUrl = 'https://get-failed-and-create-succeeded.example.com';
+    const created: Bookmark = {
+      ...mockBookmarks[2],
+      id: 'created-after-get-failure',
+      url: successUrl,
+      title: '一覧取得失敗後に追加したブックマーク',
+    };
+    let postCount = 0;
+    let finishFailedCreate!: () => void;
+    let finishSuccessfulCreate!: () => void;
+    server.use(
+      http.get('/api/bookmarks', ({ request }) => {
+        const requestUrl = new URL(request.url);
+        if (requestUrl.searchParams.has('limit')) return;
+        return HttpResponse.json({ error: '一覧を取得できませんでした' }, { status: 500 });
+      }),
+      http.post('/api/bookmarks', async () => {
+        postCount += 1;
+        if (postCount === 1) {
+          await new Promise<void>((resolve) => {
+            finishFailedCreate = resolve;
+          });
+          return HttpResponse.json({ error: '対象サイトへ接続できません' }, { status: 502 });
+        }
+        await new Promise<void>((resolve) => {
+          finishSuccessfulCreate = resolve;
+        });
+        return HttpResponse.json(created, { status: 201 });
+      }),
+    );
+
+    const { queryClient } = renderWithProviders({ initialUrl: '/?folder=%2Fwork' });
+    await waitFor(() => {
+      expect(
+        queryClient.getQueryState(['bookmarks', { folder: '/work', deep: false }])?.status,
+      ).toBe('error');
+    });
+
+    const input = screen.getByPlaceholderText('URLを入力してブックマークを追加');
+    await user.type(input, failedUrl);
+    await user.click(screen.getByRole('button', { name: '追加' }));
+
+    const firstPendingCard = await screen.findByTestId('bookmark-creation-pending');
+    expect(firstPendingCard.parentElement).toBe(screen.getByTestId('bookmark-grid'));
+
+    finishFailedCreate();
+    const errorCard = await screen.findByTestId('bookmark-creation-error');
+    expect(within(errorCard).getByText('対象サイトへ接続できません')).toBeInTheDocument();
+    expect(errorCard.parentElement).toBe(screen.getByTestId('bookmark-grid'));
+
+    await user.clear(input);
+    await user.type(input, successUrl);
+    await user.click(screen.getByRole('button', { name: '追加' }));
+
+    const secondPendingCard = await screen.findByTestId('bookmark-creation-pending');
+    expect(screen.queryByTestId('bookmark-creation-error')).not.toBeInTheDocument();
+    expect(secondPendingCard.parentElement).toBe(screen.getByTestId('bookmark-grid'));
+
+    finishSuccessfulCreate();
+    const successCard = await screen.findByTestId('bookmark-creation-success');
+    expect(within(successCard).getByText(created.title!)).toBeInTheDocument();
+    expect(successCard.parentElement).toBe(screen.getByTestId('bookmark-grid'));
   });
 
   it('送信直後は操作を持たない仮カードを先頭に表示し、成功後はOGP付き正式カードへ置換する', async () => {

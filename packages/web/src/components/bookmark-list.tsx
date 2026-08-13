@@ -76,7 +76,7 @@ function ReorderableBookmarkList({
   const { data: bookmarks, isLoading } = useBookmarks(folderPath, deep);
   // deep=true のとき複数フォルダのブックマークが混在するため、現在のフォルダのみに絞る
   const currentFolderBookmarks = useMemo(
-    () => bookmarks?.filter((bookmark) => bookmark.folderPath === folderPath),
+    () => bookmarks?.filter((bookmark) => bookmark.folderPath === folderPath) ?? [],
     [bookmarks, folderPath],
   );
   const { data: creations = [] } = useBookmarkCreations(currentFolderBookmarks);
@@ -85,7 +85,7 @@ function ReorderableBookmarkList({
     (creation) =>
       isBookmarkInScope(creation.folderPath, folderPath, deep) &&
       (creation.status !== 'success' ||
-        !currentFolderBookmarks?.some((bookmark) => bookmark.id === creation.bookmark.id)),
+        !currentFolderBookmarks.some((bookmark) => bookmark.id === creation.bookmark.id)),
   );
   const canReorder = resolveCanSortBookmarkList(currentFolderBookmarks);
 
@@ -97,7 +97,7 @@ function ReorderableBookmarkList({
 
       <AddBookmarkForm folderPath={addBookmarkFolderPath} />
 
-      {!isLoading && currentFolderBookmarks?.length === 0 && visibleCreations.length === 0 && (
+      {!isLoading && currentFolderBookmarks.length === 0 && visibleCreations.length === 0 && (
         <EmptyState />
       )}
 
@@ -111,7 +111,7 @@ function ReorderableBookmarkList({
         </div>
       )}
 
-      {!isLoading && currentFolderBookmarks && currentFolderBookmarks.length > 0 && canReorder && (
+      {!isLoading && currentFolderBookmarks.length > 0 && canReorder && (
         <SortableContext
           items={currentFolderBookmarks.map((b) => b.id)}
           strategy={rectSortingStrategy}
@@ -133,7 +133,6 @@ function ReorderableBookmarkList({
       )}
 
       {!isLoading &&
-        currentFolderBookmarks &&
         (currentFolderBookmarks.length > 0 || visibleCreations.length > 0) &&
         !canReorder && (
           <div
