@@ -1,62 +1,67 @@
-import { closestCenter, type CollisionDetection, pointerWithin } from '@dnd-kit/core';
-
-// カード右端から何 px 以内へのドロップを「このアイテムの後ろ」と解釈するか。
-// ドラッグハンドルはカード右上隅にあるため、ハンドル中心(desktop:right-16px / mobile:right-22px)
-// より右側にドロップした場合は「後ろに置く」意図として扱う。15px はその中間値。
-const RIGHT_EDGE_THRESHOLD_PX = 15;
+import { closestCenter, type CollisionDetection } from '@dnd-kit/core';
 
 export const collisionDetection: CollisionDetection = (args) => {
   const activeType = args.active.data.current?.type;
 
   if (activeType === 'bookmark') {
-    const bookmarkOnly = args.droppableContainers.filter(
-      (c) => c.data.current?.type === 'bookmark',
+    const bookmarkContainers = args.droppableContainers.filter(
+      (container) => container.data.current?.type === 'bookmark',
     );
-    const nonBookmarkContainers = args.droppableContainers.filter(
-      (c) => c.data.current?.type !== 'bookmark',
+    const folderContainers = args.droppableContainers.filter(
+      (container) =>
+        container.data.current?.isBookmarkFolderDropTarget === true &&
+        (container.data.current.type === 'folder' ||
+          container.data.current.type === 'folder-uncategorized'),
     );
 
-    // ポインタがブックマークカード上にある場合を先に確認する。
-    // モバイルではサイドバーがオーバーレイするため、フォルダより先にブックマークを優先する。
-    if (bookmarkOnly.length > 0) {
-      const pointerHits = pointerWithin({ ...args, droppableContainers: bookmarkOnly });
-      if (pointerHits.length > 0) {
-        const hitId = pointerHits[0].id;
-        const rect = args.droppableRects?.get(hitId);
-        const px = args.pointerCoordinates?.x;
+    const activeCenter = {
+      x: args.collisionRect.left + args.collisionRect.width / 2,
+      y: args.collisionRect.top + args.collisionRect.height / 2,
+    };
 
-        // ポインタがカード右端付近 → 「このアイテムの後ろ」の意図 → 次のアイテムを返す
-        if (rect != null && px != null && px > rect.right - RIGHT_EDGE_THRESHOLD_PX) {
-          const sorted = bookmarkOnly
-            .filter((c) => args.droppableRects?.get(c.id) != null)
-            .sort((a, b) => {
-              const aR = args.droppableRects.get(a.id)!;
-              const bR = args.droppableRects.get(b.id)!;
-              if (Math.abs(aR.top - bR.top) > aR.height / 2) return aR.top - bR.top;
-              return aR.left - bR.left;
-            });
-          const idx = sorted.findIndex((c) => c.id === hitId);
-          const next = sorted[idx + 1];
-          if (next) return [{ id: next.id }];
+    // Folder sorting measures wrappers that can include expanded descendants. Bookmark drops
+    // use separately registered row-only targets so an ancestor cannot cover its child rows.
+    const containingFolders = folderContainers
+      .map((container, index) => {
+        const rect = args.droppableRects.get(container.id);
+        if (
+          !rect ||
+          activeCenter.x < rect.left ||
+          activeCenter.x > rect.right ||
+          activeCenter.y < rect.top ||
+          activeCenter.y > rect.bottom
+        ) {
+          return null;
         }
-        return pointerHits;
-      }
+
+        const dx = activeCenter.x - (rect.left + rect.width / 2);
+        const dy = activeCenter.y - (rect.top + rect.height / 2);
+        return { container, distance: dx * dx + dy * dy, index };
+      })
+      .filter((candidate) => candidate !== null)
+      .sort((a, b) => a.distance - b.distance || a.index - b.index);
+
+    const folder = containingFolders[0]?.container;
+    if (folder) return [{ id: folder.id }];
+
+    // closestCenter compares the translated card center with each card center, so sorting
+    // does not depend on where the pointer happened to grab the active card.
+    if (bookmarkContainers.length > 0) {
+      return closestCenter({ ...args, droppableContainers: bookmarkContainers });
     }
 
-    // ブックマーク上になければフォルダドロップターゲットを確認（フォルダ移動）
-    if (nonBookmarkContainers.length > 0) {
-      const folderCollisions = pointerWithin({
-        ...args,
-        droppableContainers: nonBookmarkContainers,
-      });
-      if (folderCollisions.length > 0) return folderCollisions;
-    }
-
-    // どこにも乗っていない場合は最近傍のブックマークへ
-    if (bookmarkOnly.length > 0) {
-      return closestCenter({ ...args, droppableContainers: bookmarkOnly });
-    }
     return [];
+  }
+
+  if (activeType === 'folder') {
+    // Row-only bookmark targets share folder data with their sortable wrapper. Keep them out of
+    // folder collisions so SortableContext always receives one of its wrapper IDs.
+    const sortableFolderContainers = args.droppableContainers.filter(
+      (container) =>
+        container.data.current?.type === 'folder' &&
+        container.data.current.isBookmarkFolderDropTarget !== true,
+    );
+    return closestCenter({ ...args, droppableContainers: sortableFolderContainers });
   }
 
   return closestCenter(args);

@@ -43,6 +43,10 @@ viewport 基準の `position: fixed` + 高い z-index で最前面にサムネ�
 stacking context に隠れないようにする。周囲の bookmark card は drop 後の順序を preview するように
 移動する。
 
+衝突判定は pointer 位置ではなく、移動後の bookmark card 矩形 (`collisionRect`) の中心と各 card の
+中心との距離を使う。drag handle を card のどこから掴んでも同じ card 位置なら同じ挿入先になり、
+pointer が card の端を通過しただけでは preview を切り替えない。
+
 ## bookmark の folder 移動
 
 bookmark の folder 移動は DnD 対象にする。drop target は folder tree の通常 folder と
@@ -54,6 +58,17 @@ drag 元の card 本体は不可視（`opacity-0`）にし、サムネイルは 
 viewport 基準の `position: fixed` + 高い z-index で最前面に描画する。これによりカーソルが
 folder tree（左 sidebar）上に移動しても、サムネイルが stacking context に隠れず常に
 追従して見える。
+
+folder drop target の判定も `collisionRect` の中心を基準にする。pointer が folder row の外側でも、
+bookmark card の中心が row の矩形内に入ればその folder を highlight し、drop 先にする。複数の row
+矩形が重なる場合は card 中心から row 中心までが最も近い1件だけを選び、等距離なら droppable の
+登録順で固定する。card 中心がどの folder row にも入っていない場合は folder 移動として扱わない。
+この基準は desktop sidebar と mobile の overlay sidebar で共通とする。
+
+folder の同一階層ソート用 droppable は、展開した子孫を含む tree node wrapper に登録する。一方、
+bookmark の folder drop 用 droppable は各 folder row だけに別 ID で登録する。bookmark の衝突判定では
+row-only target のみを候補にし、展開中の親 wrapper と child row の矩形が重なることを避ける。folder
+の衝突判定では逆に sortable wrapper のみを候補にし、同一階層ソートの preview と drop を維持する。
 
 `canReorder = false` の表示でも、bookmark の folder 移動 DnD を許可してよい。ただし、この状態で
 ソート用の grip handle を表示すると並び替え可能に見えるため、ソート用 drag handle は表示しない。
@@ -137,8 +152,8 @@ DnD のテストは、以下の層でこの policy を守る。
 - API route tests: `position` 更新が別ユーザー、別 folder / parentPath、削除済みデータを巻き込まないことを確認する。
 - `packages/web/e2e/dnd.spec.ts`: 実ブラウザで代表操作を確認する。DnD 後は API request だけでなく、
   DOM 上の表示順や移動後の表示状態も確認する。
-- `packages/web/src/lib/dnd-collision.test.ts`: bookmark drag では pointer target と bookmark target を優先し、
-  pointer が folder drop target 上にない場合は folder 移動に fallback しない衝突判定を確認する。
+- `packages/web/src/lib/dnd-collision.test.ts`: bookmark card 中心を含む単一の folder target を優先すること、
+  folder 外では bookmark card 同士の中心距離で判定すること、pointer 座標に依存しないことを確認する。
 
 DnD の操作範囲、feedback、handle 表示、テスト対象を変更する場合は、実装・テストと一緒にこの
 `docs/dnd.md` を更新する。

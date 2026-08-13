@@ -29,7 +29,7 @@ export function FolderTree({
 
   const { setNodeRef: uncategorizedDropRef, isOver: isOverUncategorized } = useDroppable({
     id: 'folder-drop-uncategorized',
-    data: { type: 'folder-uncategorized', folderPath: null },
+    data: { type: 'folder-uncategorized', folderPath: null, isBookmarkFolderDropTarget: true },
   });
   const { active } = useDndContext();
   const isUncategorizedDropTarget =
@@ -204,6 +204,11 @@ function SortableFolderTreeNode({
     id: folder.id,
     data: { type: 'folder', folder },
   });
+  const folderDropTargetId = `folder-drop-${folder.id}`;
+  const { setNodeRef: setFolderDropRef } = useDroppable({
+    id: folderDropTargetId,
+    data: { type: 'folder', folder, isBookmarkFolderDropTarget: true },
+  });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -220,13 +225,14 @@ function SortableFolderTreeNode({
   const hasChildren = children.length > 0;
 
   const { active, over } = useDndContext();
-  const isDropTarget = active?.data.current?.type === 'bookmark' && over?.id === folder.id;
+  const isDropTarget = active?.data.current?.type === 'bookmark' && over?.id === folderDropTargetId;
 
   return (
     <div ref={setNodeRef} style={style} className={isDragging ? 'relative z-10 opacity-50' : ''}>
       <ContextMenu.Root>
         <ContextMenu.Trigger asChild>
           <div
+            ref={setFolderDropRef}
             className={`group flex min-h-[44px] items-center rounded text-sm ${
               isDropTarget
                 ? 'ring-2 ring-blue-400 bg-blue-50'

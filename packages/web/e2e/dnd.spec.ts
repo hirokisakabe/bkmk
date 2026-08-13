@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { BOOKMARKS, FOLDERS, dragTo, dragToEdge, makeBookmark, setupMocks } from './helpers';
+import { BOOKMARKS, FOLDERS, dragItemCenterTo, dragTo, makeBookmark, setupMocks } from './helpers';
 
 test('同一階層のフォルダをDnDソートすると並び替えAPIが呼ばれる', async ({ page }) => {
   await setupMocks(page);
@@ -108,8 +108,9 @@ test('ブックマークを別フォルダへDnD移動すると移動APIが呼�
   await page.goto('/?folder=/folder-a');
   await expect(page.locator('h3', { hasText: 'Alpha' })).toBeVisible();
 
-  await dragTo(
+  await dragItemCenterTo(
     page,
+    page.getByTestId(`bookmark-card-${BOOKMARKS[0].id}`),
     page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[0].id}`),
     page.getByTestId(`folder-drop-target-${FOLDERS[1].id}`),
   );
@@ -130,44 +131,118 @@ test('ブックマークを別フォルダへDnD移動すると移動APIが呼�
   ]);
 });
 
-test('ブックマークをフォルダへドラッグ中はターゲットフォルダのみがハイライトされる', async ({
-  page,
-}) => {
+test('展開した親ではなくchild rowへブックマークをドロップできる', async ({ page }) => {
+  await setupMocks(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+
+  // Child を選んで親を展開したあと「すべて」へ戻し、card 全体を folder 移動用にする。
+  await page.goto(`/?folder=${encodeURIComponent('/folder-a/child')}`);
+  const parentFolder = page.getByTestId(`folder-drop-target-${FOLDERS[0].id}`);
+  const childFolder = page.getByTestId(`folder-drop-target-${FOLDERS[2].id}`);
+  await expect(childFolder).toBeVisible();
+  await page.getByRole('button', { name: 'すべて', exact: true }).click();
+
+  const patchRequest = page.waitForRequest(
+    (req) =>
+      req.method() === 'PATCH' && /\/api\/bookmarks\/[^/]+$/.test(new URL(req.url()).pathname),
+  );
+  const draggedCard = page.getByTestId(`bookmark-card-${BOOKMARKS[0].id}`);
+  const parentBox = await parentFolder.boundingBox();
+  const childBox = await childFolder.boundingBox();
+  await expect(draggedCard).toBeVisible();
+  const cardBox = await draggedCard.boundingBox();
+  if (!parentBox || !childBox || !cardBox) {
+    throw new Error('boundingBox が取得できませんでした');
+  }
+
+  // Bookmark drop geometry is row-only even though the sortable parent wrapper includes children.
+  expect(parentBox.y + parentBox.height).toBeLessThanOrEqual(childBox.y);
+
+  const fx = cardBox.x + cardBox.width / 2;
+  const fy = cardBox.y + cardBox.height / 2;
+  const tx = childBox.x + childBox.width / 2;
+  const ty = childBox.y + childBox.height / 2;
+  await page.mouse.move(fx, fy);
+  await page.mouse.down();
+  await page.mouse.move(fx + 8, fy, { steps: 4 });
+  await page.mouse.move(tx, ty, { steps: 20 });
+
+  await expect(childFolder).toHaveClass(/ring/);
+  await expect(parentFolder).not.toHaveClass(/ring/);
+  await page.mouse.up();
+
+  const req = await patchRequest;
+  const body = (await req.postDataJSON()) as { folderPath: string | null };
+  expect(body.folderPath).toBe('/folder-a/child');
+  await page.goto('/?folder=/folder-a');
+  await expect(page.locator('h3', { hasText: 'Alpha' })).toBeHidden();
+});
+
+test('ポインタが外側でもカード中心が入ったフォルダをハイライトして移動できる', async ({ page }) => {
   await setupMocks(page);
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('/?folder=/folder-a');
   await expect(page.locator('h3', { hasText: 'Alpha' })).toBeVisible();
 
+  const patchRequest = page.waitForRequest(
+    (req) =>
+      req.method() === 'PATCH' && /\/api\/bookmarks\/[^/]+$/.test(new URL(req.url()).pathname),
+  );
   const dragHandle = page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[0].id}`);
+  const draggedCard = page.getByTestId(`bookmark-card-${BOOKMARKS[0].id}`);
   const targetFolder = page.getByTestId(`folder-drop-target-${FOLDERS[1].id}`); // Folder B
   const otherFolder = page.getByTestId(`folder-drop-target-${FOLDERS[0].id}`); // Folder A
 
   await dragHandle.waitFor();
+  await draggedCard.waitFor();
   await targetFolder.waitFor();
   await otherFolder.waitFor();
 
   const handleBox = await dragHandle.boundingBox();
+  const cardBox = await draggedCard.boundingBox();
   const targetBox = await targetFolder.boundingBox();
-  if (!handleBox || !targetBox) throw new Error('boundingBox が取得できませんでした');
+  if (!handleBox || !cardBox || !targetBox) {
+    throw new Error('boundingBox が取得できませんでした');
+  }
 
   const fx = handleBox.x + handleBox.width / 2;
   const fy = handleBox.y + handleBox.height / 2;
-  const tx = targetBox.x + targetBox.width / 2;
-  const ty = targetBox.y + targetBox.height / 2;
+  const cardCenterX = cardBox.x + cardBox.width / 2;
+  const cardCenterY = cardBox.y + cardBox.height / 2;
+
+  // Grab offset を保ったまま、カード中心だけを Folder B の右端から十分内側へ入れる。
+  // 右上 handle から掴んでいるため、pointer 自体は folder row の右外側に残る。
+  const targetRight = targetBox.x + targetBox.width;
+  const insideMargin = Math.min(12, targetBox.width / 4);
+  const desiredCardCenterX = targetRight - insideMargin;
+  const desiredCardCenterY = targetBox.y + targetBox.height / 2;
+  const tx = desiredCardCenterX + (fx - cardCenterX);
+  const ty = desiredCardCenterY + (fy - cardCenterY);
+  const translatedCardCenterX = cardCenterX + (tx - fx);
+  const translatedCardCenterY = cardCenterY + (ty - fy);
+
+  expect(tx).toBeGreaterThan(targetRight);
+  expect(translatedCardCenterX).toBeGreaterThan(targetBox.x);
+  expect(translatedCardCenterX).toBeLessThan(targetRight);
+  expect(translatedCardCenterY).toBeGreaterThan(targetBox.y);
+  expect(translatedCardCenterY).toBeLessThan(targetBox.y + targetBox.height);
 
   // ドラッグ開始 → センサー起動（5px 以上移動）
   await page.mouse.move(fx, fy);
   await page.mouse.down();
   await page.mouse.move(fx + 8, fy, { steps: 4 });
-  // ターゲットフォルダへ移動（中間 pointermove を発火してハイライト状態を確実に発生させる）
+  // カード中心をターゲットフォルダへ移動する。
   await page.mouse.move(tx, ty, { steps: 10 });
 
-  // mid-drag: ターゲット（Folder B）のみが ring ハイライトされていること
   await expect(targetFolder).toHaveClass(/ring/);
-  // 他のフォルダ（Folder A）はハイライトされていないこと
   await expect(otherFolder).not.toHaveClass(/ring/);
 
   await page.mouse.up();
+
+  const req = await patchRequest;
+  const body = (await req.postDataJSON()) as { folderPath: string | null };
+  expect(body.folderPath).toBe('/folder-b');
+  await expect(page.locator('h3', { hasText: 'Alpha' })).toBeHidden();
 });
 
 test('すべて表示ではブックマークの並び替えハンドルを表示せずカード本体でフォルダ移動できる', async ({
@@ -513,124 +588,6 @@ test.describe('フォルダ内3件ソート（deep=true 混在キャッシュ）
       'MixB',
       'MixA',
       'MixC',
-    ]);
-  });
-});
-
-// ---- 端付近ドロップのテスト ----
-// 「アイテムの端付近にドロップしたとき意図した位置に移動するか」を検証する。
-// dragToEdge(ratioX) でドロップ先の左端(0.1)・右端(0.9)付近を指定する。
-//
-// 期待する直感的な動作:
-//   - B の右端付近にドロップ → B の「後ろ」(C の前)に移動
-//   - B の左端付近にドロップ → B の「前」に移動
-//
-// もし closestCenter の切り替え点が中心ではなく端寄りにずれていると
-// 「右端付近なのに B の前に入る」などのずれが発生し、テストが fail する。
-
-test.describe('端付近ドロップの位置精度（フォルダ内3件）', () => {
-  async function setup(page: Parameters<typeof setupMocks>[0]) {
-    const bk1 = makeBookmark('edge-a', 'EdgeA', '/edge-folder', 0);
-    const bk2 = makeBookmark('edge-b', 'EdgeB', '/edge-folder', 1);
-    const bk3 = makeBookmark('edge-c', 'EdgeC', '/edge-folder', 2);
-    await setupMocks(page, [bk1, bk2, bk3]);
-    await page.goto('/?folder=/edge-folder');
-    await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText([
-      'EdgeA',
-      'EdgeB',
-      'EdgeC',
-    ]);
-    return { bk1, bk2, bk3 };
-  }
-
-  // C を A の右端付近にドロップ
-  // A の右端 = A の「後ろ（B の前）」に置こうとする意図
-  // 期待: A, C, B（C が A の後ろに入る）
-  // pointerWithin では A が over → C が A の前 → C, A, B になる可能性がある
-  test('後ろから前へ: C を A の右端付近にドロップすると A の後ろ (A,C,B) になる', async ({
-    page,
-  }) => {
-    const { bk1, bk3 } = await setup(page);
-    await dragToEdge(
-      page,
-      page.getByTestId(`bookmark-drag-handle-${bk3.id}`),
-      page.getByTestId(`bookmark-drag-handle-${bk1.id}`),
-      0.9, // A の右端90%
-    );
-    await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText([
-      'EdgeA',
-      'EdgeC',
-      'EdgeB',
-    ]);
-  });
-
-  // A を B の右端付近にドロップ
-  // B の右端 = B の「後ろ（C の前）」に置こうとする意図
-  // 期待: B, C, A（A が B と C の間に入る） → いや A が最後になるので B, C, A... ではなく
-  // A(idx=0) を B の右端(idx=1) に: over=B → arrayMove([A,B,C],0,1) → B,A,C
-  // ユーザーの意図が「B の後ろ」なら B,C,A が期待だが、
-  // over=B だと B,A,C になる。この差がずれの本質。
-  // → ここでは「B の右端にドロップ = over=B = B,A,C」が現状の動作かを確認する
-  test('前から後ろへ: A を B の右端付近にドロップしたときの動作確認', async ({ page }) => {
-    const { bk1, bk2 } = await setup(page);
-    await dragToEdge(
-      page,
-      page.getByTestId(`bookmark-drag-handle-${bk1.id}`),
-      page.getByTestId(`bookmark-drag-handle-${bk2.id}`),
-      0.9, // B の右端90%
-    );
-    // closestCenter なら B の右端は C の中心の方が近い → over=C → A,B,A... いや
-    // A(idx=0) → C(idx=2) が over: arrayMove([A,B,C],0,2) → B,C,A
-    // A(idx=0) → B(idx=1) が over: arrayMove([A,B,C],0,1) → B,A,C
-    // どちらになるかをここで記録する
-    const texts = await page.locator('[data-testid^="bookmark-card-"] h3').allTextContents();
-    // eslint-disable-next-line no-console
-    console.log('[edge-test] A→B右端90%:', texts.join(', '));
-    // ユーザーの直感的な期待は B の後ろ = B,C,A
-    await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText([
-      'EdgeB',
-      'EdgeC',
-      'EdgeA',
-    ]);
-  });
-
-  // A を B の左端付近にドロップ
-  // B の左端 = B の「前」に置こうとする意図（= A と B を入れ替える）
-  // 期待: B, A, C
-  test('前から後ろへ: A を B の左端付近にドロップすると B の前 (B,A,C) になる', async ({
-    page,
-  }) => {
-    const { bk1, bk2 } = await setup(page);
-    await dragToEdge(
-      page,
-      page.getByTestId(`bookmark-drag-handle-${bk1.id}`),
-      page.getByTestId(`bookmark-drag-handle-${bk2.id}`),
-      0.1, // B の左端10%
-    );
-    await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText([
-      'EdgeB',
-      'EdgeA',
-      'EdgeC',
-    ]);
-  });
-
-  // C を B の左端付近にドロップ
-  // B の左端 = B の「前」に置こうとする意図
-  // 期待: A, C, B
-  test('後ろから前へ: C を B の左端付近にドロップすると B の前 (A,C,B) になる', async ({
-    page,
-  }) => {
-    const { bk2, bk3 } = await setup(page);
-    await dragToEdge(
-      page,
-      page.getByTestId(`bookmark-drag-handle-${bk3.id}`),
-      page.getByTestId(`bookmark-drag-handle-${bk2.id}`),
-      0.1, // B の左端10%
-    );
-    await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText([
-      'EdgeA',
-      'EdgeC',
-      'EdgeB',
     ]);
   });
 });

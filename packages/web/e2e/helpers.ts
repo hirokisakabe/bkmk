@@ -305,22 +305,29 @@ export async function dragTo(page: Page, from: Locator, to: Locator) {
   await page.mouse.up();
 }
 
-// to の端付近（ratioX=0.1 で左端10%、ratioX=0.9 で右端90%）にドラッグする
-// 「アイテムの中心ではなくエッジ付近にドロップ」するユーザー操作を再現する
-export async function dragToEdge(
+// Grab 位置の offset を保ったまま、drag 対象の中心を target の中心へ移動する。
+// カード右上の handle を掴む操作でも、カード中心基準の collision を正確に再現できる。
+export async function dragItemCenterTo(
   page: Page,
-  from: Locator,
-  to: Locator,
-  ratioX: number, // 0.0=左端 / 0.5=中心 / 1.0=右端
+  draggable: Locator,
+  grabHandle: Locator,
+  target: Locator,
 ) {
-  const fromBox = await from.boundingBox();
-  const toBox = await to.boundingBox();
-  if (!fromBox || !toBox) throw new Error('boundingBox が取得できませんでした');
+  const draggableBox = await draggable.boundingBox();
+  const handleBox = await grabHandle.boundingBox();
+  const targetBox = await target.boundingBox();
+  if (!draggableBox || !handleBox || !targetBox) {
+    throw new Error('boundingBox が取得できませんでした');
+  }
 
-  const fx = fromBox.x + fromBox.width / 2;
-  const fy = fromBox.y + fromBox.height / 2;
-  const tx = toBox.x + toBox.width * ratioX;
-  const ty = toBox.y + toBox.height / 2;
+  const fx = handleBox.x + handleBox.width / 2;
+  const fy = handleBox.y + handleBox.height / 2;
+  const draggableCenterX = draggableBox.x + draggableBox.width / 2;
+  const draggableCenterY = draggableBox.y + draggableBox.height / 2;
+  const targetCenterX = targetBox.x + targetBox.width / 2;
+  const targetCenterY = targetBox.y + targetBox.height / 2;
+  const tx = targetCenterX + (fx - draggableCenterX);
+  const ty = targetCenterY + (fy - draggableCenterY);
 
   await page.mouse.move(fx, fy);
   await page.mouse.down();
