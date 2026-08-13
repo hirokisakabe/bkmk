@@ -349,6 +349,24 @@ describe('IndexPage', () => {
     expect(router.history.canGoBack()).toBe(false);
   });
 
+  it.each([
+    ['q', '/?q=keyword&q=keyword', { q: 'keyword' }, '/?q=keyword'],
+    ['folder', '/?folder=%2Fwork&folder=%2Fother', { folder: '/work' }, '/?folder=%2Fwork'],
+    [
+      'view',
+      '/?view=uncategorized&view=uncategorized',
+      { view: 'uncategorized' },
+      '/?view=uncategorized',
+    ],
+  ])('%sの重複parameterを1つにreplaceで正規化する', async (_name, initialUrl, search, href) => {
+    const { router } = renderWithProviders({ initialUrl });
+
+    await waitFor(() => expect(router.state.location.href).toBe(href));
+    expect(router.state.location.search).toEqual(search);
+    expect(router.history.length).toBe(1);
+    expect(router.history.canGoBack()).toBe(false);
+  });
+
   it('「未分類」をクリックするとフォルダ未所属のブックマークのみ表示される', async () => {
     const user = userEvent.setup();
     const { router } = renderWithProviders({ initialUrl: '/' });

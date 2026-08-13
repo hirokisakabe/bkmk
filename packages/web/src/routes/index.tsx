@@ -32,26 +32,25 @@ interface IndexSearch {
   view?: BookmarkView;
 }
 
+function firstSearchValue(value: unknown) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
 function canonicalizeSearch(search: Record<string, unknown>): IndexSearch {
-  if (typeof search.q === 'string' && search.q.trim().length > 0) {
-    return { q: search.q.trim() };
+  const q = firstSearchValue(search.q);
+  const folder = firstSearchValue(search.folder);
+  const view = firstSearchValue(search.view);
+
+  if (typeof q === 'string' && q.trim().length > 0) {
+    return { q: q.trim() };
   }
-  if (typeof search.folder === 'string' && search.folder.startsWith('/')) {
-    return { folder: search.folder };
+  if (typeof folder === 'string' && folder.startsWith('/')) {
+    return { folder };
   }
-  if (search.view === UNCATEGORIZED_VIEW || search.folder === LEGACY_UNCATEGORIZED_FOLDER) {
+  if (view === UNCATEGORIZED_VIEW || folder === LEGACY_UNCATEGORIZED_FOLDER) {
     return { view: UNCATEGORIZED_VIEW };
   }
   return {};
-}
-
-function isCanonicalSearch(rawSearch: Record<string, unknown>, search: IndexSearch) {
-  const rawEntries = Object.entries(rawSearch);
-  const canonicalEntries = Object.entries(search);
-  return (
-    rawEntries.length === canonicalEntries.length &&
-    canonicalEntries.every(([key, value]) => rawSearch[key] === value)
-  );
 }
 
 function buildIndexHref(search: IndexSearch) {
@@ -61,6 +60,10 @@ function buildIndexHref(search: IndexSearch) {
   if (search.view) searchParams.set('view', search.view);
   const searchString = searchParams.toString();
   return searchString ? `/?${searchString}` : '/';
+}
+
+function isCanonicalSearch(rawSearchString: string, search: IndexSearch) {
+  return rawSearchString === buildIndexHref(search).slice(1);
 }
 
 export const indexRoute = createRoute({
@@ -79,7 +82,7 @@ function IndexPage() {
   useEffect(() => {
     if (location.pathname !== '/') return;
     const canonicalSearch = canonicalizeSearch(location.search);
-    if (!isCanonicalSearch(location.search, canonicalSearch)) {
+    if (!isCanonicalSearch(location.searchStr, canonicalSearch)) {
       router.history.replace(buildIndexHref(canonicalSearch));
     }
   }, [location, router]);
