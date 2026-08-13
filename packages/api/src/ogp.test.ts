@@ -1,15 +1,62 @@
+import type { LookupAddress } from 'node:dns';
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { lookupMock } = vi.hoisted(() => ({
-  lookupMock: vi.fn(),
+type PinnedLookup = (
+  hostname: string,
+  options: { all?: boolean },
+  callback: (
+    error: NodeJS.ErrnoException | null,
+    address: string | LookupAddress[],
+    family?: number,
+  ) => void,
+) => void;
+
+const { agentState, lookupMock } = vi.hoisted(() => ({
+  agentState: {
+    closeMock: vi.fn<() => Promise<void>>(),
+    lookups: [] as PinnedLookup[],
+  },
+  lookupMock:
+    vi.fn<(hostname: string, options: { all: true; verbatim: true }) => Promise<LookupAddress[]>>(),
 }));
 
 vi.mock('node:dns/promises', () => ({ lookup: lookupMock }));
+vi.mock('undici', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('undici')>();
+
+  return {
+    ...actual,
+    Agent: class {
+      constructor(options: { connect: { lookup: PinnedLookup } }) {
+        agentState.lookups.push(options.connect.lookup);
+      }
+
+      close = agentState.closeMock;
+    },
+  };
+});
 
 import { fetchOgpMetadata, isTweetUrl, isYouTubeUrl, validateFetchUrl } from './ogp.js';
 
+function chunkedHtmlResponse(chunks: Uint8Array[], contentType = 'text/html'): Response {
+  return new Response(
+    new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (const chunk of chunks) controller.enqueue(chunk);
+        controller.close();
+      },
+    }),
+    { headers: { 'content-type': contentType } },
+  );
+}
+
 beforeEach(() => {
+  lookupMock.mockReset();
   lookupMock.mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
+  agentState.closeMock.mockReset();
+  agentState.closeMock.mockResolvedValue();
+  agentState.lookups.length = 0;
 });
 
 afterEach(() => {
@@ -51,7 +98,12 @@ describe('validateFetchUrl', () => {
     'http://[fc00::1]',
     'http://[fd12:3456::1]',
     'http://[fe80::1]',
+    'http://[fec0::1]',
     'http://[ff02::1]',
+    'http://[100:0:0:1::1]',
+    'http://[3ffe::1]',
+    'http://[4000::1]',
+    'http://[::ffff:0808:0808]',
   ])('non-public address %s を拒否する', (url) => {
     expect(validateFetchUrl(url)).toBe(false);
   });
@@ -156,6 +208,56 @@ describe('fetchOgpMetadata', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('DNSをall:true, verbatim:trueで引き、検証済みIPをAgent lookupへ固定する', async () => {
+    const addresses: LookupAddress[] = [
+      { address: '93.184.216.34', family: 4 },
+      { address: '2606:4700:4700::1111', family: 6 },
+    ];
+    lookupMock.mockResolvedValueOnce(addresses);
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(
+        new Response('<title>Safe</title>', { headers: { 'content-type': 'text/html' } }),
+      );
+
+    await fetchOgpMetadata('https://safe.example/page');
+
+    expect(lookupMock).toHaveBeenCalledWith('safe.example', { all: true, verbatim: true });
+    expect(fetchSpy).toHaveBeenCalledWith(
+      new URL('https://safe.example/page'),
+      expect.objectContaining({ redirect: 'manual', dispatcher: expect.anything() }),
+    );
+    expect(agentState.lookups).toHaveLength(1);
+
+    const allCallback = vi.fn();
+    agentState.lookups[0]('safe.example', { all: true }, allCallback);
+    expect(allCallback).toHaveBeenCalledWith(null, addresses);
+
+    const singleCallback = vi.fn();
+    agentState.lookups[0]('safe.example', {}, singleCallback);
+    expect(singleCallback).toHaveBeenCalledWith(null, '93.184.216.34', 4);
+  });
+
+  it('DNS lookupがdeadlineを超えたら後着結果を待たずに取得を中止する', async () => {
+    const controller = new AbortController();
+    const timeoutSpy = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(controller.signal);
+    lookupMock.mockReturnValueOnce(new Promise(() => undefined));
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+    const resultPromise = fetchOgpMetadata('https://slow-dns.example/page');
+    await vi.waitFor(() => expect(lookupMock).toHaveBeenCalledOnce());
+    controller.abort(new DOMException('deadline exceeded', 'TimeoutError'));
+
+    await expect(resultPromise).resolves.toEqual({
+      title: null,
+      description: null,
+      imageUrl: null,
+      faviconUrl: null,
+    });
+    expect(timeoutSpy).toHaveBeenCalledWith(10_000);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('public URLからprivate URLへのredirectを追跡しない', async () => {
     lookupMock
       .mockResolvedValueOnce([{ address: '93.184.216.34', family: 4 }])
@@ -174,6 +276,71 @@ describe('fetchOgpMetadata', () => {
       faviconUrl: null,
     });
     expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('redirectごとに移動先hostを再検証する', async () => {
+    lookupMock
+      .mockResolvedValueOnce([{ address: '93.184.216.34', family: 4 }])
+      .mockResolvedValueOnce([{ address: '93.184.216.35', family: 4 }]);
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(
+        new Response(null, {
+          status: 302,
+          headers: { location: 'https://redirected.example/next' },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response('<title>Redirected</title>', { headers: { 'content-type': 'text/html' } }),
+      );
+
+    await fetchOgpMetadata('https://original.example/start');
+
+    expect(lookupMock).toHaveBeenNthCalledWith(1, 'original.example', {
+      all: true,
+      verbatim: true,
+    });
+    expect(lookupMock).toHaveBeenNthCalledWith(2, 'redirected.example', {
+      all: true,
+      verbatim: true,
+    });
+  });
+
+  it.each([
+    ['Location欠落', undefined],
+    ['不正なLocation', 'http://[:::]'],
+  ])('%sのredirectを拒否する', async (_label, location) => {
+    const headers = location ? { location } : undefined;
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(null, { status: 302, headers }));
+
+    await expect(fetchOgpMetadata('https://example.com/start')).resolves.toEqual({
+      title: null,
+      description: null,
+      imageUrl: null,
+      faviconUrl: null,
+    });
+    expect(fetchSpy).toHaveBeenCalledOnce();
+  });
+
+  it('redirect上限を超えたら拒否する', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    for (let index = 0; index < 6; index += 1) {
+      fetchSpy.mockResolvedValueOnce(
+        new Response(null, {
+          status: 302,
+          headers: { location: `/redirect-${index + 1}` },
+        }),
+      );
+    }
+
+    await expect(fetchOgpMetadata('https://example.com/start')).resolves.toEqual({
+      title: null,
+      description: null,
+      imageUrl: null,
+      faviconUrl: null,
+    });
+    expect(fetchSpy).toHaveBeenCalledTimes(6);
   });
 
   it('OGPメタデータを正しく抽出する', async () => {
@@ -418,6 +585,33 @@ describe('fetchOgpMetadata', () => {
     });
   });
 
+  it('512KBちょうどでEOFならHTMLを許可する', async () => {
+    const encoder = new TextEncoder();
+    const title = '<title>Exact limit</title>';
+    const padding = 'x'.repeat(512 * 1024 - encoder.encode(title).byteLength);
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      chunkedHtmlResponse([encoder.encode(title + padding)]),
+    );
+
+    await expect(fetchOgpMetadata('https://example.com')).resolves.toMatchObject({
+      title: 'Exact limit',
+    });
+  });
+
+  it('512KBちょうどの後に追加chunkがあれば拒否する', async () => {
+    const encoder = new TextEncoder();
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      chunkedHtmlResponse([encoder.encode('x'.repeat(512 * 1024)), encoder.encode('!')]),
+    );
+
+    await expect(fetchOgpMetadata('https://example.com')).resolves.toEqual({
+      title: null,
+      description: null,
+      imageUrl: null,
+      faviconUrl: null,
+    });
+  });
+
   it('fetchが失敗した場合は空のメタデータを返す', async () => {
     vi.spyOn(globalThis, 'fetch').mockRejectedValueOnce(new Error('Network error'));
 
@@ -443,6 +637,18 @@ describe('fetchOgpMetadata', () => {
       description: null,
       imageUrl: null,
       faviconUrl: null,
+    });
+  });
+
+  it('Content-Typeをcase-insensitiveに判定する', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response('<title>Mixed case MIME</title>', {
+        headers: { 'content-type': 'Text/HTML; Charset=UTF-8' },
+      }),
+    );
+
+    await expect(fetchOgpMetadata('https://example.com')).resolves.toMatchObject({
+      title: 'Mixed case MIME',
     });
   });
 

@@ -16,9 +16,13 @@ type OgpMetadata = {
 
 const MAX_HTML_BYTES = 512 * 1024; // 512KB
 const MAX_REDIRECTS = 5;
+const FETCH_TIMEOUT_MS = 10_000;
 
 const blockedIpv4Addresses = new BlockList();
 const blockedIpv6Addresses = new BlockList();
+const globalUnicastIpv6Addresses = new BlockList();
+
+globalUnicastIpv6Addresses.addSubnet('2000::', 3, 'ipv6');
 
 for (const [network, prefix] of [
   ['0.0.0.0', 8],
@@ -53,6 +57,7 @@ for (const [network, prefix] of [
   ['2001:20::', 28],
   ['2001:db8::', 32],
   ['2002::', 16],
+  ['3ffe::', 16],
   ['3fff::', 20],
   ['5f00::', 16],
   ['fc00::', 7],
@@ -70,7 +75,9 @@ function isPublicIpAddress(address: string): boolean {
   const family = isIP(address);
   return (
     (family === 4 && !blockedIpv4Addresses.check(address, 'ipv4')) ||
-    (family === 6 && !blockedIpv6Addresses.check(address, 'ipv6'))
+    (family === 6 &&
+      globalUnicastIpv6Addresses.check(address, 'ipv6') &&
+      !blockedIpv6Addresses.check(address, 'ipv6'))
   );
 }
 
@@ -153,13 +160,34 @@ export function validateFetchUrl(targetUrl: string): boolean {
 
 type ResolvedAddress = { address: string; family: 4 | 6 };
 
-async function resolvePublicAddresses(url: URL): Promise<ResolvedAddress[]> {
+async function waitWithSignal<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+  signal.throwIfAborted();
+
+  return await new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(signal.reason);
+    signal.addEventListener('abort', onAbort, { once: true });
+
+    promise.then(
+      (value) => {
+        signal.removeEventListener('abort', onAbort);
+        resolve(value);
+      },
+      (error: unknown) => {
+        signal.removeEventListener('abort', onAbort);
+        reject(error);
+      },
+    );
+  });
+}
+
+async function resolvePublicAddresses(url: URL, signal: AbortSignal): Promise<ResolvedAddress[]> {
   const hostname = normalizeHostname(url.hostname);
   const family = isIP(hostname);
   const addresses: ResolvedAddress[] = family
     ? [{ address: hostname, family: family as 4 | 6 }]
-    : (await lookup(hostname, { all: true, verbatim: true })).flatMap((resolved) =>
-        resolved.family === 4 || resolved.family === 6 ? [resolved as ResolvedAddress] : [],
+    : (await waitWithSignal(lookup(hostname, { all: true, verbatim: true }), signal)).flatMap(
+        (resolved) =>
+          resolved.family === 4 || resolved.family === 6 ? [resolved as ResolvedAddress] : [],
       );
 
   if (addresses.length === 0 || addresses.some(({ address }) => !isPublicIpAddress(address))) {
@@ -206,11 +234,13 @@ async function fetchValidatedHtml(
   let currentUrl = new URL(targetUrl);
 
   for (let redirectCount = 0; redirectCount <= MAX_REDIRECTS; redirectCount += 1) {
+    signal.throwIfAborted();
+
     if (!validateFetchUrl(currentUrl.toString())) {
       throw new Error('Invalid fetch URL');
     }
 
-    const addresses = await resolvePublicAddresses(currentUrl);
+    const addresses = await resolvePublicAddresses(currentUrl, signal);
     const dispatcher = createPinnedDispatcher(addresses);
     let response: Response;
 
@@ -250,7 +280,7 @@ async function fetchValidatedHtml(
   throw new Error('Too many redirects');
 }
 
-async function readLimitedBody(response: Response): Promise<string> {
+async function readLimitedBody(response: Response, signal: AbortSignal): Promise<string> {
   const reader = response.body?.getReader();
   if (!reader) return '';
 
@@ -265,7 +295,8 @@ async function readLimitedBody(response: Response): Promise<string> {
   let totalBytes = 0;
 
   while (true) {
-    const { done, value } = await reader.read();
+    signal.throwIfAborted();
+    const { done, value } = await waitWithSignal(reader.read(), signal);
     if (done) break;
 
     if (totalBytes + value.byteLength > MAX_HTML_BYTES) {
@@ -275,11 +306,6 @@ async function readLimitedBody(response: Response): Promise<string> {
 
     totalBytes += value.byteLength;
     result += decoder.decode(value, { stream: true });
-
-    if (totalBytes === MAX_HTML_BYTES) {
-      await reader.cancel();
-      break;
-    }
   }
 
   return result + decoder.decode();
@@ -395,10 +421,8 @@ export async function fetchOgpMetadata(targetUrl: string): Promise<OgpMetadata> 
   }
 
   try {
-    const { response, finalUrl, dispatcher } = await fetchValidatedHtml(
-      targetUrl,
-      AbortSignal.timeout(10_000),
-    );
+    const signal = AbortSignal.timeout(FETCH_TIMEOUT_MS);
+    const { response, finalUrl, dispatcher } = await fetchValidatedHtml(targetUrl, signal);
 
     try {
       if (!response.ok) {
@@ -406,13 +430,13 @@ export async function fetchOgpMetadata(targetUrl: string): Promise<OgpMetadata> 
         return empty;
       }
 
-      const contentType = response.headers.get('content-type') ?? '';
+      const contentType = (response.headers.get('content-type') ?? '').toLowerCase();
       if (!contentType.includes('text/html') && !contentType.includes('application/xhtml+xml')) {
         await response.body?.cancel();
         return empty;
       }
 
-      const html = await readLimitedBody(response);
+      const html = await readLimitedBody(response, signal);
       const documentBase = await scrapeDocumentBase({ html, url: finalUrl });
       const pageUrl = documentBase.documentBaseUrl ?? finalUrl;
       const metadata = await scrapeMetadata({ html, url: pageUrl });

@@ -4,7 +4,7 @@
   "type": "module",
   "packageManager": "pnpm@10.18.3",
   "engines": {
-    "node": ">=24"
+    "node": ">=24.15.0"
   },
   "scripts": {
     "dev": "concurrently -n api,web -c blue,green \"pnpm --filter @bkmk/api dev\" \"pnpm --filter @bkmk/web dev\"",
@@ -26,7 +26,8 @@
   },
   "pnpm": {
     "onlyBuiltDependencies": [
-      "esbuild"
+      "esbuild",
+      "re2"
     ]
   },
   "devDependencies": {
