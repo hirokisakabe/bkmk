@@ -1,6 +1,16 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const { lookupMock } = vi.hoisted(() => ({
+  lookupMock: vi.fn(),
+}));
+
+vi.mock('node:dns/promises', () => ({ lookup: lookupMock }));
 
 import { fetchOgpMetadata, isTweetUrl, isYouTubeUrl, validateFetchUrl } from './ogp.js';
+
+beforeEach(() => {
+  lookupMock.mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
+});
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -19,31 +29,35 @@ describe('validateFetchUrl', () => {
     expect(validateFetchUrl('http://localhost:3000')).toBe(false);
   });
 
-  it('127.0.0.1を拒否する', () => {
-    expect(validateFetchUrl('http://127.0.0.1')).toBe(false);
+  it.each([
+    'http://127.0.0.1',
+    'http://127.1.2.3',
+    'http://127.255.255.254',
+    'http://[::1]',
+    'http://[::ffff:7f00:1]',
+  ])('loopback variant %s を拒否する', (url) => {
+    expect(validateFetchUrl(url)).toBe(false);
   });
 
-  // Note: IPv6 loopback [::1] は現在の実装ではブラケット付きのため
-  // hostname が "[::1]" となりチェックを通過してしまう（既知の制限）
-
-  it('プライベートIP(10.x)を拒否する', () => {
-    expect(validateFetchUrl('http://10.0.0.1')).toBe(false);
+  it.each([
+    'http://0.0.0.0',
+    'http://10.0.0.1',
+    'http://100.64.0.1',
+    'http://169.254.0.1',
+    'http://172.16.0.1',
+    'http://192.168.1.1',
+    'http://224.0.0.1',
+    'http://[::]',
+    'http://[fc00::1]',
+    'http://[fd12:3456::1]',
+    'http://[fe80::1]',
+    'http://[ff02::1]',
+  ])('non-public address %s を拒否する', (url) => {
+    expect(validateFetchUrl(url)).toBe(false);
   });
 
-  it('プライベートIP(172.16.x)を拒否する', () => {
-    expect(validateFetchUrl('http://172.16.0.1')).toBe(false);
-  });
-
-  it('プライベートIP(192.168.x)を拒否する', () => {
-    expect(validateFetchUrl('http://192.168.1.1')).toBe(false);
-  });
-
-  it('リンクローカルアドレスを拒否する', () => {
-    expect(validateFetchUrl('http://169.254.0.1')).toBe(false);
-  });
-
-  it('0.0.0.0を拒否する', () => {
-    expect(validateFetchUrl('http://0.0.0.0')).toBe(false);
+  it.each(['http://8.8.8.8', 'https://[2606:4700:4700::1111]'])('%s を許可する', (url) => {
+    expect(validateFetchUrl(url)).toBe(true);
   });
 
   it('ftp:// スキームを拒否する', () => {
@@ -126,6 +140,42 @@ describe('fetchOgpMetadata', () => {
     });
   });
 
+  it('DNS結果にprivate IPが1件でも含まれるホストは取得しない', async () => {
+    lookupMock.mockResolvedValueOnce([
+      { address: '93.184.216.34', family: 4 },
+      { address: '192.168.1.20', family: 4 },
+    ]);
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+    await expect(fetchOgpMetadata('https://attacker.example/page')).resolves.toEqual({
+      title: null,
+      description: null,
+      imageUrl: null,
+      faviconUrl: null,
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('public URLからprivate URLへのredirectを追跡しない', async () => {
+    lookupMock
+      .mockResolvedValueOnce([{ address: '93.184.216.34', family: 4 }])
+      .mockResolvedValueOnce([{ address: '10.0.0.5', family: 4 }]);
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(null, {
+        status: 302,
+        headers: { location: 'http://internal.example/admin' },
+      }),
+    );
+
+    await expect(fetchOgpMetadata('https://public.example/page')).resolves.toEqual({
+      title: null,
+      description: null,
+      imageUrl: null,
+      faviconUrl: null,
+    });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
   it('OGPメタデータを正しく抽出する', async () => {
     const html = `
       <html>
@@ -187,13 +237,19 @@ describe('fetchOgpMetadata', () => {
         </head>
       </html>
     `;
-    const mockResponse = new Response(html, {
-      headers: { 'content-type': 'text/html' },
-    });
-    Object.defineProperty(mockResponse, 'url', {
-      value: 'https://example.com/articles/redirected/page',
-    });
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(mockResponse);
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(
+        new Response(null, {
+          status: 302,
+          headers: { location: '/articles/redirected/page' },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(html, {
+          headers: { 'content-type': 'text/html' },
+        }),
+      );
 
     await expect(fetchOgpMetadata('https://example.com/articles/original')).resolves.toEqual({
       title: 'OG & Title',
@@ -201,7 +257,7 @@ describe('fetchOgpMetadata', () => {
       imageUrl: 'https://example.com/images/cover.jpg?size=large&format=webp',
       faviconUrl: 'https://example.com/articles/icons/site.ico?theme=light&v=2',
     });
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 
   it('OGPをTwitter CardとHTMLより優先する', async () => {
@@ -243,6 +299,32 @@ describe('fetchOgpMetadata', () => {
 
     const result = await fetchOgpMetadata('https://example.com');
     expect(result.imageUrl).toBe('https://example.com/secure.jpg');
+  });
+
+  it('secure URLがない場合はog:image:urlを優先する', async () => {
+    const html = `
+      <meta property="og:image" content="https://example.com/plain.jpg">
+      <meta property="og:image:url" content="https://example.com/url.jpg">
+    `;
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(html, { headers: { 'content-type': 'text/html' } }),
+    );
+
+    const result = await fetchOgpMetadata('https://example.com');
+    expect(result.imageUrl).toBe('https://example.com/url.jpg');
+  });
+
+  it('secure URLとurlがない場合は最初のog:imageを使う', async () => {
+    const html = `
+      <meta property="og:image" content="https://example.com/plain-first.jpg">
+      <meta property="og:image" content="https://example.com/plain-second.jpg">
+    `;
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(html, { headers: { 'content-type': 'text/html' } }),
+    );
+
+    const result = await fetchOgpMetadata('https://example.com');
+    expect(result.imageUrl).toBe('https://example.com/plain-first.jpg');
   });
 
   it('OGPがない場合はTwitter Cardへフォールバックする', async () => {
@@ -288,17 +370,52 @@ describe('fetchOgpMetadata', () => {
     expect(result.imageUrl).toBe('https://example.com/posts/images/article.jpg');
   });
 
+  it('base hrefを画像とfaviconの相対URL解決に使う', async () => {
+    const html = `
+      <base href="https://cdn.example.com/assets/">
+      <meta property="og:image" content="images/cover.jpg">
+      <link rel="icon" href="icons/site.ico">
+    `;
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(html, { headers: { 'content-type': 'text/html' } }),
+    );
+
+    await expect(fetchOgpMetadata('https://example.com/posts/1')).resolves.toMatchObject({
+      imageUrl: 'https://cdn.example.com/assets/images/cover.jpg',
+      faviconUrl: 'https://cdn.example.com/assets/icons/site.ico',
+    });
+  });
+
   it('icon linkがない場合は最終URLのorigin直下へフォールバックする', async () => {
-    const mockResponse = new Response('<title>Redirected</title>', {
-      headers: { 'content-type': 'text/html' },
-    });
-    Object.defineProperty(mockResponse, 'url', {
-      value: 'https://redirected.example.com/path/page',
-    });
-    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(mockResponse);
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(
+        new Response(null, {
+          status: 302,
+          headers: { location: 'https://redirected.example.com/path/page' },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response('<title>Redirected</title>', {
+          headers: { 'content-type': 'text/html' },
+        }),
+      );
 
     const result = await fetchOgpMetadata('https://example.com/original');
     expect(result.faviconUrl).toBe('https://redirected.example.com/favicon.ico');
+  });
+
+  it('上限を超える単一chunkをHTMLへ追加しない', async () => {
+    const oversizedHtml = `<title>Must not be parsed</title>${'x'.repeat(512 * 1024)}`;
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(oversizedHtml, { headers: { 'content-type': 'text/html' } }),
+    );
+
+    await expect(fetchOgpMetadata('https://example.com')).resolves.toEqual({
+      title: null,
+      description: null,
+      imageUrl: null,
+      faviconUrl: null,
+    });
   });
 
   it('fetchが失敗した場合は空のメタデータを返す', async () => {

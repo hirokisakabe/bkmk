@@ -1,7 +1,11 @@
+import { lookup } from 'node:dns/promises';
+import { BlockList, isIP } from 'node:net';
+
 import createMetascraper from 'metascraper';
 import descriptionRules from 'metascraper-description';
 import imageRules from 'metascraper-image';
 import titleRules from 'metascraper-title';
+import { Agent, type Dispatcher } from 'undici';
 
 type OgpMetadata = {
   title: string | null;
@@ -11,6 +15,64 @@ type OgpMetadata = {
 };
 
 const MAX_HTML_BYTES = 512 * 1024; // 512KB
+const MAX_REDIRECTS = 5;
+
+const blockedIpv4Addresses = new BlockList();
+const blockedIpv6Addresses = new BlockList();
+
+for (const [network, prefix] of [
+  ['0.0.0.0', 8],
+  ['10.0.0.0', 8],
+  ['100.64.0.0', 10],
+  ['127.0.0.0', 8],
+  ['169.254.0.0', 16],
+  ['172.16.0.0', 12],
+  ['192.0.0.0', 24],
+  ['192.0.2.0', 24],
+  ['192.88.99.0', 24],
+  ['192.168.0.0', 16],
+  ['198.18.0.0', 15],
+  ['198.51.100.0', 24],
+  ['203.0.113.0', 24],
+  ['224.0.0.0', 4],
+  ['240.0.0.0', 4],
+] as const) {
+  blockedIpv4Addresses.addSubnet(network, prefix, 'ipv4');
+}
+
+for (const [network, prefix] of [
+  ['::', 128],
+  ['::1', 128],
+  ['::ffff:0:0', 96],
+  ['64:ff9b::', 96],
+  ['64:ff9b:1::', 48],
+  ['100::', 64],
+  ['2001::', 32],
+  ['2001:2::', 48],
+  ['2001:10::', 28],
+  ['2001:20::', 28],
+  ['2001:db8::', 32],
+  ['2002::', 16],
+  ['3fff::', 20],
+  ['5f00::', 16],
+  ['fc00::', 7],
+  ['fe80::', 10],
+  ['ff00::', 8],
+] as const) {
+  blockedIpv6Addresses.addSubnet(network, prefix, 'ipv6');
+}
+
+function normalizeHostname(hostname: string): string {
+  return hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname;
+}
+
+function isPublicIpAddress(address: string): boolean {
+  const family = isIP(address);
+  return (
+    (family === 4 && !blockedIpv4Addresses.check(address, 'ipv4')) ||
+    (family === 6 && !blockedIpv6Addresses.check(address, 'ipv6'))
+  );
+}
 
 function resolveHttpUrl(value: string, baseUrl: string): string | null {
   try {
@@ -46,6 +108,17 @@ const faviconRules: createMetascraper.Rules = {
   ],
 };
 
+const documentBaseRules: createMetascraper.Rules = {
+  documentBaseUrl: [
+    ({ htmlDom, url }) => {
+      const href = htmlDom('base[href]').first().attr('href');
+      return href ? resolveHttpUrl(href, url) : undefined;
+    },
+  ],
+};
+
+const scrapeDocumentBase = createMetascraper([documentBaseRules]);
+
 const scrapeMetadata = createMetascraper([
   titleRules(),
   descriptionRules(),
@@ -57,40 +130,135 @@ const scrapeMetadata = createMetascraper([
  * URL のスキームが http/https であり、プライベートアドレスでないことを検証する。
  */
 export function validateFetchUrl(targetUrl: string): boolean {
-  const url = new URL(targetUrl);
+  let url: URL;
+  try {
+    url = new URL(targetUrl);
+  } catch {
+    return false;
+  }
 
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
     return false;
   }
 
-  const hostname = url.hostname.toLowerCase();
+  const hostname = normalizeHostname(url.hostname.toLowerCase());
 
   // localhost / loopback
-  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
+  if (hostname === 'localhost' || hostname.endsWith('.localhost')) {
     return false;
   }
 
-  // プライベート IP レンジ / リンクローカル / メタデータエンドポイント
-  const privatePatterns = [
-    /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/,
-    /^172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$/,
-    /^192\.168\.\d{1,3}\.\d{1,3}$/,
-    /^169\.254\.\d{1,3}\.\d{1,3}$/,
-    /^0\.0\.0\.0$/,
-  ];
+  return isIP(hostname) === 0 || isPublicIpAddress(hostname);
+}
 
-  for (const pattern of privatePatterns) {
-    if (pattern.test(hostname)) {
-      return false;
-    }
+type ResolvedAddress = { address: string; family: 4 | 6 };
+
+async function resolvePublicAddresses(url: URL): Promise<ResolvedAddress[]> {
+  const hostname = normalizeHostname(url.hostname);
+  const family = isIP(hostname);
+  const addresses: ResolvedAddress[] = family
+    ? [{ address: hostname, family: family as 4 | 6 }]
+    : (await lookup(hostname, { all: true, verbatim: true })).flatMap((resolved) =>
+        resolved.family === 4 || resolved.family === 6 ? [resolved as ResolvedAddress] : [],
+      );
+
+  if (addresses.length === 0 || addresses.some(({ address }) => !isPublicIpAddress(address))) {
+    throw new Error('URL hostname resolves to a non-public address');
   }
 
-  return true;
+  return addresses;
+}
+
+/**
+ * DNS 検証と接続の間で名前を再解決させないため、Undici の lookup を検証済み結果へ固定する。
+ * ただし、public IP 上のサーバー自身が private network を代理取得する挙動までは検出できない。
+ */
+function createPinnedDispatcher(addresses: ResolvedAddress[]): Agent {
+  return new Agent({
+    connect: {
+      lookup: (_hostname, options, callback) => {
+        if (options.all) {
+          callback(null, addresses);
+          return;
+        }
+
+        const address = addresses[0];
+        callback(null, address.address, address.family);
+      },
+    },
+  });
+}
+
+type FetchInitWithDispatcher = RequestInit & { dispatcher: Dispatcher };
+
+function isRedirectStatus(status: number): boolean {
+  return status === 301 || status === 302 || status === 303 || status === 307 || status === 308;
+}
+
+async function fetchValidatedHtml(
+  targetUrl: string,
+  signal: AbortSignal,
+): Promise<{
+  response: Response;
+  finalUrl: string;
+  dispatcher: Agent;
+}> {
+  let currentUrl = new URL(targetUrl);
+
+  for (let redirectCount = 0; redirectCount <= MAX_REDIRECTS; redirectCount += 1) {
+    if (!validateFetchUrl(currentUrl.toString())) {
+      throw new Error('Invalid fetch URL');
+    }
+
+    const addresses = await resolvePublicAddresses(currentUrl);
+    const dispatcher = createPinnedDispatcher(addresses);
+    let response: Response;
+
+    try {
+      // The custom lookup prevents a second DNS answer from changing the connected address.
+      response = await fetch(currentUrl, {
+        headers: {
+          'User-Agent': 'bkmk/1.0 (+https://github.com/hirokisakabe/bkmk)',
+          Accept: 'text/html',
+        },
+        redirect: 'manual',
+        signal,
+        dispatcher,
+      } as FetchInitWithDispatcher);
+    } catch (error) {
+      await dispatcher.close();
+      throw error;
+    }
+
+    if (!isRedirectStatus(response.status)) {
+      return { response, finalUrl: currentUrl.toString(), dispatcher };
+    }
+
+    try {
+      await response.body?.cancel();
+    } finally {
+      await dispatcher.close();
+    }
+    const location = response.headers.get('location');
+    if (!location || redirectCount === MAX_REDIRECTS) {
+      throw new Error('Invalid or excessive redirect');
+    }
+
+    currentUrl = new URL(location, currentUrl);
+  }
+
+  throw new Error('Too many redirects');
 }
 
 async function readLimitedBody(response: Response): Promise<string> {
   const reader = response.body?.getReader();
   if (!reader) return '';
+
+  const contentLength = Number(response.headers.get('content-length'));
+  if (Number.isFinite(contentLength) && contentLength > MAX_HTML_BYTES) {
+    await reader.cancel();
+    throw new Error('HTML response exceeds size limit');
+  }
 
   const decoder = new TextDecoder();
   let result = '';
@@ -100,16 +268,21 @@ async function readLimitedBody(response: Response): Promise<string> {
     const { done, value } = await reader.read();
     if (done) break;
 
+    if (totalBytes + value.byteLength > MAX_HTML_BYTES) {
+      await reader.cancel();
+      throw new Error('HTML response exceeds size limit');
+    }
+
     totalBytes += value.byteLength;
     result += decoder.decode(value, { stream: true });
 
-    if (totalBytes >= MAX_HTML_BYTES) {
+    if (totalBytes === MAX_HTML_BYTES) {
       await reader.cancel();
       break;
     }
   }
 
-  return result;
+  return result + decoder.decode();
 }
 
 export function isYouTubeUrl(targetUrl: string): boolean {
@@ -222,34 +395,37 @@ export async function fetchOgpMetadata(targetUrl: string): Promise<OgpMetadata> 
   }
 
   try {
-    const response = await fetch(targetUrl, {
-      headers: {
-        'User-Agent': 'bkmk/1.0 (+https://github.com/hirokisakabe/bkmk)',
-        Accept: 'text/html',
-      },
-      redirect: 'follow',
-      signal: AbortSignal.timeout(10_000),
-    });
+    const { response, finalUrl, dispatcher } = await fetchValidatedHtml(
+      targetUrl,
+      AbortSignal.timeout(10_000),
+    );
 
-    if (!response.ok) {
-      return empty;
+    try {
+      if (!response.ok) {
+        await response.body?.cancel();
+        return empty;
+      }
+
+      const contentType = response.headers.get('content-type') ?? '';
+      if (!contentType.includes('text/html') && !contentType.includes('application/xhtml+xml')) {
+        await response.body?.cancel();
+        return empty;
+      }
+
+      const html = await readLimitedBody(response);
+      const documentBase = await scrapeDocumentBase({ html, url: finalUrl });
+      const pageUrl = documentBase.documentBaseUrl ?? finalUrl;
+      const metadata = await scrapeMetadata({ html, url: pageUrl });
+
+      return {
+        title: metadata.title ?? null,
+        description: metadata.description ?? null,
+        imageUrl: metadata.image ? resolveHttpUrl(metadata.image, pageUrl) : null,
+        faviconUrl: metadata.favicon ?? resolveHttpUrl('/favicon.ico', new URL(pageUrl).origin),
+      };
+    } finally {
+      await dispatcher.close();
     }
-
-    const contentType = response.headers.get('content-type') ?? '';
-    if (!contentType.includes('text/html') && !contentType.includes('application/xhtml+xml')) {
-      return empty;
-    }
-
-    const html = await readLimitedBody(response);
-    const pageUrl = response.url || targetUrl;
-    const metadata = await scrapeMetadata({ html, url: pageUrl });
-
-    return {
-      title: metadata.title ?? null,
-      description: metadata.description ?? null,
-      imageUrl: metadata.image ? resolveHttpUrl(metadata.image, pageUrl) : null,
-      faviconUrl: metadata.favicon ?? resolveHttpUrl('/favicon.ico', new URL(pageUrl).origin),
-    };
   } catch {
     return empty;
   }
