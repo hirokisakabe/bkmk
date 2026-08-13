@@ -6,7 +6,7 @@ import { type MouseEvent, useState } from 'react';
 
 import { useDeleteFolder } from '../hooks/use-delete-folder';
 import { getChildFolders, useAllFolders } from '../hooks/use-folders';
-import { UNCATEGORIZED_FOLDER } from '../lib/constants';
+import { UNCATEGORIZED_VIEW, type BookmarkView } from '../lib/constants';
 import type { Folder } from '../types';
 import { CreateFolderDialog, MoveFolderDialog, RenameFolderDialog } from './folder-dialogs';
 
@@ -18,10 +18,14 @@ type DialogState =
 
 export function FolderTree({
   selectedFolder,
+  selectedView,
   onSelectFolder,
+  onSelectUncategorized,
 }: {
   selectedFolder: string | null;
+  selectedView?: BookmarkView;
   onSelectFolder: (path: string | null) => void;
+  onSelectUncategorized: () => void;
 }) {
   const { data: allFolders, isLoading } = useAllFolders();
   const [dialogState, setDialogState] = useState<DialogState>(null);
@@ -55,7 +59,7 @@ export function FolderTree({
       <button
         type="button"
         className={`flex min-h-[44px] w-full items-center rounded px-2 py-1.5 text-left text-sm ${
-          selectedFolder === null
+          selectedFolder === null && selectedView === undefined
             ? 'bg-blue-100 font-semibold text-blue-800'
             : 'text-gray-700 hover:bg-gray-200'
         }`}
@@ -72,11 +76,11 @@ export function FolderTree({
         className={`flex min-h-[44px] w-full items-center rounded px-2 py-1.5 text-left text-sm ${
           isUncategorizedDropTarget
             ? 'ring-2 ring-blue-400 bg-blue-50'
-            : selectedFolder === UNCATEGORIZED_FOLDER
+            : selectedView === UNCATEGORIZED_VIEW
               ? 'bg-blue-100 font-semibold text-blue-800'
               : 'text-gray-700 hover:bg-gray-200'
         }`}
-        onClick={() => onSelectFolder(UNCATEGORIZED_FOLDER)}
+        onClick={onSelectUncategorized}
       >
         <span className="w-5 shrink-0" />
         未分類
