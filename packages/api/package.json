@@ -23,8 +23,13 @@
     "drizzle-orm": "^0.45.2",
     "hono": "^4.12.34",
     "hono-pino": "^0.10.3",
+    "metascraper": "^5.55.2",
+    "metascraper-description": "^5.55.2",
+    "metascraper-image": "^5.55.2",
+    "metascraper-title": "^5.55.2",
     "pg": "^8.13.1",
     "pino": "^10.3.1",
+    "undici": "^7.29.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
