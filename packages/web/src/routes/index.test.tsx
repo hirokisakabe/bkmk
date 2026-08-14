@@ -562,7 +562,19 @@ describe('IndexPage', () => {
     await waitFor(() => expect(router.state.location.search).toEqual({}));
   });
 
-  it('削除ボタンをクリックすると確認ダイアログなしで即座にゴミ箱へ移動する', async () => {
+  it('すべて表示の削除はAPI応答前にカードを消し、確認ダイアログを表示しない', async () => {
+    let resolveDelete!: () => void;
+    const deleteStarted = new Promise<void>((resolve) => {
+      server.use(
+        http.delete('/api/bookmarks/:id', async () => {
+          resolve();
+          await new Promise<void>((resolveRequest) => {
+            resolveDelete = resolveRequest;
+          });
+          return new HttpResponse(null, { status: 204 });
+        }),
+      );
+    });
     const user = userEvent.setup();
     renderWithProviders({ initialUrl: '/' });
 
@@ -572,9 +584,12 @@ describe('IndexPage', () => {
 
     const deleteButtons = screen.getAllByRole('button', { name: '削除' });
     await user.click(deleteButtons[0]);
+    await deleteStarted;
 
-    // 確認ダイアログが表示されないことを検証
+    expect(screen.queryByText(mockBookmarks[0].title!)).not.toBeInTheDocument();
     expect(screen.queryByText('ブックマークを削除')).not.toBeInTheDocument();
+
+    resolveDelete();
   });
 });
 
