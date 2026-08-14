@@ -1,4 +1,4 @@
-import { createRoute, useRouter } from '@tanstack/react-router';
+import { createRoute, redirect, useRouter } from '@tanstack/react-router';
 import { type FormEvent, useState } from 'react';
 
 import {
@@ -12,7 +12,9 @@ import { requireGuest } from '../lib/auth-guard';
 import { rootRoute } from './__root';
 
 interface LoginSearch {
+  error?: string;
   mode?: 'signup';
+  verified?: true;
 }
 
 interface VerificationNotice {
@@ -23,16 +25,23 @@ interface VerificationNotice {
 export const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/login',
-  beforeLoad: requireGuest,
+  beforeLoad: async ({ search }) => {
+    await requireGuest();
+    if (search.verified && search.error) {
+      throw redirect({ to: '/verify-email', search: { error: search.error } });
+    }
+  },
   validateSearch: (search: Record<string, unknown>): LoginSearch => ({
+    error: typeof search.error === 'string' ? search.error : undefined,
     mode: search.mode === 'signup' ? ('signup' as const) : undefined,
+    verified: search.verified === true || search.verified === 'true' ? true : undefined,
   }),
   component: LoginPage,
 });
 
 function LoginPage() {
   const router = useRouter();
-  const { mode: searchMode } = loginRoute.useSearch();
+  const { mode: searchMode, verified } = loginRoute.useSearch();
   const mode = searchMode === 'signup' ? 'signup' : 'login';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -47,11 +56,12 @@ function LoginPage() {
     setLoading(true);
 
     try {
+      const verificationCallbackURL = `${window.location.origin}/login?verified=true`;
       if (mode === 'login') {
         const result = await authClient.signIn.email({
           email,
           password,
-          callbackURL: `${window.location.origin}/verify-email`,
+          callbackURL: verificationCallbackURL,
         });
         if (result.error) {
           if (result.error.code === 'EMAIL_NOT_VERIFIED') {
@@ -70,7 +80,7 @@ function LoginPage() {
           email,
           password,
           name: email,
-          callbackURL: `${window.location.origin}/verify-email`,
+          callbackURL: verificationCallbackURL,
         });
         if (result.error) {
           setError('アカウント作成に失敗しました。入力内容を確認してください');
@@ -92,6 +102,14 @@ function LoginPage() {
 
   return (
     <AuthShell eyebrow={mode === 'login' ? 'Welcome back' : 'Create account'} title="bkmk">
+      {mode === 'login' && verified && (
+        <div
+          role="status"
+          className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-950"
+        >
+          メールアドレスを確認しました。ログインしてください。
+        </div>
+      )}
       {notice ? (
         <div role="status" className="space-y-5">
           <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-blue-950">
