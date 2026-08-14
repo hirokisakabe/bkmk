@@ -9,6 +9,19 @@ export interface TransactionalEmail {
 
 export type EmailSender = (email: TransactionalEmail) => Promise<void>;
 
+export type EmailDeliveryFailureType =
+  | 'configuration_error'
+  | 'provider_rejected'
+  | 'provider_unavailable'
+  | 'unknown';
+
+export class EmailDeliveryError extends Error {
+  constructor(readonly failureType: EmailDeliveryFailureType) {
+    super('Transactional email delivery failed');
+    this.name = 'EmailDeliveryError';
+  }
+}
+
 interface ResendClient {
   emails: {
     send: (email: {
@@ -33,9 +46,13 @@ function escapeHtml(value: string): string {
 function requireEnvironmentVariable(name: 'EMAIL_FROM_ADDRESS' | 'RESEND_API_KEY'): string {
   const value = process.env[name]?.trim();
   if (!value) {
-    throw new Error(`Transactional email is not configured: ${name} is missing`);
+    throw new EmailDeliveryError('configuration_error');
   }
   return value;
+}
+
+export function sanitizeEmailDeliveryError(error: unknown): EmailDeliveryError {
+  return error instanceof EmailDeliveryError ? error : new EmailDeliveryError('unknown');
 }
 
 export function createResendEmailSender(
@@ -47,10 +64,15 @@ export function createResendEmailSender(
   const from = `${fromName} <${fromAddress}>`;
 
   return async (email) => {
-    const { error } = await resend.emails.send({ ...email, from });
-    if (error) {
-      // Resend のレスポンス本文は機密情報を含み得るため、外部・内部とも詳細を転送しない。
-      throw new Error('Transactional email provider rejected the request');
+    try {
+      const { error } = await resend.emails.send({ ...email, from });
+      if (error) {
+        // Resend のレスポンス本文は機密情報を含み得るため、外部・内部とも詳細を転送しない。
+        throw new EmailDeliveryError('provider_rejected');
+      }
+    } catch (error) {
+      if (error instanceof EmailDeliveryError) throw error;
+      throw new EmailDeliveryError('provider_unavailable');
     }
   };
 }

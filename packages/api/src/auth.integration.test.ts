@@ -2,12 +2,12 @@ import { PGlite } from '@electric-sql/pglite';
 import { createEmailVerificationToken } from 'better-auth/api';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { drizzle, type PgliteDatabase } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 
 import { account, session, user, verification } from './db/schema.js';
-import type { EmailSender, TransactionalEmail } from './email.js';
+import { createResendEmailSender, type EmailSender, type TransactionalEmail } from './email.js';
 
 const testSchema = { account, session, user, verification };
 
@@ -46,6 +46,7 @@ describe('email verification and password reset', () => {
     await auth.api.signUpEmail({
       body: { email, password: 'password1234', name: email, callbackURL },
     });
+    await auth.api.sendVerificationEmail({ body: { email, callbackURL } });
     const message = messages.at(-1);
     expect(message?.subject).toContain('メールアドレス');
     return message!;
@@ -71,7 +72,7 @@ describe('email verification and password reset', () => {
     expect(message.text).toContain('/auth/verify-email?token=');
   });
 
-  it('未確認ユーザーのログインを拒否し、確認メールを再送する', async () => {
+  it('未確認ユーザーのログインを拒否し、明示要求で確認メールを再送する', async () => {
     await signUp('unverified@example.com');
     messages = [];
 
@@ -84,6 +85,14 @@ describe('email verification and password reset', () => {
         },
       }),
     ).rejects.toMatchObject({ body: { code: 'EMAIL_NOT_VERIFIED' }, statusCode: 403 });
+    expect(messages).toHaveLength(0);
+
+    await auth.api.sendVerificationEmail({
+      body: {
+        email: 'unverified@example.com',
+        callbackURL: 'http://localhost:5173/verify-email',
+      },
+    });
     expect(messages).toHaveLength(1);
     expect(messages[0]?.text).toContain('/auth/verify-email?token=');
   });
@@ -211,12 +220,14 @@ describe('email verification and password reset', () => {
     await signUp('delivery-failure@example.com');
     const { createAuth } = await import('./auth.js');
     let senderCalled = false;
+    const logError = vi.fn();
     const failingAuth = createAuth({
       database,
       emailSender: async () => {
         senderCalled = true;
         throw new Error('re_super-secret-provider-token');
       },
+      emailDeliveryLogger: { error: logError },
     });
 
     const response = await failingAuth.handler(
@@ -225,6 +236,7 @@ describe('email verification and password reset', () => {
         headers: {
           'content-type': 'application/json',
           origin: 'http://localhost:5173',
+          'x-request-id': 'reset-request-317',
         },
         body: JSON.stringify({
           email: 'delivery-failure@example.com',
@@ -237,5 +249,70 @@ describe('email verification and password reset', () => {
     expect(senderCalled).toBe(true);
     expect(response.status).toBe(200);
     expect(responseBody).not.toContain('re_super-secret-provider-token');
+    expect(logError).toHaveBeenCalledWith(
+      {
+        event: 'auth_email_delivery_failed',
+        failureType: 'unknown',
+        purpose: 'password_reset',
+        requestId: 'reset-request-317',
+      },
+      'Authentication email delivery failed',
+    );
+    expect(JSON.stringify(logError.mock.calls)).not.toContain('re_super-secret-provider-token');
+  });
+
+  it('確認メールのプロバイダー拒否を呼び出し元へ返し、安全な構造化ログへ記録する', async () => {
+    await auth.api.signUpEmail({
+      body: {
+        email: 'provider-rejection@example.com',
+        password: 'password1234',
+        name: 'provider-rejection@example.com',
+        callbackURL: 'http://localhost:5173/verify-email',
+      },
+    });
+    const providerSend = vi.fn().mockResolvedValue({
+      data: null,
+      error: { name: 'validation_error', message: 're_secret-provider-detail' },
+    });
+    const logError = vi.fn();
+    const { createAuth } = await import('./auth.js');
+    const failingAuth = createAuth({
+      database,
+      emailSender: createResendEmailSender(
+        { emails: { send: providerSend } },
+        'noreply@example.com',
+      ),
+      emailDeliveryLogger: { error: logError },
+    });
+
+    const response = await failingAuth.handler(
+      new Request('http://localhost:3000/auth/send-verification-email', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'http://localhost:5173',
+          'x-request-id': 'request-317',
+        },
+        body: JSON.stringify({
+          email: 'provider-rejection@example.com',
+          callbackURL: 'http://localhost:5173/verify-email',
+        }),
+      }),
+    );
+    const responseBody = await response.text();
+
+    expect(providerSend).toHaveBeenCalledOnce();
+    expect(response.status).toBe(500);
+    expect(responseBody).not.toContain('re_secret-provider-detail');
+    expect(logError).toHaveBeenCalledWith(
+      {
+        event: 'auth_email_delivery_failed',
+        failureType: 'provider_rejected',
+        purpose: 'verification',
+        requestId: 'request-317',
+      },
+      'Authentication email delivery failed',
+    );
+    expect(JSON.stringify(logError.mock.calls)).not.toContain('re_secret-provider-detail');
   });
 });

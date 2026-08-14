@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   createResendEmailSender,
+  EmailDeliveryError,
   sendEmailVerification,
   sendPasswordReset,
   type TransactionalEmail,
@@ -37,7 +38,16 @@ describe('transactional email', () => {
 
     await expect(
       sender({ to: 'user@example.com', subject: 'subject', text: 'text', html: 'html' }),
-    ).rejects.not.toThrow(/secret-provider-detail/);
+    ).rejects.toEqual(new EmailDeliveryError('provider_rejected'));
+  });
+
+  it('プロバイダーへの接続失敗を安全な種別へ変換する', async () => {
+    const send = vi.fn().mockRejectedValue(new Error('secret-network-detail'));
+    const sender = createResendEmailSender({ emails: { send } }, 'noreply@example.com');
+
+    await expect(
+      sender({ to: 'user@example.com', subject: 'subject', text: 'text', html: 'html' }),
+    ).rejects.toEqual(new EmailDeliveryError('provider_unavailable'));
   });
 
   it('確認・再設定メールに対象 URL を含め、HTML をエスケープする', async () => {
