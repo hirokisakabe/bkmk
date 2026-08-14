@@ -25,10 +25,10 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'pnpm dev --port 5174',
+    command: 'pnpm build && pnpm preview --port 5174',
     url: 'http://localhost:5174',
     cwd: __dirname,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 120_000,
   },
 });
