@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const dndState = vi.hoisted(() => ({
   active: null as object | null,
@@ -18,6 +18,10 @@ import { OverflowTooltip } from './overflow-tooltip';
 describe('OverflowTooltip', () => {
   beforeEach(() => {
     dndState.active = null;
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('省略された全文を pointer と keyboard focus の両方で表示する', async () => {
@@ -57,7 +61,11 @@ describe('OverflowTooltip', () => {
   });
 
   it('viewport 内に配置し、scroll すると閉じる', async () => {
-    render(<TooltipHarness text="画面端にあるとても長いフォルダ名" />);
+    render(
+      <div data-testid="scroll-container">
+        <TooltipHarness text="画面端にあるとても長いフォルダ名" />
+      </div>,
+    );
     const trigger = screen.getByRole('button', { name: '画面端にあるとても長いフォルダ名' });
     const text = screen.getByText('画面端にあるとても長いフォルダ名');
     markAsOverflowing(text);
@@ -73,7 +81,12 @@ describe('OverflowTooltip', () => {
     });
     expect(tooltip).toHaveClass('max-w-[calc(100vw-2rem)]');
 
-    fireEvent.scroll(window);
+    fireEvent.scroll(screen.getByTestId('scroll-container'));
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+
+    fireEvent.pointerEnter(trigger);
+    expect(await screen.findByRole('tooltip')).toBeInTheDocument();
+    fireEvent.resize(window);
     expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
     tooltipRect.mockRestore();
   });

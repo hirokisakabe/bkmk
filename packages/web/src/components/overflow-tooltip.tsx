@@ -58,7 +58,10 @@ export function OverflowTooltip({
     const element = textElement;
     if (!element) return;
 
-    const handleResize = () => updateOverflow();
+    const handleResize = () => {
+      updateOverflow();
+      setPosition(null);
+    };
     const handleScroll = () => setPosition(null);
     window.addEventListener('resize', handleResize);
     window.addEventListener('scroll', handleScroll, true);
