@@ -12,6 +12,7 @@ export const verifyEmailRoute = createRoute({
   path: '/verify-email',
   beforeLoad: ({ search }) => {
     if (!search.error) {
+      // デプロイ前に発行済みの /verify-email callback でも成功案内を一本化する。
       throw redirect({ to: '/login', search: { verified: true } });
     }
   },

@@ -26,10 +26,10 @@ export const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/login',
   beforeLoad: async ({ search }) => {
+    await requireGuest();
     if (search.error) {
       throw redirect({ to: '/verify-email', search: { error: search.error } });
     }
-    await requireGuest();
   },
   validateSearch: (search: Record<string, unknown>): LoginSearch => ({
     error: typeof search.error === 'string' ? search.error : undefined,
