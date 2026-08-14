@@ -24,6 +24,10 @@ test('登録後のメール確認と未確認ログインの再送案内を表�
         },
       }),
   );
+  await page.route(
+    (url) => url.pathname.endsWith('/auth/send-verification-email'),
+    (route) => route.fulfill({ json: { status: true } }),
+  );
   await page.goto('/login?mode=signup');
   await page.getByLabel('メールアドレス').fill('new@example.com');
   await page.getByLabel('パスワード').fill('password1234');
@@ -60,7 +64,9 @@ test('パスワード再設定要求から新しいパスワードを設定す�
   await page.goto('/forgot-password');
   await page.getByLabel('メールアドレス').fill('unknown@example.com');
   await page.getByRole('button', { name: '再設定メールを送る' }).click();
-  await expect(page.getByText(/該当するアカウントがある場合/)).toBeVisible();
+  await expect(
+    page.getByText(/アカウントの登録状況やメールの配送結果は表示しません/),
+  ).toBeVisible();
 
   await page.route(
     (url) => url.pathname.endsWith('/auth/reset-password'),
