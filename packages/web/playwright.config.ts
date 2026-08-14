@@ -17,18 +17,36 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
+      testIgnore: '**/pwa-navigation.spec.ts',
       use: {
         ...devices['Desktop Chrome'],
         // md ブレークポイント未満にすることでドラッグハンドルを常時表示
         viewport: { width: 767, height: 900 },
       },
     },
+    {
+      name: 'chromium-pwa',
+      testMatch: '**/pwa-navigation.spec.ts',
+      use: {
+        ...devices['Desktop Chrome'],
+        baseURL: 'http://localhost:5175',
+      },
+    },
   ],
-  webServer: {
-    command: 'pnpm build && pnpm preview --port 5174',
-    url: 'http://localhost:5174',
-    cwd: __dirname,
-    reuseExistingServer: false,
-    timeout: 120_000,
-  },
+  webServer: [
+    {
+      command: 'pnpm dev --port 5174',
+      url: 'http://localhost:5174',
+      cwd: __dirname,
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+    },
+    {
+      command: 'pnpm build && pnpm preview --port 5175',
+      url: 'http://localhost:5175',
+      cwd: __dirname,
+      reuseExistingServer: false,
+      timeout: 120_000,
+    },
+  ],
 });
