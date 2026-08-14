@@ -10,6 +10,9 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
+      workbox: {
+        navigateFallbackDenylist: [/^\/auth(?:\/|\?|$)/, /^\/api(?:\/|\?|$)/, /^\/health(?:\?|$)/],
+      },
       devOptions: {
         enabled: true,
         suppressWarnings: true,
