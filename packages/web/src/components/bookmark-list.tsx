@@ -17,6 +17,7 @@ import { resolveCanReorderBookmarks, resolveCanSortBookmarkList } from '../lib/d
 import { useSettings } from '../lib/settings-store';
 import type { Bookmark } from '../types';
 import { AddBookmarkForm } from './add-bookmark-form';
+import { BookmarkCardContent, BookmarkCardSkeleton } from './bookmark-card-content';
 import { MoveBookmarkDialog } from './folder-dialogs';
 
 export function BookmarkList({
@@ -219,18 +220,7 @@ function PaginatedBookmarkList({
       {isFetchingNextPage && (
         <div className="grid grid-cols-2 gap-4 pt-4 sm:grid-cols-3 lg:grid-cols-6">
           {[...Array(6)].map((_, i) => (
-            <div
-              key={i}
-              className="animate-pulse overflow-hidden rounded-lg border border-gray-200"
-            >
-              <div className="aspect-[1.91/1] overflow-hidden bg-gray-200" />
-              <div className="space-y-2 p-3">
-                <div className="min-h-[2.5rem]">
-                  <div className="h-4 w-3/4 rounded bg-gray-200" />
-                </div>
-                <div className="h-3 w-full rounded bg-gray-200" />
-              </div>
-            </div>
+            <BookmarkCardSkeleton key={i} />
           ))}
         </div>
       )}
@@ -307,19 +297,7 @@ function LoadingSkeleton() {
   return (
     <>
       {[...Array(6)].map((_, i) => (
-        <div
-          key={i}
-          className="animate-pulse overflow-hidden rounded-lg border border-gray-200"
-          data-testid="bookmark-loading-skeleton"
-        >
-          <div className="aspect-[1.91/1] overflow-hidden bg-gray-200" />
-          <div className="space-y-2 p-3">
-            <div className="min-h-[2.5rem]">
-              <div className="h-4 w-3/4 rounded bg-gray-200" />
-            </div>
-            <div className="h-3 w-full rounded bg-gray-200" />
-          </div>
-        </div>
+        <BookmarkCardSkeleton key={i} testId="bookmark-loading-skeleton" />
       ))}
     </>
   );
@@ -399,45 +377,9 @@ function DraggableBookmarkCard({
 }
 
 export function BookmarkCardPreview({ bookmark }: { bookmark: Bookmark }) {
-  const [imageError, setImageError] = useState(false);
-  const displayTitle = bookmark.title || bookmark.url;
-  const showImage = bookmark.imageUrl && !imageError;
-
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
-      <div className="aspect-[1.91/1] w-full overflow-hidden bg-gray-100">
-        {showImage ? (
-          <img
-            src={bookmark.imageUrl!}
-            alt=""
-            className="h-full w-full object-cover"
-            onError={() => setImageError(true)}
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center text-gray-300">
-            <ImagePlaceholderIcon />
-          </div>
-        )}
-      </div>
-      <div className="flex flex-1 flex-col p-3">
-        <div className="mb-1 flex min-h-[2.5rem] items-center gap-1.5">
-          {bookmark.faviconUrl && (
-            <img
-              src={bookmark.faviconUrl}
-              alt=""
-              className="h-4 w-4 shrink-0"
-              onError={(e) => {
-                e.currentTarget.style.display = 'none';
-              }}
-            />
-          )}
-          <h3 className="line-clamp-2 text-sm font-medium text-gray-900">{displayTitle}</h3>
-        </div>
-        {bookmark.description && (
-          <p className="line-clamp-2 text-xs text-gray-500">{bookmark.description}</p>
-        )}
-        <p className="mt-auto truncate text-xs text-gray-400">{bookmark.url}</p>
-      </div>
+      <BookmarkCardContent bookmark={bookmark} />
     </div>
   );
 }
@@ -455,10 +397,7 @@ function BookmarkCard({
   dragHandleLabel: string;
   dragHandleRef: RefCallback<HTMLButtonElement>;
 }) {
-  const [imageError, setImageError] = useState(false);
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
-  const displayTitle = bookmark.title || bookmark.url;
-  const showImage = bookmark.imageUrl && !imageError;
 
   return (
     <>
@@ -472,39 +411,7 @@ function BookmarkCard({
               className="flex flex-1 flex-col"
               data-testid={`bookmark-card-${bookmark.id}`}
             >
-              <div className="aspect-[1.91/1] w-full overflow-hidden bg-gray-100">
-                {showImage ? (
-                  <img
-                    src={bookmark.imageUrl!}
-                    alt=""
-                    className="h-full w-full object-cover"
-                    onError={() => setImageError(true)}
-                  />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center text-gray-300">
-                    <ImagePlaceholderIcon />
-                  </div>
-                )}
-              </div>
-              <div className="flex flex-1 flex-col p-3">
-                <div className="mb-1 flex min-h-[2.5rem] items-center gap-1.5">
-                  {bookmark.faviconUrl && (
-                    <img
-                      src={bookmark.faviconUrl}
-                      alt=""
-                      className="h-4 w-4 shrink-0"
-                      onError={(e) => {
-                        e.currentTarget.style.display = 'none';
-                      }}
-                    />
-                  )}
-                  <h3 className="line-clamp-2 text-sm font-medium text-gray-900">{displayTitle}</h3>
-                </div>
-                {bookmark.description && (
-                  <p className="line-clamp-2 text-xs text-gray-500">{bookmark.description}</p>
-                )}
-                <p className="mt-auto truncate text-xs text-gray-400">{bookmark.url}</p>
-              </div>
+              <BookmarkCardContent bookmark={bookmark} />
             </a>
             <button
               ref={dragHandleRef}
@@ -572,14 +479,6 @@ function GripIcon() {
       <circle cx="11" cy="8" r="1.5" />
       <circle cx="5" cy="13" r="1.5" />
       <circle cx="11" cy="13" r="1.5" />
-    </svg>
-  );
-}
-
-function ImagePlaceholderIcon() {
-  return (
-    <svg className="h-10 w-10" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" />
     </svg>
   );
 }
