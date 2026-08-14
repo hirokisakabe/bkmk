@@ -50,9 +50,7 @@ describe('SearchResults', () => {
     expect(folderCard.querySelector(`img[src="${folderResult.faviconUrl}"]`)).toBeInTheDocument();
 
     expect(within(uncategorizedCard).getByText('未分類')).toBeInTheDocument();
-    expect(
-      within(uncategorizedCard).getByTestId('bookmark-image-placeholder'),
-    ).toBeInTheDocument();
+    expect(within(uncategorizedCard).getByTestId('bookmark-image-placeholder')).toBeInTheDocument();
     expect(within(grid).queryByRole('button', { name: '削除' })).not.toBeInTheDocument();
     expect(
       within(grid).queryByRole('button', { name: /フォルダ移動|並び替え/ }),

@@ -64,12 +64,7 @@ function SearchResultCard({ result }: { result: SearchResult }) {
 
 function FolderIcon() {
   return (
-    <svg
-      className="h-3 w-3 shrink-0"
-      viewBox="0 0 20 20"
-      fill="currentColor"
-      aria-hidden="true"
-    >
+    <svg className="h-3 w-3 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
       <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
     </svg>
   );
