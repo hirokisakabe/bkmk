@@ -56,9 +56,9 @@ drag 中は bookmark list 側で reorder preview を出さず、folder tree 側�
 「ここに入る」ことを示す。pointer が左 sidebar 全体へ入った時点で `DragOverlay` 内部のサムネイルを
 55% に縮小し、folder row と sidebar の内容を見やすくする。folder row の空白部分や移動元と同じ folder
 上でも縮小を維持し、sidebar から外れると元の大きさへ戻る。縮小と復帰は 150ms の短い transition とし、
-`prefers-reduced-motion` が有効な環境では transition を無効にする。この feedback は desktop と mobile
-の folder tree で共通とする。縮小原点はカード中央ではなくドラッグ開始時に掴んだ位置とし、縮小中も
-pointer とサムネイルの位置関係を維持する。
+`prefers-reduced-motion` が有効な環境では transition を無効にする。縮小原点はカード中央ではなく
+ドラッグ開始時に掴んだ位置とし、縮小中も pointer とサムネイルの位置関係を維持する。現在の mobile
+layout はドラッグ中に sidebar を開く導線がないため、この feedback の対象は desktop sidebar とする。
 drag 元の card 本体は不可視（`opacity-0`）にし、サムネイルは `DragOverlay` で
 viewport 基準の `position: fixed` + 高い z-index で最前面に描画する。これによりカーソルが
 folder tree（左 sidebar）上に移動しても、サムネイルが stacking context に隠れず常に

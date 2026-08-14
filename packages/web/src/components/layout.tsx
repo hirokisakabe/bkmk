@@ -2,7 +2,6 @@ import {
   DndContext,
   DragOverlay,
   type DragEndEvent,
-  type DragMoveEvent,
   PointerSensor,
   useDndContext,
   useDndMonitor,
@@ -328,9 +327,19 @@ export function Layout({
 
 function BookmarkDragOverlay({ sidebarRef }: { sidebarRef: RefObject<HTMLElement | null> }) {
   const [isOverSidebar, setIsOverSidebar] = useState(false);
+  const { active } = useDndContext();
+
+  useEffect(() => {
+    if (active?.data.current?.type !== 'bookmark') return;
+
+    const handlePointerMove = (event: PointerEvent) => {
+      setIsOverSidebar(isPointInsideSidebar(event.clientX, event.clientY, sidebarRef.current));
+    };
+    window.addEventListener('pointermove', handlePointerMove, { passive: true });
+    return () => window.removeEventListener('pointermove', handlePointerMove);
+  }, [active, sidebarRef]);
 
   useDndMonitor({
-    onDragMove: (event) => setIsOverSidebar(isPointerInsideSidebar(event, sidebarRef.current)),
     onDragCancel: () => setIsOverSidebar(false),
     onDragEnd: () => setIsOverSidebar(false),
   });
@@ -390,23 +399,11 @@ function getClientPoint(event: Event | null): { x: number; y: number } | null {
   return null;
 }
 
-function isPointerInsideSidebar(event: DragMoveEvent, sidebar: HTMLElement | null): boolean {
-  if (event.active.data.current?.type !== 'bookmark' || !sidebar) return false;
+function isPointInsideSidebar(x: number, y: number, sidebar: HTMLElement | null): boolean {
+  if (!sidebar || getComputedStyle(sidebar).pointerEvents === 'none') return false;
 
-  const activationPoint = getClientPoint(event.activatorEvent);
-  if (!activationPoint || getComputedStyle(sidebar).pointerEvents === 'none') return false;
-
-  const pointer = {
-    x: activationPoint.x + event.delta.x,
-    y: activationPoint.y + event.delta.y,
-  };
   const rect = sidebar.getBoundingClientRect();
-  return (
-    pointer.x >= rect.left &&
-    pointer.x <= rect.right &&
-    pointer.y >= rect.top &&
-    pointer.y <= rect.bottom
-  );
+  return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
 }
 
 function SearchInput({
