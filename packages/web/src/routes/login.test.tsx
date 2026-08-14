@@ -38,6 +38,21 @@ describe('LoginPage', () => {
     expect(screen.queryByRole('link', { name: 'ログインする' })).not.toBeInTheDocument();
   });
 
+  it('アカウント作成モードでは確認完了案内を表示しない', async () => {
+    renderWithProviders({ initialUrl: '/login?verified=true&mode=signup' });
+
+    expect(await screen.findByRole('button', { name: 'アカウント作成' })).toBeInTheDocument();
+    expect(screen.queryByText(/メールアドレスを確認しました/)).not.toBeInTheDocument();
+  });
+
+  it('メール確認状態のないlogin errorを確認失敗画面へ誤分類しない', async () => {
+    const { router } = renderWithProviders({ initialUrl: '/login?error=SESSION_EXPIRED' });
+
+    expect(await screen.findByRole('button', { name: 'ログイン' })).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/login');
+    expect(screen.queryByText(/確認リンクは無効/)).not.toBeInTheDocument();
+  });
+
   it('アカウント作成モードに切り替えられる', async () => {
     const { router } = renderWithProviders({ initialUrl: '/login' });
 

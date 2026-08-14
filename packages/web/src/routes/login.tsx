@@ -27,7 +27,7 @@ export const loginRoute = createRoute({
   path: '/login',
   beforeLoad: async ({ search }) => {
     await requireGuest();
-    if (search.error) {
+    if (search.verified && search.error) {
       throw redirect({ to: '/verify-email', search: { error: search.error } });
     }
   },
@@ -102,7 +102,7 @@ function LoginPage() {
 
   return (
     <AuthShell eyebrow={mode === 'login' ? 'Welcome back' : 'Create account'} title="bkmk">
-      {verified && (
+      {mode === 'login' && verified && (
         <div
           role="status"
           className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-950"
