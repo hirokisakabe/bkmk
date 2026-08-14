@@ -45,12 +45,6 @@ export function createAuth(options: CreateAuthOptions = {}) {
         await sendPasswordReset(emailSender, { email: user.email, url });
       },
     },
-    advanced: {
-      // 認証 API の応答をメールプロバイダーの待ち時間から切り離し、列挙攻撃を抑える。
-      backgroundTasks: {
-        handler: () => undefined,
-      },
-    },
     plugins: [bearer()],
   });
 }

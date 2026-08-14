@@ -20,9 +20,11 @@ EMAIL_FROM_NAME="bkmk"
 
 ## Cloud Run の設定
 
-本番・PR プレビューの workflow は Secret Manager の `resend-api-key` を `RESEND_API_KEY` としてコンテナへ渡します。デプロイ前に、対象 GCP project で secret と実行サービスアカウントからの参照権限を用意してください。秘密値自体を GitHub Actions の workflow へ記載する必要はありません。
+本番 workflow は Secret Manager の `resend-api-key` を `RESEND_API_KEY` としてコンテナへ渡します。デプロイ前に、対象 GCP project で secret と実行サービスアカウントからの参照権限を用意してください。秘密値自体を GitHub Actions の workflow へ記載する必要はありません。
 
-送信元を変更する場合は `.github/workflows/cd.yml` と `.github/workflows/preview.yml` の `EMAIL_FROM_ADDRESS` を、確認済みドメインのアドレスへ変更します。
+送信元を変更する場合は `.github/workflows/cd.yml` の `EMAIL_FROM_ADDRESS` を、確認済みドメインのアドレスへ変更します。
+
+PR プレビューには、未レビューのコードから秘密値が読み取られることを防ぐため Resend の資格情報を渡しません。プレビュー環境では実際の登録・再設定メールは送信できないため、メール配送を含む動作確認はローカル環境または本番反映前の管理された環境で行います。
 
 ## 動作確認
 
