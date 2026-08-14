@@ -79,6 +79,10 @@ export function CreateFolderDialog({
             </label>
             <input
               id={inputId}
+              type="text"
+              name="folder-name"
+              autoComplete="off"
+              data-1p-ignore
               autoFocus
               value={name}
               onChange={(e) => {
@@ -175,6 +179,10 @@ export function RenameFolderDialog({
             </label>
             <input
               id={inputId}
+              type="text"
+              name="folder-name"
+              autoComplete="off"
+              data-1p-ignore
               autoFocus
               value={name}
               onChange={(e) => {
