@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
 
@@ -59,4 +59,52 @@ describe('TrashPage', () => {
       expect(screen.getByText('ゴミ箱にアイテムはありません')).toBeInTheDocument();
     });
   });
+
+  it('長いフォルダ名を操作ボタンの手前で省略し、pointer と focus で全文を表示する', async () => {
+    const longFolderName = '削除済みのとても長いフォルダ名プロジェクトアルファベータ';
+    server.use(
+      http.get('/api/trash', () =>
+        HttpResponse.json({
+          folders: [
+            {
+              id: 'long-folder',
+              userId: 'test-user',
+              name: longFolderName,
+              path: `/${longFolderName}`,
+              parentPath: null,
+              position: 0,
+              deletedAt: '2024-06-01T00:00:00.000Z',
+              createdAt: '2024-01-01T00:00:00.000Z',
+            },
+          ],
+          bookmarks: [],
+        }),
+      ),
+    );
+    renderWithProviders({ initialUrl: '/trash' });
+
+    const name = await screen.findByText(longFolderName);
+    const card = name.closest('.border-gray-200') as HTMLElement;
+    expect(name).toHaveClass('min-w-0', 'flex-1', 'truncate');
+    expect(within(card).getByRole('button', { name: '復元' })).toBeInTheDocument();
+    expect(within(card).getByRole('button', { name: '完全削除' })).toBeInTheDocument();
+    markAsOverflowing(name);
+
+    fireEvent.pointerEnter(name);
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(longFolderName);
+    fireEvent.pointerLeave(name);
+
+    name.focus();
+    expect(name).toHaveFocus();
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(longFolderName);
+    expect(name).not.toHaveAttribute('title');
+  });
 });
+
+function markAsOverflowing(element: HTMLElement) {
+  Object.defineProperties(element, {
+    scrollWidth: { configurable: true, value: 500 },
+    clientWidth: { configurable: true, value: 120 },
+  });
+  fireEvent(window, new Event('resize'));
+}

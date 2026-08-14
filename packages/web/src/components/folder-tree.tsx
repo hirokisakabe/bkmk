@@ -9,6 +9,7 @@ import { getChildFolders, useAllFolders } from '../hooks/use-folders';
 import { UNCATEGORIZED_VIEW, type BookmarkView } from '../lib/constants';
 import type { Folder } from '../types';
 import { CreateFolderDialog, MoveFolderDialog, RenameFolderDialog } from './folder-dialogs';
+import { OverflowTooltip } from './overflow-tooltip';
 
 type DialogState =
   | { type: 'create'; parentPath: string | null }
@@ -258,16 +259,23 @@ function SortableFolderTreeNode({
               {hasChildren ? <ChevronIcon expanded={expanded} /> : null}
             </button>
 
-            <button
-              type="button"
-              className="flex min-h-[44px] flex-1 items-center truncate text-left"
-              onClick={() => {
-                onSelectFolder(folder.path);
-                if (!expanded) setExpanded(true);
-              }}
-            >
-              {folder.name}
-            </button>
+            <OverflowTooltip text={folder.name}>
+              {({ textRef, triggerProps }) => (
+                <button
+                  type="button"
+                  className="flex min-h-[44px] min-w-0 flex-1 items-center text-left"
+                  onClick={() => {
+                    onSelectFolder(folder.path);
+                    if (!expanded) setExpanded(true);
+                  }}
+                  {...triggerProps}
+                >
+                  <span ref={textRef} className="block min-w-0 flex-1 truncate">
+                    {folder.name}
+                  </span>
+                </button>
+              )}
+            </OverflowTooltip>
 
             <button
               type="button"
