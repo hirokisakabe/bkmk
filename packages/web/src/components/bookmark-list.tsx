@@ -2,7 +2,7 @@ import { useDraggable } from '@dnd-kit/core';
 import { SortableContext, useSortable, rectSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import * as ContextMenu from '@radix-ui/react-context-menu';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type RefCallback } from 'react';
 
 import { useBookmarks, useBookmarksPaginated } from '../hooks/use-bookmarks';
 import {
@@ -340,7 +340,15 @@ function SortableBookmarkCard({
   bookmark: Bookmark;
   onDelete: () => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
     id: bookmark.id,
     data: { type: 'bookmark', bookmark },
   });
@@ -358,6 +366,8 @@ function SortableBookmarkCard({
         bookmark={bookmark}
         onDelete={onDelete}
         dragHandleProps={{ ...attributes, ...listeners }}
+        dragHandleLabel="並び替え・フォルダ移動"
+        dragHandleRef={setActivatorNodeRef}
       />
     </div>
   );
@@ -370,19 +380,20 @@ function DraggableBookmarkCard({
   bookmark: Bookmark;
   onDelete: () => void;
 }) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging } = useDraggable({
     id: bookmark.id,
     data: { type: 'bookmark', bookmark },
   });
 
   return (
-    <div
-      ref={setNodeRef}
-      className={`[touch-action:pan-y] ${isDragging ? 'opacity-0' : ''}`}
-      {...attributes}
-      {...listeners}
-    >
-      <BookmarkCard bookmark={bookmark} onDelete={onDelete} />
+    <div ref={setNodeRef} className={isDragging ? 'opacity-0' : ''}>
+      <BookmarkCard
+        bookmark={bookmark}
+        onDelete={onDelete}
+        dragHandleProps={{ ...attributes, ...listeners }}
+        dragHandleLabel="フォルダ移動"
+        dragHandleRef={setActivatorNodeRef}
+      />
     </div>
   );
 }
@@ -435,10 +446,14 @@ function BookmarkCard({
   bookmark,
   onDelete,
   dragHandleProps,
+  dragHandleLabel,
+  dragHandleRef,
 }: {
   bookmark: Bookmark;
   onDelete: () => void;
-  dragHandleProps?: Record<string, unknown>;
+  dragHandleProps: Record<string, unknown>;
+  dragHandleLabel: string;
+  dragHandleRef: RefCallback<HTMLButtonElement>;
 }) {
   const [imageError, setImageError] = useState(false);
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
@@ -491,17 +506,16 @@ function BookmarkCard({
                 <p className="mt-auto truncate text-xs text-gray-400">{bookmark.url}</p>
               </div>
             </a>
-            {dragHandleProps && (
-              <button
-                type="button"
-                className="absolute top-0 right-0 flex h-11 w-11 cursor-grab items-center justify-center bg-black/50 text-white opacity-100 transition-opacity hover:bg-black/70 active:cursor-grabbing md:top-1 md:right-1 md:h-auto md:w-auto md:rounded md:p-1 md:opacity-0 md:group-hover:opacity-100"
-                aria-label="並び替え"
-                data-testid={`bookmark-drag-handle-${bookmark.id}`}
-                {...dragHandleProps}
-              >
-                <GripIcon />
-              </button>
-            )}
+            <button
+              ref={dragHandleRef}
+              type="button"
+              className="absolute top-0 right-0 flex h-11 w-11 touch-none cursor-grab items-center justify-center bg-black/50 text-white opacity-100 transition-opacity hover:bg-black/70 active:cursor-grabbing md:top-1 md:right-1 md:h-auto md:w-auto md:rounded md:p-1 md:opacity-0 md:group-hover:opacity-100"
+              {...dragHandleProps}
+              aria-label={dragHandleLabel}
+              data-testid={`bookmark-drag-handle-${bookmark.id}`}
+            >
+              <GripIcon />
+            </button>
             <button
               type="button"
               onClick={(e) => {
