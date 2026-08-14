@@ -119,6 +119,10 @@ describe('フォルダ名の入力検証', () => {
 
       expect(screen.queryByRole('alert')).not.toBeInTheDocument();
       expect(input).not.toHaveAttribute('aria-invalid');
+
+      fireEvent.change(input, { target: { value: 'work/private' } });
+
+      expectLocalError(input, /使用できる文字は、英数字/);
     });
 
     it('空白・絵文字・日本語を含む許可文字の名前をそのまま送信する', async () => {
@@ -253,6 +257,10 @@ describe('フォルダ名の入力検証', () => {
 
       expect(screen.queryByRole('alert')).not.toBeInTheDocument();
       expect(input).not.toHaveAttribute('aria-invalid');
+
+      fireEvent.change(input, { target: { value: 'work/private' } });
+
+      expectLocalError(input, /使用できる文字は、英数字/);
     });
 
     it('空白・絵文字・日本語を含む許可文字の名前をそのまま送信する', async () => {
