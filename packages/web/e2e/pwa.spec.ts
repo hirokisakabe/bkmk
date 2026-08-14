@@ -73,7 +73,14 @@ test.describe('PWA ナビゲーションフォールバック', () => {
   test('認証・API・ヘルスチェックへのナビゲーションはネットワークへ到達する', async ({ page }) => {
     await activateServiceWorker(page);
 
-    for (const path of ['/auth/verify-email?token=test', '/api/test', '/health']) {
+    for (const path of [
+      '/auth/verify-email?token=test',
+      '/auth?probe=test',
+      '/api/test',
+      '/api?probe=test',
+      '/health',
+      '/health?probe=test',
+    ]) {
       const marker = `network:${path}`;
       await page.route(path, (route) =>
         route.fulfill({
