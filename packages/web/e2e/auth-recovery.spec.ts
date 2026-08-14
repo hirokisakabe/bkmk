@@ -84,3 +84,19 @@ test('無効な確認・再設定リンクから次の操作へ進める', async
   await expect(page.getByText(/再設定リンクは無効か、有効期限が切れています/)).toBeVisible();
   await expect(page.getByRole('link', { name: /再設定メールをもう一度送る/ })).toBeVisible();
 });
+
+test('確認成功時は中間画面なしでログイン画面に一度だけ案内する', async ({ page }) => {
+  await mockGuest(page);
+
+  await page.goto('/verify-email');
+
+  await expect(page).toHaveURL(/\/login\?verified=true$/);
+  await expect(page.getByText('メールアドレスを確認しました。ログインしてください。')).toHaveCount(
+    1,
+  );
+  await expect(page.getByRole('button', { name: 'ログイン' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'ログインする' })).toHaveCount(0);
+
+  await page.goto('/login');
+  await expect(page.getByText(/メールアドレスを確認しました/)).toHaveCount(0);
+});

@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -75,11 +75,27 @@ describe('authentication recovery pages', () => {
     );
   });
 
-  it('確認成功を表示する', async () => {
-    renderWithProviders({ initialUrl: '/verify-email' });
+  it('確認成功時は中間画面を表示せずログイン画面で案内する', async () => {
+    const { router } = renderWithProviders({ initialUrl: '/verify-email' });
 
-    expect(await screen.findByText(/メールアドレスを確認しました/)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'ログインする' })).toBeInTheDocument();
+    expect(
+      await screen.findByText('メールアドレスを確認しました。ログインしてください。'),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(router.state.location.pathname).toBe('/login'));
+    expect(router.state.location.search).toEqual({ verified: true });
+    expect(screen.getByRole('button', { name: 'ログイン' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'ログインする' })).not.toBeInTheDocument();
+  });
+
+  it('確認失敗がログインcallbackへ付与されても従来の失敗画面へ戻す', async () => {
+    const { router } = renderWithProviders({
+      initialUrl: '/login?verified=true&error=TOKEN_EXPIRED',
+    });
+
+    expect(await screen.findByText(/無効か、有効期限が切れています/)).toBeInTheDocument();
+    await waitFor(() => expect(router.state.location.pathname).toBe('/verify-email'));
+    expect(router.state.location.search).toEqual({ error: 'TOKEN_EXPIRED' });
+    expect(screen.queryByText(/メールアドレスを確認しました/)).not.toBeInTheDocument();
   });
 
   it('無効または期限切れの確認リンクから再送手順へ進める', async () => {

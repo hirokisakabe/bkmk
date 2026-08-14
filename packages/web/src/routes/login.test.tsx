@@ -25,6 +25,17 @@ describe('LoginPage', () => {
     });
     expect(screen.getByLabelText('パスワード')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'ログイン' })).toBeInTheDocument();
+    expect(screen.queryByText(/メールアドレスを確認しました/)).not.toBeInTheDocument();
+  });
+
+  it('メール確認完了時だけログインフォームと完了案内を一度表示する', async () => {
+    renderWithProviders({ initialUrl: '/login?verified=true' });
+
+    expect(await screen.findByLabelText('メールアドレス')).toBeInTheDocument();
+    expect(
+      screen.getAllByText('メールアドレスを確認しました。ログインしてください。'),
+    ).toHaveLength(1);
+    expect(screen.queryByRole('link', { name: 'ログインする' })).not.toBeInTheDocument();
   });
 
   it('アカウント作成モードに切り替えられる', async () => {
@@ -87,6 +98,9 @@ describe('LoginPage', () => {
     await user.click(screen.getByRole('button', { name: 'アカウント作成' }));
 
     expect(await screen.findByText('アカウント作成を受け付けました')).toBeInTheDocument();
+    expect(authMocks.signUpEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ callbackURL: expect.stringMatching(/\/login\?verified=true$/) }),
+    );
     expect(screen.getByText(/確認メールが届いた場合/)).toBeInTheDocument();
     expect(screen.queryByText(/確認メールを送りました/)).not.toBeInTheDocument();
   });
@@ -104,7 +118,35 @@ describe('LoginPage', () => {
     await user.click(screen.getByRole('button', { name: 'ログイン' }));
 
     expect(await screen.findByText('メールアドレスの確認が必要です')).toBeInTheDocument();
+    expect(authMocks.signInEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ callbackURL: expect.stringMatching(/\/login\?verified=true$/) }),
+    );
     expect(screen.queryByText(/確認メールを再送しました/)).not.toBeInTheDocument();
     expect(screen.getByText(/時間をおいて、もう一度ログイン/)).toBeInTheDocument();
+  });
+
+  it('確認完了後のログイン成功時に完了状態をアプリへ引き継がない', async () => {
+    authMocks.signInEmail.mockResolvedValue({
+      data: {
+        token: 'test-token',
+        user: {
+          id: 'verified-user',
+          email: 'verified@example.com',
+          emailVerified: true,
+          name: 'verified@example.com',
+        },
+      },
+      error: null,
+    });
+    const { router } = renderWithProviders({ initialUrl: '/login?verified=true' });
+    const user = userEvent.setup();
+
+    await user.type(await screen.findByLabelText('メールアドレス'), 'verified@example.com');
+    await user.type(screen.getByLabelText('パスワード'), 'password1234');
+    await user.click(screen.getByRole('button', { name: 'ログイン' }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe('/'));
+    expect(router.state.location.search).toEqual({});
+    expect(screen.queryByText(/メールアドレスを確認しました/)).not.toBeInTheDocument();
   });
 });
