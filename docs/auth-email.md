@@ -28,10 +28,12 @@ PR プレビューには、未レビューのコードから秘密値が読み�
 
 ## 動作確認
 
-- 新規登録後、ログイン状態にならず「確認メールをご確認ください」と表示される
-- 未確認のままログインすると、確認メールが再送される
+- 新規登録後、ログイン状態にならず「アカウント作成を受け付けました」と表示される。配送結果は画面上で断定しない
+- 未確認のままログインすると確認メールの送信を試みる。配送結果は断定せず、届かない場合の再試行方法を案内する
 - 確認リンクを開いた後はログインできる
 - ログイン画面の「パスワードを忘れた方」から再設定メールを要求できる
 - 無効または期限切れのリンクでは、再送へ進める案内が表示される
+
+メール配送に失敗した場合は、プロバイダーのレスポンス本文やトークンを記録せず、`auth_email_delivery_failed` イベント、用途、サニタイズ済みの失敗種別、request ID を構造化ログへ記録します。
 
 参考: [Better Auth email/password](https://better-auth.com/docs/authentication/email-password)、[Better Auth options](https://better-auth.com/docs/reference/options)、[Resend Node.js quickstart](https://resend.com/docs/send-with-nodejs)

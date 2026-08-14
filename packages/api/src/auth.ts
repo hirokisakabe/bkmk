@@ -29,6 +29,16 @@ interface CreateAuthOptions {
   database?: Parameters<typeof drizzleAdapter>[0];
   emailDeliveryLogger?: EmailDeliveryLogger;
   emailSender?: EmailSender;
+  passwordResetResponseDelay?: () => number;
+}
+
+const defaultPasswordResetResponseDelay = () => 800 + Math.floor(Math.random() * 400);
+
+async function waitForMinimumResponseTime(startedAt: number, minimumMs: number): Promise<void> {
+  const remainingMs = minimumMs - (performance.now() - startedAt);
+  if (remainingMs > 0) {
+    await new Promise((resolve) => setTimeout(resolve, remainingMs));
+  }
 }
 
 async function deliverAuthEmail(
@@ -57,8 +67,10 @@ async function deliverAuthEmail(
 export function createAuth(options: CreateAuthOptions = {}) {
   const emailSender = options.emailSender ?? sendTransactionalEmail;
   const emailDeliveryLogger = options.emailDeliveryLogger ?? rootLogger;
+  const passwordResetResponseDelay =
+    options.passwordResetResponseDelay ?? defaultPasswordResetResponseDelay;
 
-  return betterAuth({
+  const auth = betterAuth({
     basePath: '/auth',
     baseURL: process.env.BETTER_AUTH_URL,
     trustedOrigins: [
@@ -70,8 +82,8 @@ export function createAuth(options: CreateAuthOptions = {}) {
     }),
     emailVerification: {
       expiresIn: 60 * 60,
-      sendOnSignUp: false,
-      sendOnSignIn: false,
+      sendOnSignUp: true,
+      sendOnSignIn: true,
       sendVerificationEmail: async ({ user, url }, request) => {
         await deliverAuthEmail(
           'verification',
@@ -97,6 +109,26 @@ export function createAuth(options: CreateAuthOptions = {}) {
     },
     plugins: [bearer()],
   });
+
+  const handler = auth.handler;
+
+  return {
+    ...auth,
+    handler: async (request: Request) => {
+      const isPasswordResetRequest =
+        request.method === 'POST' &&
+        new URL(request.url).pathname === '/auth/request-password-reset';
+      if (!isPasswordResetRequest) return handler(request);
+
+      const startedAt = performance.now();
+      try {
+        return await handler(request);
+      } finally {
+        // 既知・未知アカウントの処理時間差から登録有無を推測しにくくする。
+        await waitForMinimumResponseTime(startedAt, passwordResetResponseDelay());
+      }
+    },
+  };
 }
 
 export const auth = createAuth();

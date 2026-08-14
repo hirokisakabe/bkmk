@@ -46,7 +46,6 @@ describe('email verification and password reset', () => {
     await auth.api.signUpEmail({
       body: { email, password: 'password1234', name: email, callbackURL },
     });
-    await auth.api.sendVerificationEmail({ body: { email, callbackURL } });
     const message = messages.at(-1);
     expect(message?.subject).toContain('メールアドレス');
     return message!;
@@ -72,7 +71,7 @@ describe('email verification and password reset', () => {
     expect(message.text).toContain('/auth/verify-email?token=');
   });
 
-  it('未確認ユーザーのログインを拒否し、明示要求で確認メールを再送する', async () => {
+  it('未確認ユーザーのログインを拒否し、確認メールを再送する', async () => {
     await signUp('unverified@example.com');
     messages = [];
 
@@ -85,14 +84,6 @@ describe('email verification and password reset', () => {
         },
       }),
     ).rejects.toMatchObject({ body: { code: 'EMAIL_NOT_VERIFIED' }, statusCode: 403 });
-    expect(messages).toHaveLength(0);
-
-    await auth.api.sendVerificationEmail({
-      body: {
-        email: 'unverified@example.com',
-        callbackURL: 'http://localhost:5173/verify-email',
-      },
-    });
     expect(messages).toHaveLength(1);
     expect(messages[0]?.text).toContain('/auth/verify-email?token=');
   });
@@ -228,6 +219,7 @@ describe('email verification and password reset', () => {
         throw new Error('re_super-secret-provider-token');
       },
       emailDeliveryLogger: { error: logError },
+      passwordResetResponseDelay: () => 0,
     });
 
     const response = await failingAuth.handler(
@@ -261,7 +253,7 @@ describe('email verification and password reset', () => {
     expect(JSON.stringify(logError.mock.calls)).not.toContain('re_super-secret-provider-token');
   });
 
-  it('確認メールのプロバイダー拒否を呼び出し元へ返し、安全な構造化ログへ記録する', async () => {
+  it('確認メールのプロバイダー拒否を秘匿し、安全な構造化ログへ記録する', async () => {
     await auth.api.signUpEmail({
       body: {
         email: 'provider-rejection@example.com',
@@ -286,7 +278,7 @@ describe('email verification and password reset', () => {
     });
 
     const response = await failingAuth.handler(
-      new Request('http://localhost:3000/auth/send-verification-email', {
+      new Request('http://localhost:3000/auth/sign-in/email', {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
@@ -295,6 +287,7 @@ describe('email verification and password reset', () => {
         },
         body: JSON.stringify({
           email: 'provider-rejection@example.com',
+          password: 'password1234',
           callbackURL: 'http://localhost:5173/verify-email',
         }),
       }),
@@ -302,7 +295,8 @@ describe('email verification and password reset', () => {
     const responseBody = await response.text();
 
     expect(providerSend).toHaveBeenCalledOnce();
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(403);
+    expect(JSON.parse(responseBody)).toMatchObject({ code: 'EMAIL_NOT_VERIFIED' });
     expect(responseBody).not.toContain('re_secret-provider-detail');
     expect(logError).toHaveBeenCalledWith(
       {
@@ -314,5 +308,40 @@ describe('email verification and password reset', () => {
       'Authentication email delivery failed',
     );
     expect(JSON.stringify(logError.mock.calls)).not.toContain('re_secret-provider-detail');
+  });
+
+  it('再設定要求は登録有無にかかわらず最小応答時間を適用する', async () => {
+    const { createAuth } = await import('./auth.js');
+    const minimumDelayMs = 30;
+    const timedAuth = createAuth({
+      database,
+      emailSender: async () => undefined,
+      passwordResetResponseDelay: () => minimumDelayMs,
+    });
+
+    const requestReset = async (email: string) => {
+      const startedAt = performance.now();
+      const response = await timedAuth.handler(
+        new Request('http://localhost:3000/auth/request-password-reset', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            origin: 'http://localhost:5173',
+          },
+          body: JSON.stringify({
+            email,
+            redirectTo: 'http://localhost:5173/reset-password',
+          }),
+        }),
+      );
+      return { body: await response.json(), elapsedMs: performance.now() - startedAt };
+    };
+
+    const known = await requestReset('delivery-failure@example.com');
+    const unknown = await requestReset('missing-timing@example.com');
+
+    expect(known.body).toEqual(unknown.body);
+    expect(known.elapsedMs).toBeGreaterThanOrEqual(minimumDelayMs - 2);
+    expect(unknown.elapsedMs).toBeGreaterThanOrEqual(minimumDelayMs - 2);
   });
 });
