@@ -1,4 +1,5 @@
 import { PGlite } from '@electric-sql/pglite';
+import { createEmailVerificationToken } from 'better-auth/api';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -114,6 +115,24 @@ describe('email verification and password reset', () => {
     expect(response.status).toBe(302);
     expect(response.headers.get('location')).toBe(
       'http://localhost:5173/verify-email?error=INVALID_TOKEN',
+    );
+  });
+
+  it('期限切れの確認トークンを処理せず、callback にエラーを返す', async () => {
+    await signUp('expired-verification@example.com');
+    const token = await createEmailVerificationToken(
+      process.env.BETTER_AUTH_SECRET!,
+      'expired-verification@example.com',
+      undefined,
+      -1,
+    );
+    const response = await openLink(
+      `http://localhost:3000/auth/verify-email?token=${token}&callbackURL=http%3A%2F%2Flocalhost%3A5173%2Fverify-email`,
+    );
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get('location')).toBe(
+      'http://localhost:5173/verify-email?error=TOKEN_EXPIRED',
     );
   });
 

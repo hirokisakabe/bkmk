@@ -76,8 +76,11 @@ jobs:
           secrets: |
             DATABASE_URL=database-url:latest
             BETTER_AUTH_SECRET=better-auth-secret:latest
+            RESEND_API_KEY=resend-api-key:latest
           env_vars: |
             BETTER_AUTH_URL=https://bkmk.tokyo
+            EMAIL_FROM_ADDRESS=noreply@bkmk.tokyo
+            EMAIL_FROM_NAME=bkmk
             # Keep released CLI versions that still send the former API URL as Origin working.
             BETTER_AUTH_TRUSTED_ORIGINS=https://bkmk-680461270704.asia-northeast1.run.app
 
