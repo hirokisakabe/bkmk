@@ -46,9 +46,7 @@ test('通常の SPA ルートはオフラインでもナビゲーションフォ
   await activateServiceWorker(page);
   await context.setOffline(true);
 
-  await page.goto('/verify-email');
-  await expect(page).toHaveURL(/\/login\?verified=true$/);
-  await expect(
-    page.getByText('メールアドレスを確認しました。ログインしてください。'),
-  ).toBeVisible();
+  await page.goto('/verify-email?error=INVALID_TOKEN');
+  await expect(page.getByRole('heading', { name: 'メールアドレスの確認' })).toBeVisible();
+  await expect(page.getByText(/確認リンクは無効か、有効期限が切れています/)).toBeVisible();
 });
