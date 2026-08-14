@@ -304,34 +304,3 @@ export async function dragTo(page: Page, from: Locator, to: Locator) {
   await page.mouse.move(tx, ty, { steps: 20 });
   await page.mouse.up();
 }
-
-// Grab 位置の offset を保ったまま、drag 対象の中心を target の中心へ移動する。
-// カード右上の handle を掴む操作でも、カード中心基準の collision を正確に再現できる。
-export async function dragItemCenterTo(
-  page: Page,
-  draggable: Locator,
-  grabHandle: Locator,
-  target: Locator,
-) {
-  const draggableBox = await draggable.boundingBox();
-  const handleBox = await grabHandle.boundingBox();
-  const targetBox = await target.boundingBox();
-  if (!draggableBox || !handleBox || !targetBox) {
-    throw new Error('boundingBox が取得できませんでした');
-  }
-
-  const fx = handleBox.x + handleBox.width / 2;
-  const fy = handleBox.y + handleBox.height / 2;
-  const draggableCenterX = draggableBox.x + draggableBox.width / 2;
-  const draggableCenterY = draggableBox.y + draggableBox.height / 2;
-  const targetCenterX = targetBox.x + targetBox.width / 2;
-  const targetCenterY = targetBox.y + targetBox.height / 2;
-  const tx = targetCenterX + (fx - draggableCenterX);
-  const ty = targetCenterY + (fy - draggableCenterY);
-
-  await page.mouse.move(fx, fy);
-  await page.mouse.down();
-  await page.mouse.move(fx + 8, fy, { steps: 4 });
-  await page.mouse.move(tx, ty, { steps: 20 });
-  await page.mouse.up();
-}

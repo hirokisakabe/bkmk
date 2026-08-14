@@ -71,6 +71,26 @@ describe('collisionDetection', () => {
     expect(dndKit.closestCenter).not.toHaveBeenCalled();
   });
 
+  it('ポインタがフォルダ内ならカード中心が外側でもそのフォルダを返す', () => {
+    const folder = makeFolderDropContainer('folder-drop-1');
+    const bookmark = makeContainer('bookmark-1', 'bookmark');
+
+    const result = collisionDetection(
+      createArgs({
+        collisionRect: makeRect(240, 20, 40, 40),
+        containers: [bookmark, folder],
+        rects: [
+          ['folder-drop-1', makeRect(0, 0, 200, 100)],
+          ['bookmark-1', makeRect(250, 0, 200, 100)],
+        ],
+        pointerCoordinates: { x: 180, y: 40 },
+      }),
+    );
+
+    expect(result).toEqual([{ id: 'folder-drop-1' }]);
+    expect(dndKit.closestCenter).not.toHaveBeenCalled();
+  });
+
   it('複数フォルダが重なる場合はカード中心に最も近い単一フォルダを安定して返す', () => {
     const wideFolder = makeFolderDropContainer('folder-wide');
     const narrowFolder = makeFolderDropContainer('folder-narrow');
@@ -106,7 +126,45 @@ describe('collisionDetection', () => {
     expect(result).toEqual([{ id: 'folder-first' }]);
   });
 
-  it('カード中心がフォルダ外ならフォルダ移動にせずbookmarkだけでclosestCenterを使う', () => {
+  it('ポインタとカード中心が別のフォルダ内ならポインタ側を優先する', () => {
+    const pointerFolder = makeFolderDropContainer('folder-pointer');
+    const centerFolder = makeFolderDropContainer('folder-center');
+
+    const result = collisionDetection(
+      createArgs({
+        collisionRect: makeRect(290, 40, 20, 20),
+        containers: [pointerFolder, centerFolder],
+        rects: [
+          ['folder-pointer', makeRect(0, 0, 200, 100)],
+          ['folder-center', makeRect(200, 0, 200, 100)],
+        ],
+        pointerCoordinates: { x: 100, y: 50 },
+      }),
+    );
+
+    expect(result).toEqual([{ id: 'folder-pointer' }]);
+  });
+
+  it('ポインタとカード中心が外でもカードとの重なりが最大のフォルダを返す', () => {
+    const smallOverlap = makeFolderDropContainer('folder-small-overlap');
+    const largeOverlap = makeFolderDropContainer('folder-large-overlap');
+
+    const result = collisionDetection(
+      createArgs({
+        collisionRect: makeRect(80, 35, 120, 90),
+        containers: [smallOverlap, largeOverlap],
+        rects: [
+          ['folder-small-overlap', makeRect(0, 0, 100, 40)],
+          ['folder-large-overlap', makeRect(0, 100, 100, 40)],
+        ],
+        pointerCoordinates: { x: 220, y: 120 },
+      }),
+    );
+
+    expect(result).toEqual([{ id: 'folder-large-overlap' }]);
+  });
+
+  it('カード中心とポインタがフォルダ外ならbookmarkだけでclosestCenterを使う', () => {
     const folder = makeFolderDropContainer('folder-drop-1');
     const bookmark = makeContainer('bookmark-1', 'bookmark');
     const collisions: ReturnType<typeof collisionDetection> = [{ id: 'bookmark-1' }];
@@ -114,12 +172,13 @@ describe('collisionDetection', () => {
 
     const result = collisionDetection(
       createArgs({
-        collisionRect: makeRect(195, 40, 20, 20),
+        collisionRect: makeRect(205, 40, 20, 20),
         containers: [bookmark, folder],
         rects: [
           ['folder-drop-1', makeRect(0, 0, 200, 100)],
           ['bookmark-1', makeRect(250, 0, 200, 100)],
         ],
+        pointerCoordinates: { x: 230, y: 40 },
       }),
     );
 
@@ -143,7 +202,7 @@ describe('collisionDetection', () => {
     expect(dndKit.closestCenter).not.toHaveBeenCalled();
   });
 
-  it('folder候補はfolderとfolder-uncategorizedだけに限定する', () => {
+  it('ポインタだけが未分類row内にある場合もfolder drop候補にする', () => {
     const unknown = makeContainer('unknown-drop-target', 'search-result', {
       isBookmarkFolderDropTarget: true,
     });
@@ -154,16 +213,44 @@ describe('collisionDetection', () => {
 
     const result = collisionDetection(
       createArgs({
-        collisionRect: makeRect(40, 40, 20, 20),
+        collisionRect: makeRect(140, 40, 20, 20),
         containers: [unknown, uncategorized],
         rects: [
           ['unknown-drop-target', makeRect(0, 0, 100, 100)],
           ['folder-drop-uncategorized', makeRect(0, 0, 100, 100)],
         ],
+        pointerCoordinates: { x: 50, y: 50 },
       }),
     );
 
     expect(result).toEqual([{ id: 'folder-drop-uncategorized' }]);
+  });
+
+  it('操作不能なmobile sidebar内のfolder targetはbookmarkソートから除外する', () => {
+    const folder = makeFolderDropContainer('folder-drop-hidden');
+    const bookmark = makeContainer('bookmark-1', 'bookmark');
+    const aside = document.createElement('aside');
+    const row = document.createElement('button');
+    aside.style.pointerEvents = 'none';
+    aside.append(row);
+    Object.assign(folder, { node: { current: row } });
+    const collisions: ReturnType<typeof collisionDetection> = [{ id: 'bookmark-1' }];
+    dndKit.closestCenter.mockReturnValue(collisions);
+
+    const result = collisionDetection(
+      createArgs({
+        collisionRect: makeRect(0, 0, 100, 100),
+        containers: [bookmark, folder],
+        rects: [
+          ['folder-drop-hidden', makeRect(0, 0, 100, 100)],
+          ['bookmark-1', makeRect(0, 0, 100, 100)],
+        ],
+        pointerCoordinates: { x: 50, y: 50 },
+      }),
+    );
+
+    expect(result).toBe(collisions);
+    expect(dndKit.closestCenter.mock.calls[0][0].droppableContainers).toEqual([bookmark]);
   });
 
   it('expanded parentのsortable wrapperを除外し、row-onlyのchild targetを返す', () => {

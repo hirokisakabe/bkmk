@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { BOOKMARKS, FOLDERS, dragItemCenterTo, dragTo, makeBookmark, setupMocks } from './helpers';
+import { BOOKMARKS, FOLDERS, dragTo, makeBookmark, setupMocks } from './helpers';
 
 test('同一階層のフォルダをDnDソートすると並び替えAPIが呼ばれる', async ({ page }) => {
   await setupMocks(page);
@@ -158,6 +158,7 @@ test('pendingカードは並び替え対象外のまま、表示中も既存カ�
 
 test('ブックマークを別フォルダへDnD移動すると移動APIが呼ばれる', async ({ page }) => {
   await setupMocks(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
 
   // PATCH /api/bookmarks/:id (position なし) リクエストを事前に監視
   const patchRequest = page.waitForRequest(
@@ -168,9 +169,8 @@ test('ブックマークを別フォルダへDnD移動すると移動APIが呼�
   await page.goto('/?folder=/folder-a');
   await expect(page.locator('h3', { hasText: 'Alpha' })).toBeVisible();
 
-  await dragItemCenterTo(
+  await dragTo(
     page,
-    page.getByTestId(`bookmark-card-${BOOKMARKS[0].id}`),
     page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[0].id}`),
     page.getByTestId(`folder-drop-target-${FOLDERS[1].id}`),
   );
@@ -305,10 +305,71 @@ test('ポインタが外側でもカード中心が入ったフォルダをハ�
   await expect(page.locator('h3', { hasText: 'Alpha' })).toBeHidden();
 });
 
+test('ポインタとカード中心が外側でもカードが重なるフォルダへ移動できる', async ({ page }) => {
+  await setupMocks(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/?folder=/folder-a');
+  await expect(page.locator('h3', { hasText: 'Alpha' })).toBeVisible();
+
+  const patchRequest = page.waitForRequest(
+    (req) =>
+      req.method() === 'PATCH' && /\/api\/bookmarks\/[^/]+$/.test(new URL(req.url()).pathname),
+  );
+  const dragHandle = page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[0].id}`);
+  const draggedCard = page.getByTestId(`bookmark-card-${BOOKMARKS[0].id}`);
+  const targetFolder = page.getByTestId(`folder-drop-target-${FOLDERS[1].id}`); // Folder B
+  const otherFolder = page.getByTestId(`folder-drop-target-${FOLDERS[0].id}`); // Folder A
+
+  await dragHandle.waitFor();
+  await draggedCard.waitFor();
+  await targetFolder.waitFor();
+  await otherFolder.waitFor();
+
+  const handleBox = await dragHandle.boundingBox();
+  const cardBox = await draggedCard.boundingBox();
+  const targetBox = await targetFolder.boundingBox();
+  if (!handleBox || !cardBox || !targetBox) {
+    throw new Error('boundingBox が取得できませんでした');
+  }
+
+  const fx = handleBox.x + handleBox.width / 2;
+  const fy = handleBox.y + handleBox.height / 2;
+  const cardCenterX = cardBox.x + cardBox.width / 2;
+  const cardCenterY = cardBox.y + cardBox.height / 2;
+
+  // Card center と pointer は row の右外側に残し、card の左側だけを Folder B に重ねる。
+  const desiredCardCenterX = targetBox.x + targetBox.width + 12;
+  const desiredCardCenterY = targetBox.y + targetBox.height / 2;
+  const tx = desiredCardCenterX + (fx - cardCenterX);
+  const ty = desiredCardCenterY + (fy - cardCenterY);
+  const translatedCardCenterX = cardCenterX + (tx - fx);
+  const translatedCardLeft = cardBox.x + (tx - fx);
+
+  expect(tx).toBeGreaterThan(targetBox.x + targetBox.width);
+  expect(translatedCardCenterX).toBeGreaterThan(targetBox.x + targetBox.width);
+  expect(translatedCardLeft).toBeLessThan(targetBox.x + targetBox.width);
+
+  await page.mouse.move(fx, fy);
+  await page.mouse.down();
+  await page.mouse.move(fx + 8, fy, { steps: 4 });
+  await page.mouse.move(tx, ty, { steps: 10 });
+
+  await expect(targetFolder).toHaveClass(/ring/);
+  await expect(otherFolder).not.toHaveClass(/ring/);
+
+  await page.mouse.up();
+
+  const req = await patchRequest;
+  const body = (await req.postDataJSON()) as { folderPath: string | null };
+  expect(body.folderPath).toBe('/folder-b');
+  await expect(page.locator('h3', { hasText: 'Alpha' })).toBeHidden();
+});
+
 test('すべて表示ではブックマークの並び替えハンドルを表示せずカード本体でフォルダ移動できる', async ({
   page,
 }) => {
   await setupMocks(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
 
   const patchRequest = page.waitForRequest(
     (req) =>

@@ -59,11 +59,16 @@ viewport 基準の `position: fixed` + 高い z-index で最前面に描画す�
 folder tree（左 sidebar）上に移動しても、サムネイルが stacking context に隠れず常に
 追従して見える。
 
-folder drop target の判定も `collisionRect` の中心を基準にする。pointer が folder row の外側でも、
-bookmark card の中心が row の矩形内に入ればその folder を highlight し、drop 先にする。複数の row
-矩形が重なる場合は card 中心から row 中心までが最も近い1件だけを選び、等距離なら droppable の
-登録順で固定する。card 中心がどの folder row にも入っていない場合は folder 移動として扱わない。
-この基準は desktop sidebar と mobile の overlay sidebar で共通とする。
+folder drop target は、pointer、`collisionRect` の中心、card と row の重なりの順で判定する。pointer
+が表示中の row 内ならユーザーの明示的な位置指定としてその row を最優先する。pointer が外でも card
+中心が row 内ならその row を選び、中心も外で card だけが重なる場合は重なり面積が最大の row を選ぶ。
+面積が同じなら card 中心に近い row、さらに同率なら droppable の登録順で固定する。これにより card が
+複数行を覆っても pointer の意図を優先しつつ、handle を row へ厳密に重ねない操作も補助できる。card と
+pointer のどちらも row に入っていない場合は folder 移動として扱わない。この基準は通常 folder と
+`未分類`、desktop sidebar と mobile の overlay sidebar で共通とする。bookmark 同士と folder 同士の
+ソート判定にはこの条件を広げない。
+mobile sidebar を閉じている間も folder row は DOM に残るため、sidebar が `pointer-events: none` の
+状態では row を folder drop 候補から除外し、背面の bookmark ソートを妨げない。
 
 folder の同一階層ソート用 droppable は、展開した子孫を含む tree node wrapper に登録する。一方、
 bookmark の folder drop 用 droppable は各 folder row だけに別 ID で登録する。bookmark の衝突判定では
@@ -156,8 +161,9 @@ DnD のテストは、以下の層でこの policy を守る。
 - API route tests: `position` 更新が別ユーザー、別 folder / parentPath、削除済みデータを巻き込まないことを確認する。
 - `packages/web/e2e/dnd.spec.ts`: 実ブラウザで代表操作を確認する。DnD 後は API request だけでなく、
   DOM 上の表示順や移動後の表示状態も確認する。
-- `packages/web/src/lib/dnd-collision.test.ts`: bookmark card 中心を含む単一の folder target を優先すること、
-  folder 外では bookmark card 同士の中心距離で判定すること、pointer 座標に依存しないことを確認する。
+- `packages/web/src/lib/dnd-collision.test.ts`: pointer、bookmark card 中心、card との重なりの優先順位で
+  単一の folder target を選ぶこと、card が folder と重ならなければ bookmark card 同士の中心距離で
+  判定すること、bookmark / folder のソート判定には folder drop 条件を広げないことを確認する。
 
 DnD の操作範囲、feedback、handle 表示、テスト対象を変更する場合は、実装・テストと一緒にこの
 `docs/dnd.md` を更新する。
