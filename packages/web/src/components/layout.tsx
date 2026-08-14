@@ -4,11 +4,12 @@ import {
   type DragEndEvent,
   PointerSensor,
   useDndContext,
+  useDndMonitor,
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
 import { Link, useNavigate, useRouter, useRouterState } from '@tanstack/react-router';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 
 import { collisionDetection } from '../lib/dnd-collision';
 import { UNCATEGORIZED_VIEW, type BookmarkView } from '../lib/constants';
@@ -31,6 +32,7 @@ export function Layout({
   const location = useRouterState({ select: (s) => s.location });
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const sidebarRef = useRef<HTMLElement>(null);
 
   const search = location.search as Record<string, unknown>;
   const isOnIndex = location.pathname === '/';
@@ -196,6 +198,7 @@ export function Layout({
 
       <div className="flex h-dvh">
         <aside
+          ref={sidebarRef}
           className={`fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col overflow-y-auto border-r border-gray-200 bg-gray-50 p-4 transition-transform duration-300 md:static md:translate-x-0 ${
             sidebarOpen
               ? 'translate-x-0'
@@ -317,28 +320,90 @@ export function Layout({
           </main>
         </div>
       </div>
-      <DragOverlay dropAnimation={null}>
-        <BookmarkDragOverlayContent />
-      </DragOverlay>
+      <BookmarkDragOverlay sidebarRef={sidebarRef} />
     </DndContext>
   );
 }
 
-function BookmarkDragOverlayContent() {
+function BookmarkDragOverlay({ sidebarRef }: { sidebarRef: RefObject<HTMLElement | null> }) {
+  const [isOverSidebar, setIsOverSidebar] = useState(false);
+  const { active } = useDndContext();
+
+  useEffect(() => {
+    if (active?.data.current?.type !== 'bookmark') return;
+
+    const handlePointerMove = (event: PointerEvent) => {
+      setIsOverSidebar(isPointInsideSidebar(event.clientX, event.clientY, sidebarRef.current));
+    };
+    window.addEventListener('pointermove', handlePointerMove, { passive: true });
+    return () => window.removeEventListener('pointermove', handlePointerMove);
+  }, [active, sidebarRef]);
+
+  useDndMonitor({
+    onDragCancel: () => setIsOverSidebar(false),
+    onDragEnd: () => setIsOverSidebar(false),
+  });
+
+  return (
+    <DragOverlay dropAnimation={null}>
+      <BookmarkDragOverlayContent isOverSidebar={isOverSidebar} />
+    </DragOverlay>
+  );
+}
+
+export function BookmarkDragOverlayContent({ isOverSidebar = false }: { isOverSidebar?: boolean }) {
   // useDndContext で active 情報を取り、bookmark drag のときだけ overlay を出す。
   // state を別途持たないことで onDragEnd 後の余計な再 render を避ける。
-  const { active } = useDndContext();
+  const { active, activatorEvent } = useDndContext();
   const data = active?.data.current;
   if (!data || data.type !== 'bookmark') return null;
+  const bookmark = data.bookmark as Bookmark;
   // DragOverlay は position: fixed + 高い z-index で viewport 基準描画されるため、
   // 元の grid のサイズ計算が効かない。active 要素の初期 rect の width を渡して
-  // 元のカードと同じ幅で表示する。
-  const width = active?.rect.current.initial?.width;
+  // 元のカードと同じ幅で表示する。縮小は内側だけに適用し、衝突判定用の外枠は維持する。
+  const initialRect = active?.rect.current.initial;
+  const width = initialRect?.width;
+  const activationPoint = getClientPoint(activatorEvent);
+  const transformOrigin =
+    activationPoint && initialRect
+      ? `${Math.min(Math.max(activationPoint.x - initialRect.left, 0), initialRect.width)}px ${Math.min(
+          Math.max(activationPoint.y - initialRect.top, 0),
+          initialRect.height,
+        )}px`
+      : undefined;
   return (
     <div style={width ? { width } : undefined}>
-      <BookmarkCardPreview bookmark={data.bookmark as Bookmark} />
+      <div
+        data-testid="bookmark-drag-overlay-card"
+        style={transformOrigin ? { transformOrigin } : undefined}
+        className={`transition-transform duration-150 ease-out motion-reduce:transition-none ${
+          isOverSidebar ? 'scale-[0.55]' : 'scale-100'
+        }`}
+      >
+        <BookmarkCardPreview bookmark={bookmark} />
+      </div>
     </div>
   );
+}
+
+function getClientPoint(event: Event | null): { x: number; y: number } | null {
+  if (
+    event &&
+    'clientX' in event &&
+    'clientY' in event &&
+    typeof event.clientX === 'number' &&
+    typeof event.clientY === 'number'
+  ) {
+    return { x: event.clientX, y: event.clientY };
+  }
+  return null;
+}
+
+function isPointInsideSidebar(x: number, y: number, sidebar: HTMLElement | null): boolean {
+  if (!sidebar || getComputedStyle(sidebar).pointerEvents === 'none') return false;
+
+  const rect = sidebar.getBoundingClientRect();
+  return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
 }
 
 function SearchInput({

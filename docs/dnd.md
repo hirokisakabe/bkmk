@@ -13,15 +13,15 @@ drag 中の feedback 方針を明文化する。DnD の実装やテストを変�
 
 ## 操作一覧
 
-| 操作                                                              | 現時点の DnD 対象 | drag 中 feedback                                                                                                                                                                                                                         | drop 後の意味                                                                     |
-| ----------------------------------------------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| bookmark の同一フォルダ内ソート                                   | 対象              | bookmark card 本体は不可視 (`opacity-0`) にし、`DragOverlay` で position: fixed の最前面にサムネイルを表示する。同一 `SortableContext` 内で周囲の card を押し出して drop 後の順序を preview する                                         | 同じ `folderPath` 内の `position` を更新する                                      |
-| bookmark の folder 移動                                           | 対象              | bookmark card 本体は不可視 (`opacity-0`) にし、`DragOverlay` で position: fixed の最前面にサムネイルを表示する。folder tree 側の drop target を ring / background で highlight する。bookmark list 側では reorder preview として扱わない | bookmark の `folderPath` を drop 先 folder に変更し、移動先 folder の先頭へ入れる |
-| folder の同一階層内ソート                                         | 対象              | folder row を半透明にし、同じ `parentPath` の `SortableContext` 内で周囲の row を押し出して drop 後の順序を preview する                                                                                                                 | 同じ `parentPath` 内の `position` を更新する                                      |
-| folder の階層移動                                                 | 対象外            | DnD feedback は出さない。階層移動は context menu の「移動」ダイアログで扱う                                                                                                                                                              | DnD では変更しない                                                                |
-| `すべて` 表示での bookmark ソート                                 | 対象外            | ソート用 drag handle は表示しない。bookmark の folder 移動 DnD を許可する場合も、feedback は folder tree の drop target highlight に寄せる                                                                                               | flat list の global order は変更しない                                            |
-| deep 表示かつサブフォルダあり folder での bookmark ソート         | 対象外            | ソート用 drag handle は表示しない。bookmark の folder 移動 DnD を許可する場合も、feedback は folder tree の drop target highlight に寄せる                                                                                               | 複数 folder をまたぐ flat list の順序は変更しない                                 |
-| deep 表示かつ末端フォルダ（サブフォルダなし）での bookmark ソート | 対象              | bookmark card 本体は不可視 (`opacity-0`) にし、`DragOverlay` で position: fixed の最前面にサムネイルを表示する。同一 `SortableContext` 内で周囲の card を押し出して drop 後の順序を preview する                                         | 同じ `folderPath` 内の `position` を更新する                                      |
+| 操作                                                              | 現時点の DnD 対象 | drag 中 feedback                                                                                                                                                                                                                                                                                   | drop 後の意味                                                                     |
+| ----------------------------------------------------------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| bookmark の同一フォルダ内ソート                                   | 対象              | bookmark card 本体は不可視 (`opacity-0`) にし、`DragOverlay` で position: fixed の最前面にサムネイルを表示する。同一 `SortableContext` 内で周囲の card を押し出して drop 後の順序を preview する                                                                                                   | 同じ `folderPath` 内の `position` を更新する                                      |
+| bookmark の folder 移動                                           | 対象              | bookmark card 本体は不可視 (`opacity-0`) にし、`DragOverlay` で position: fixed の最前面にサムネイルを表示する。pointer が sidebar に入るとサムネイル内部を 55% に縮小し、folder tree 側の drop target を ring / background で highlight する。bookmark list 側では reorder preview として扱わない | bookmark の `folderPath` を drop 先 folder に変更し、移動先 folder の先頭へ入れる |
+| folder の同一階層内ソート                                         | 対象              | folder row を半透明にし、同じ `parentPath` の `SortableContext` 内で周囲の row を押し出して drop 後の順序を preview する                                                                                                                                                                           | 同じ `parentPath` 内の `position` を更新する                                      |
+| folder の階層移動                                                 | 対象外            | DnD feedback は出さない。階層移動は context menu の「移動」ダイアログで扱う                                                                                                                                                                                                                        | DnD では変更しない                                                                |
+| `すべて` 表示での bookmark ソート                                 | 対象外            | ソート用 drag handle は表示しない。bookmark の folder 移動 DnD を許可する場合も、feedback は folder tree の drop target highlight に寄せる                                                                                                                                                         | flat list の global order は変更しない                                            |
+| deep 表示かつサブフォルダあり folder での bookmark ソート         | 対象外            | ソート用 drag handle は表示しない。bookmark の folder 移動 DnD を許可する場合も、feedback は folder tree の drop target highlight に寄せる                                                                                                                                                         | 複数 folder をまたぐ flat list の順序は変更しない                                 |
+| deep 表示かつ末端フォルダ（サブフォルダなし）での bookmark ソート | 対象              | bookmark card 本体は不可視 (`opacity-0`) にし、`DragOverlay` で position: fixed の最前面にサムネイルを表示する。同一 `SortableContext` 内で周囲の card を押し出して drop 後の順序を preview する                                                                                                   | 同じ `folderPath` 内の `position` を更新する                                      |
 
 ## bookmark ソート
 
@@ -53,11 +53,17 @@ bookmark の folder 移動は DnD 対象にする。drop target は folder tree 
 `未分類` であり、drop 先が現在の `folderPath` と同じ場合は no-op にする。
 
 drag 中は bookmark list 側で reorder preview を出さず、folder tree 側の hover / over feedback で
-「ここに入る」ことを示す。現在の実装では drop target に ring と background を付ける。
+「ここに入る」ことを示す。pointer が左 sidebar 全体へ入った時点で `DragOverlay` 内部のサムネイルを
+55% に縮小し、folder row と sidebar の内容を見やすくする。folder row の空白部分や移動元と同じ folder
+上でも縮小を維持し、sidebar から外れると元の大きさへ戻る。縮小と復帰は 150ms の短い transition とし、
+`prefers-reduced-motion` が有効な環境では transition を無効にする。縮小原点はカード中央ではなく
+ドラッグ開始時に掴んだ位置とし、縮小中も pointer とサムネイルの位置関係を維持する。現在の mobile
+layout はドラッグ中に sidebar を開く導線がないため、この feedback の対象は desktop sidebar とする。
 drag 元の card 本体は不可視（`opacity-0`）にし、サムネイルは `DragOverlay` で
 viewport 基準の `position: fixed` + 高い z-index で最前面に描画する。これによりカーソルが
 folder tree（左 sidebar）上に移動しても、サムネイルが stacking context に隠れず常に
-追従して見える。
+追従して見える。縮小 transform はサムネイルを包む内側の要素だけに適用し、`DragOverlay` の外枠と
+`collisionRect` は通常サイズのまま維持するため、folder drop の衝突判定範囲は変えない。
 
 folder drop target は、pointer、`collisionRect` の中心、card と row の重なりの順で判定する。pointer
 が表示中の row 内ならユーザーの明示的な位置指定としてその row を最優先する。pointer が外でも card
@@ -160,7 +166,7 @@ DnD のテストは、以下の層でこの policy を守る。
   invalidation を検証する。bookmark move は移動元 / 移動先 / `すべて` query の整合性を確認する。
 - API route tests: `position` 更新が別ユーザー、別 folder / parentPath、削除済みデータを巻き込まないことを確認する。
 - `packages/web/e2e/dnd.spec.ts`: 実ブラウザで代表操作を確認する。DnD 後は API request だけでなく、
-  DOM 上の表示順や移動後の表示状態も確認する。
+  DOM 上の表示順や移動後の表示状態に加え、sidebar 内での overlay 縮小と sidebar 外での復帰も確認する。
 - `packages/web/src/lib/dnd-collision.test.ts`: pointer、bookmark card 中心、card との重なりの優先順位で
   単一の folder target を選ぶこと、card が folder と重ならなければ bookmark card 同士の中心距離で
   判定すること、bookmark / folder のソート判定には folder drop 条件を広げないことを確認する。
