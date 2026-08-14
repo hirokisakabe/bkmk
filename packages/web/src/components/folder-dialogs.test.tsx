@@ -14,12 +14,17 @@ import {
   RenameFolderDialog,
 } from './folder-dialogs';
 
+const longFolderName = '空白 を含む とても 長い 移動先 フォルダ名 プロジェクト';
 const folders: Folder[] = [
   makeFolder('current', '/current', null),
   makeFolder('current-child', '/current/child', '/current'),
   makeFolder('projects', '/projects', null),
   makeFolder('frontend', '/projects/frontend', '/projects'),
   makeFolder('archive', '/archive', null),
+  {
+    ...makeFolder('long-folder', `/${longFolderName}`, null),
+    name: longFolderName,
+  },
 ];
 
 const currentFolder = folders[0];
@@ -394,11 +399,38 @@ describe('移動先選択ダイアログ', () => {
       screen.queryByRole('button', { name: /を(?:展開する|折りたたむ)$/ }),
     ).not.toBeInTheDocument();
   });
+
+  it('長い移動先名を省略し、pointer と keyboard focus で全文を表示する', async () => {
+    renderDialog(<MoveBookmarkDialog open onOpenChange={vi.fn()} bookmark={bookmark} />);
+
+    const row = await screen.findByTestId(`move-target-row-/${longFolderName}`);
+    const nameButton = within(row).getByRole('button', { name: longFolderName });
+    const name = within(nameButton).getByText(longFolderName);
+    expect(nameButton).toHaveClass('min-w-0', 'flex-1');
+    expect(name).toHaveClass('min-w-0', 'flex-1', 'truncate');
+    markAsOverflowing(name);
+
+    fireEvent.pointerEnter(nameButton);
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(longFolderName);
+    fireEvent.pointerLeave(nameButton);
+
+    nameButton.focus();
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(longFolderName);
+    expect(nameButton).not.toHaveAttribute('title');
+  });
 });
 
 function expectRowWithoutExpandButton(row: HTMLElement) {
   expect(within(row).getAllByRole('button')).toHaveLength(1);
   expect(row.querySelector('span[aria-hidden="true"]')).toHaveClass('h-10', 'w-6', 'shrink-0');
+}
+
+function markAsOverflowing(element: HTMLElement) {
+  Object.defineProperties(element, {
+    scrollWidth: { configurable: true, value: 320 },
+    clientWidth: { configurable: true, value: 100 },
+  });
+  fireEvent(window, new Event('resize'));
 }
 
 function expectLocalError(input: HTMLElement, message: string | RegExp) {

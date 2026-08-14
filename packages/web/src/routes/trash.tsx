@@ -3,6 +3,7 @@ import { createRoute } from '@tanstack/react-router';
 import { useState } from 'react';
 
 import { Layout } from '../components/layout';
+import { OverflowTooltip } from '../components/overflow-tooltip';
 import { useDeleteTrashItem } from '../hooks/use-delete-trash-item';
 import { useEmptyTrash } from '../hooks/use-empty-trash';
 import { useRestoreTrashItem } from '../hooks/use-restore-trash-item';
@@ -109,11 +110,26 @@ function TrashItemCard({ item, onDelete }: { item: TrashItem; onDelete: () => vo
     : '';
 
   return (
-    <div className="flex items-center justify-between rounded-lg border border-gray-200 p-4">
+    <div className="flex min-w-0 items-center justify-between rounded-lg border border-gray-200 p-4">
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2">
           {isFolder ? <FolderIcon /> : <BookmarkIcon />}
-          <span className="truncate font-medium text-gray-900">{name}</span>
+          {isFolder ? (
+            <OverflowTooltip text={name}>
+              {({ isOverflowing, textRef, triggerProps }) => (
+                <span
+                  ref={textRef}
+                  className="min-w-0 flex-1 truncate rounded-sm font-medium text-gray-900 outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                  tabIndex={isOverflowing ? 0 : undefined}
+                  {...triggerProps}
+                >
+                  {name}
+                </span>
+              )}
+            </OverflowTooltip>
+          ) : (
+            <span className="min-w-0 flex-1 truncate font-medium text-gray-900">{name}</span>
+          )}
         </div>
         {item.type === 'bookmark' && (
           <p className="mt-1 truncate pl-6 text-xs text-gray-400">{item.data.url}</p>

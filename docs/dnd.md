@@ -133,6 +133,10 @@ folder tree の folder row は、現時点では folder ソート handle と boo
 bookmark を drag している間は folder row / `未分類` row の hover feedback を優先し、folder ソート中は
 同一階層内の sortable preview を優先する。
 
+folder 名の省略表示に付随する tooltip は、bookmark / folder のどちらかが active な DnD 中は表示しない。
+drag 開始前に開いていた tooltip も閉じ、folder row の drop target highlight と sortable preview を
+遮らないようにする。
+
 ## 意図的に対象外にする操作
 
 - `すべて` 表示の flat list で、異なる `folderPath` の bookmark 同士を自由にソートすること。

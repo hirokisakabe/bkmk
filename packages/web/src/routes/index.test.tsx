@@ -112,7 +112,8 @@ describe('IndexPage', () => {
       expect(header).toContainElement(pageHeading);
       expect(header).toContainElement(searchInput);
       expect(header).toHaveClass('mb-6', 'flex', 'min-w-0', 'items-center');
-      expect(pageHeading).toHaveClass('min-w-0', 'flex-1', 'truncate');
+      expect(pageHeading).toHaveClass('min-w-0', 'flex-1');
+      expect(pageHeading.querySelector('span')).toHaveClass('block', 'truncate');
       expect(searchInput.parentElement).toHaveClass(
         'max-w-[20rem]',
         'shrink-0',
@@ -121,6 +122,31 @@ describe('IndexPage', () => {
       );
     },
   );
+
+  it('長いフォルダ見出しだけを縮め、pointer と keyboard focus で全文を表示する', async () => {
+    const longFolderName = 'LongFolderNameWithoutAnySpaces0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    renderWithProviders({
+      initialUrl: `/?folder=${encodeURIComponent(`/${longFolderName}`)}`,
+    });
+
+    const heading = await screen.findByRole('heading', { name: longFolderName });
+    const headingText = heading.querySelector('span') as HTMLElement;
+    const searchInput = screen.getByRole('textbox', { name: 'ブックマークを検索' });
+    expect(heading).toHaveClass('min-w-0', 'flex-1');
+    expect(headingText).toHaveClass('truncate');
+    expect(searchInput.parentElement).toHaveClass('shrink-0', 'max-w-[20rem]');
+    markAsOverflowing(headingText);
+    await waitFor(() => expect(heading).toHaveAttribute('tabindex', '0'));
+
+    fireEvent.pointerEnter(heading);
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(longFolderName);
+    fireEvent.pointerLeave(heading);
+
+    heading.focus();
+    expect(heading).toHaveFocus();
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(longFolderName);
+    expect(heading).not.toHaveAttribute('title');
+  });
 
   it('検索語を300msデバウンスしてURLと検索結果へ反映し、入力値を維持する', async () => {
     const { router } = renderWithProviders({ initialUrl: '/' });
@@ -482,3 +508,11 @@ describe('IndexPage', () => {
     expect(screen.queryByText('ブックマークを削除')).not.toBeInTheDocument();
   });
 });
+
+function markAsOverflowing(element: HTMLElement) {
+  Object.defineProperties(element, {
+    scrollWidth: { configurable: true, value: 600 },
+    clientWidth: { configurable: true, value: 160 },
+  });
+  fireEvent(window, new Event('resize'));
+}

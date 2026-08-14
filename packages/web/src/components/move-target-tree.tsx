@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 
 import { getChildFolders, useAllFolders } from '../hooks/use-folders';
 import type { Folder } from '../types';
+import { OverflowTooltip } from './overflow-tooltip';
 
 const rowStateClasses = {
   selected: 'bg-blue-100 font-semibold text-blue-800 hover:bg-blue-200',
@@ -54,14 +55,21 @@ export function MoveTargetRow({
       ) : (
         <span aria-hidden="true" className="h-10 w-6 shrink-0" />
       )}
-      <button
-        type="button"
-        onClick={() => onSelect(path)}
-        className="flex min-h-10 min-w-0 flex-1 items-center gap-2 rounded-sm pr-3 text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset"
-      >
-        <FolderIcon />
-        <span className="truncate">{label}</span>
-      </button>
+      <OverflowTooltip text={label}>
+        {({ textRef, triggerProps }) => (
+          <button
+            type="button"
+            onClick={() => onSelect(path)}
+            className="flex min-h-10 min-w-0 flex-1 items-center gap-2 rounded-sm pr-3 text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset"
+            {...triggerProps}
+          >
+            <FolderIcon />
+            <span ref={textRef} className="min-w-0 flex-1 truncate">
+              {label}
+            </span>
+          </button>
+        )}
+      </OverflowTooltip>
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { UNCATEGORIZED_VIEW, type BookmarkView } from '../lib/constants';
 import type { Folder } from '../types';
 import { FolderTree } from './folder-tree';
 
+const longFolderName = '同じ接頭辞から始まるとても長いフォルダ名プロジェクトアルファ';
 const folders: Folder[] = [
   {
     id: 'folder-1',
@@ -15,6 +16,16 @@ const folders: Folder[] = [
     path: '/仕事',
     parentPath: null,
     position: 0,
+    deletedAt: null,
+    createdAt: '2026-08-12T00:00:00.000Z',
+  },
+  {
+    id: 'folder-long',
+    userId: 'user-1',
+    name: longFolderName,
+    path: `/${longFolderName}`,
+    parentPath: null,
+    position: 1,
     deletedAt: null,
     createdAt: '2026-08-12T00:00:00.000Z',
   },
@@ -100,4 +111,32 @@ describe('FolderTree', () => {
       expect(captureCreateFolderDialogProps.mock.lastCall?.[0].parentPath).toBe('/仕事');
     });
   });
+
+  it('長いフォルダ名を handle の手前で省略し、pointer と focus で全文を表示する', async () => {
+    renderFolderTree();
+
+    const nameButton = screen.getByRole('button', { name: longFolderName });
+    const name = screen.getByText(longFolderName);
+    const row = screen.getByTestId('folder-drop-target-folder-long');
+    expect(nameButton).toHaveClass('min-w-0', 'flex-1');
+    expect(name).toHaveClass('min-w-0', 'flex-1', 'truncate');
+    expect(row).toContainElement(screen.getByTestId('folder-drag-handle-folder-long'));
+    markAsOverflowing(name);
+
+    fireEvent.pointerEnter(nameButton);
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(longFolderName);
+    fireEvent.pointerLeave(nameButton);
+
+    nameButton.focus();
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(longFolderName);
+    expect(nameButton).not.toHaveAttribute('title');
+  });
 });
+
+function markAsOverflowing(element: HTMLElement) {
+  Object.defineProperties(element, {
+    scrollWidth: { configurable: true, value: 320 },
+    clientWidth: { configurable: true, value: 100 },
+  });
+  fireEvent(window, new Event('resize'));
+}

@@ -15,6 +15,7 @@ import { UNCATEGORIZED_VIEW, type BookmarkView } from '../lib/constants';
 import type { Bookmark } from '../types';
 import { BookmarkCardPreview } from './bookmark-list';
 import { FolderTree } from './folder-tree';
+import { OverflowTooltip } from './overflow-tooltip';
 
 export function Layout({
   children,
@@ -291,9 +292,19 @@ export function Layout({
               data-testid={heading ? 'main-header' : undefined}
             >
               {heading && (
-                <h2 className="min-w-0 flex-1 truncate text-xl font-bold text-gray-900">
-                  {heading}
-                </h2>
+                <OverflowTooltip text={heading}>
+                  {({ isOverflowing, textRef, triggerProps }) => (
+                    <h2
+                      className="min-w-0 flex-1 rounded-sm text-xl font-bold text-gray-900 outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                      tabIndex={isOverflowing ? 0 : undefined}
+                      {...triggerProps}
+                    >
+                      <span ref={textRef} className="block truncate">
+                        {heading}
+                      </span>
+                    </h2>
+                  )}
+                </OverflowTooltip>
               )}
               <SearchInput
                 value={searchValue}
