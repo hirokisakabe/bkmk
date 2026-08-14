@@ -81,6 +81,20 @@ describe('DnD mutation hooks', () => {
       makeBookmark('b', 1, '/work'),
       makeBookmark('c', 2, '/work'),
     ]);
+    const paginatedKey = ['bookmarks', 'paginated', { folder: null, deep: true }];
+    queryClient.setQueryData(paginatedKey, {
+      pages: [
+        {
+          data: [makeBookmark('a', 0, '/work'), makeBookmark('b', 1, '/work')],
+          nextCursor: 'page-2',
+        },
+        {
+          data: [makeBookmark('c', 2, '/work'), makeBookmark('other', 0, '/other')],
+          nextCursor: null,
+        },
+      ],
+      pageParams: ['', 'page-2'],
+    });
 
     const { result } = renderHook(() => useReorderBookmark(), { wrapper: Wrapper });
     const mutation = act(() => result.current.mutateAsync({ id: 'a', position: 2 }));
@@ -100,6 +114,20 @@ describe('DnD mutation hooks', () => {
     expect(
       queryClient.getQueryData<Bookmark[]>(bookmarkKey(null, true))?.find((b) => b.id === 'other'),
     ).toMatchObject({ folderPath: '/other', position: 0 });
+    const paginated = queryClient.getQueryData<{
+      pages: Array<{ data: Bookmark[]; nextCursor: string | null }>;
+      pageParams: string[];
+    }>(paginatedKey);
+    expect(
+      paginated?.pages.map((page) =>
+        page.data.map((bookmark) => `${bookmark.id}:${bookmark.position}`),
+      ),
+    ).toEqual([
+      ['b:0', 'c:1'],
+      ['a:2', 'other:0'],
+    ]);
+    expect(paginated?.pages.map((page) => page.nextCursor)).toEqual(['page-2', null]);
+    expect(paginated?.pageParams).toEqual(['', 'page-2']);
 
     resolvePatch();
     await mutation;

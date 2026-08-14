@@ -34,6 +34,7 @@ export function useBookmarksPaginated(folderPath: string | null, deep: boolean) 
         query: {
           folder: folderPath ?? undefined,
           deep: deep ? 'true' : undefined,
+          grouped: 'true',
           limit: String(PAGE_SIZE),
           cursor: (pageParam as string) || undefined,
         },

@@ -115,6 +115,37 @@ describe('GET /api/bookmarks', () => {
     expect(body.nextCursor).not.toBeNull();
   });
 
+  it('grouped=true はgrouped queryの結果をpagination形式で返す', async () => {
+    const folderRows = [
+      { path: '/later', parentPath: null, position: 1 },
+      { path: '/first/child', parentPath: '/first', position: 0 },
+      { path: '/first', parentPath: null, position: 0 },
+    ];
+    const items = [
+      { ...mockBookmark, id: 'root', folderPath: null, position: 0 },
+      { ...mockBookmark, id: 'first-1', folderPath: '/first', position: 0 },
+      { ...mockBookmark, id: 'first-2', folderPath: '/first', position: 1 },
+      { ...mockBookmark, id: 'child', folderPath: '/first/child', position: 0 },
+      { ...mockBookmark, id: 'later', folderPath: '/later', position: 0 },
+    ];
+    vi.mocked(db.select)
+      .mockReturnValueOnce(mockQueryChain(folderRows) as never)
+      .mockReturnValueOnce(mockQueryChain(items) as never);
+
+    const res = await app.request('/api/bookmarks?deep=true&grouped=true&limit=10');
+    expect(res.status).toBe(200);
+    const body = await res.json();
+
+    expect(body.data.map((bookmark: { id: string }) => bookmark.id)).toEqual([
+      'root',
+      'first-1',
+      'first-2',
+      'child',
+      'later',
+    ]);
+    expect(body.nextCursor).toBeNull();
+  });
+
   it('limit 未指定時は従来どおり配列を返す', async () => {
     vi.mocked(db.select).mockReturnValue(mockQueryChain([mockBookmark]) as never);
 

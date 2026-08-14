@@ -17,11 +17,7 @@ import {
   UNCATEGORIZED_VIEW,
   type BookmarkView,
 } from '../lib/constants';
-import {
-  resolveBookmarkMoveTarget,
-  resolveBookmarkReorderTarget,
-  resolveCanReorderBookmarks,
-} from '../lib/dnd-reorder';
+import { resolveBookmarkMoveTarget, resolveBookmarkReorderTarget } from '../lib/dnd-reorder';
 import { useSettings } from '../lib/settings-store';
 import type { Bookmark, Folder } from '../types';
 import { rootRoute } from './__root';
@@ -113,11 +109,8 @@ function BookmarkManager() {
   const deep = isAllBookmarks
     ? true
     : !isUncategorized && folder !== undefined && settings.includeSubfolders;
-  // deep=true のときフォルダ一覧未取得中は保守的に「サブフォルダあり」とみなしソートを抑制する
-  const hasSubfolders =
-    deep && isFoldersLoading ? true : allFolders.some((f) => f.parentPath === currentFolderPath);
-  const canReorderBookmarks = resolveCanReorderBookmarks({ isAllBookmarks, deep, hasSubfolders });
-
+  const hasSubfolders = allFolders.some((candidate) => candidate.parentPath === currentFolderPath);
+  const usesGroupedPagination = isAllBookmarks || (deep && (isFoldersLoading || hasSubfolders));
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
@@ -127,16 +120,20 @@ function BookmarkManager() {
     if (!activeData || !overData) return;
 
     if (activeData.type === 'bookmark' && overData.type === 'bookmark') {
-      if (!canReorderBookmarks) return;
+      if (q) return;
       if (reorderBookmark.isPending) return;
       if (activeData.bookmark.folderPath !== overData.bookmark.folderPath) return;
-      if (activeData.bookmark.folderPath !== currentFolderPath) return;
-      const raw = queryClient.getQueryData<Bookmark[]>([
+      const flat = queryClient.getQueryData<Bookmark[]>([
         'bookmarks',
         { folder: activeData.bookmark.folderPath, deep },
       ]);
-      // deep=true のとき複数フォルダが混在するため同一フォルダのみに絞る
-      const cached = raw?.filter((b) => b.folderPath === activeData.bookmark.folderPath);
+      const paginated = queryClient.getQueryData<{
+        pages: Array<{ data: Bookmark[] }>;
+      }>(['bookmarks', 'paginated', { folder: currentFolderPath, deep }]);
+      const raw = usesGroupedPagination ? paginated?.pages.flatMap((page) => page.data) : flat;
+      const cached = raw?.filter(
+        (bookmark) => bookmark.folderPath === activeData.bookmark.folderPath,
+      );
       const target = resolveBookmarkReorderTarget(cached, String(active.id), String(over.id));
       if (!target) return;
       reorderBookmark.mutate(target);

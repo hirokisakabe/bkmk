@@ -439,7 +439,7 @@ test('すべて表示ではフォルダ移動handleから移動できる', async
   await expect(page.locator('h3', { hasText: 'Alpha' })).toBeVisible();
   const moveHandle = page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[0].id}`);
   await expect(moveHandle).toBeVisible();
-  await expect(moveHandle).toHaveAttribute('aria-label', 'フォルダ移動');
+  await expect(moveHandle).toHaveAttribute('aria-label', '並び替え・フォルダ移動');
 
   await dragTo(page, moveHandle, page.getByTestId(`folder-drop-target-${FOLDERS[1].id}`));
 
@@ -495,7 +495,7 @@ test('mobileのtouch操作でもカード全体ではなくhandleからdragを�
   const draggableNode = card.locator('..').locator('..');
   const moveHandle = page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[0].id}`);
   await expect(moveHandle).toBeVisible();
-  await expect(moveHandle).toHaveAttribute('aria-label', 'フォルダ移動');
+  await expect(moveHandle).toHaveAttribute('aria-label', '並び替え・フォルダ移動');
   await expect(draggableNode).not.toHaveAttribute('aria-describedby', /.+/);
 
   const cardBox = await card.boundingBox();
@@ -595,22 +595,71 @@ test('includeSubfolders=true で複数フォルダ混在キャッシュでも同
   await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText(['GapB', 'GapA']);
 });
 
-test('deep表示ではフォルダ移動handleをbookmarkソートに使わない', async ({ page }) => {
+test('すべて表示はfolder group順に表示し、同一group内だけsortできる', async ({ page }) => {
+  const uncategorized = makeBookmark('uncategorized', 'Uncategorized', null, 0);
+  await setupMocks(page, [uncategorized]);
+  await page.goto('/');
+
+  const groups = page.getByTestId('bookmark-groups').locator('section');
+  await expect(groups.locator('h2')).toHaveText([
+    '未分類',
+    '/folder-a',
+    '/folder-a/child',
+    '/folder-b',
+  ]);
+
+  const bookmarkPatchRequests: string[] = [];
+  page.on('request', (request) => {
+    if (
+      request.method() === 'PATCH' &&
+      new URL(request.url()).pathname.startsWith('/api/bookmarks')
+    ) {
+      bookmarkPatchRequests.push(request.url());
+    }
+  });
+  await dragTo(
+    page,
+    page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[0].id}`),
+    page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[2].id}`),
+  );
+  expect(bookmarkPatchRequests).toEqual([]);
+  await expect(page.getByTestId('bookmark-group-/folder-a').locator('h3')).toHaveText([
+    'Alpha',
+    'Beta',
+  ]);
+
+  const positionRequest = page.waitForRequest(
+    (request) =>
+      request.method() === 'PATCH' &&
+      request.url().includes(`/api/bookmarks/${BOOKMARKS[0].id}/position`),
+  );
+  await dragTo(
+    page,
+    page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[0].id}`),
+    page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[1].id}`),
+  );
+  await positionRequest;
+  await expect(page.getByTestId('bookmark-group-/folder-a').locator('h3')).toHaveText([
+    'Beta',
+    'Alpha',
+  ]);
+});
+
+test('deep表示はfolder groupをまたぐdragをno-opにし、同一group内はsortできる', async ({ page }) => {
   await setupMocks(page);
 
   await page.goto('/settings');
   await page.getByLabel('サブフォルダを含む').check();
 
   await page.goto('/?folder=/folder-a');
-  await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText([
-    'Alpha',
-    'Gamma',
-    'Beta',
+  await expect(page.getByTestId('bookmark-groups').locator('h2')).toHaveText([
+    '/folder-a',
+    '/folder-a/child',
   ]);
   const alphaHandle = page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[0].id}`);
   const gammaHandle = page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[2].id}`);
   const betaHandle = page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[1].id}`);
-  await expect(alphaHandle).toHaveAttribute('aria-label', 'フォルダ移動');
+  await expect(alphaHandle).toHaveAttribute('aria-label', '並び替え・フォルダ移動');
   await expect(gammaHandle).toHaveAttribute('aria-label', 'フォルダ移動');
 
   const bookmarkPatchRequests: string[] = [];
@@ -621,14 +670,19 @@ test('deep表示ではフォルダ移動handleをbookmarkソートに使わな�
   });
 
   await dragTo(page, alphaHandle, gammaHandle);
-  await dragTo(page, alphaHandle, betaHandle);
-
   expect(bookmarkPatchRequests).toEqual([]);
-  await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText([
+  await expect(page.getByTestId('bookmark-group-/folder-a').locator('h3')).toHaveText([
     'Alpha',
-    'Gamma',
     'Beta',
   ]);
+
+  await dragTo(page, alphaHandle, betaHandle);
+  await expect(page.getByTestId('bookmark-group-/folder-a').locator('h3')).toHaveText([
+    'Beta',
+    'Alpha',
+  ]);
+  expect(bookmarkPatchRequests).toHaveLength(1);
+  expect(bookmarkPatchRequests[0]).toContain(`/api/bookmarks/${BOOKMARKS[0].id}/position`);
 });
 
 // ---- ソートずれ回帰テスト: フォルダ内3件の様々なパターン ----

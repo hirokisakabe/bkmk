@@ -43,6 +43,68 @@ function decodeCursor(cursor: string): { sortValue: string; id: string } | null 
   }
 }
 
+function folderPathsDepthFirst(
+  allFolders: Array<{ path: string; parentPath: string | null; position: number }>,
+  parentPath: string | null,
+): string[] {
+  const childrenByParent = new Map<
+    string | null,
+    Array<{ path: string; parentPath: string | null; position: number }>
+  >();
+  for (const folder of allFolders) {
+    const children = childrenByParent.get(folder.parentPath) ?? [];
+    children.push(folder);
+    childrenByParent.set(folder.parentPath, children);
+  }
+  for (const children of childrenByParent.values()) {
+    children.sort((a, b) => a.position - b.position || a.path.localeCompare(b.path));
+  }
+
+  const result: string[] = [];
+  const visited = new Set<string>();
+  const stack = [...(childrenByParent.get(parentPath) ?? [])].reverse();
+  while (stack.length > 0) {
+    const folder = stack.pop()!;
+    if (visited.has(folder.path)) continue;
+    visited.add(folder.path);
+    result.push(folder.path);
+    const children = childrenByParent.get(folder.path) ?? [];
+    for (let index = children.length - 1; index >= 0; index -= 1) {
+      stack.push(children[index]);
+    }
+  }
+  return result;
+}
+
+function encodeGroupedCursor(groupRank: number, position: number, id: string): string {
+  return Buffer.from(JSON.stringify({ groupRank, position, id })).toString('base64url');
+}
+
+function decodeGroupedCursor(
+  cursor: string,
+): { groupRank: number; position: number; id: string } | null {
+  try {
+    const parsed = JSON.parse(Buffer.from(cursor, 'base64url').toString()) as Record<
+      string,
+      unknown
+    >;
+    if (
+      typeof parsed.groupRank !== 'number' ||
+      typeof parsed.position !== 'number' ||
+      typeof parsed.id !== 'string'
+    ) {
+      return null;
+    }
+    return {
+      groupRank: parsed.groupRank,
+      position: parsed.position,
+      id: parsed.id,
+    };
+  } catch {
+    return null;
+  }
+}
+
 const bookmarksRoute = new Hono<Env>()
   // GET /api/bookmarks?folder=/work&deep=false — 一覧取得
   .get(
@@ -52,6 +114,7 @@ const bookmarksRoute = new Hono<Env>()
       z.object({
         folder: z.string().optional(),
         deep: z.string().optional(),
+        grouped: z.enum(['true', 'false']).optional(),
         cursor: z.string().optional(),
         limit: z.coerce.number().int().positive().optional(),
       }),
@@ -59,9 +122,10 @@ const bookmarksRoute = new Hono<Env>()
     ),
     async (c) => {
       const userId = c.var.user.id;
-      const { folder, deep, cursor, limit } = c.req.valid('query');
+      const { folder, deep, grouped, cursor, limit } = c.req.valid('query');
       const folderPath = folder ?? null;
       const isDeep = deep === 'true';
+      const isGrouped = grouped === 'true';
 
       // フォルダが指定されている場合、存在確認
       if (folderPath !== null) {
@@ -97,6 +161,70 @@ const bookmarksRoute = new Hono<Env>()
       }
 
       const isAllFolder = isDeep && folderPath === null;
+
+      if (isGrouped) {
+        const allFolders = await db
+          .select({
+            path: folders.path,
+            parentPath: folders.parentPath,
+            position: folders.position,
+          })
+          .from(folders)
+          .where(and(eq(folders.userId, userId), isNull(folders.deletedAt)));
+        const folderPaths = isAllFolder
+          ? [null, ...folderPathsDepthFirst(allFolders, null)]
+          : [folderPath, ...folderPathsDepthFirst(allFolders, folderPath)];
+        const folderRanks = new Map(folderPaths.map((path, index) => [path, index]));
+        const groupOrder = sql<number>`case ${sql.join(
+          folderPaths.map((path, index) =>
+            path === null
+              ? sql`when ${isNull(bookmarks.folderPath)} then ${index}`
+              : sql`when ${eq(bookmarks.folderPath, path)} then ${index}`,
+          ),
+          sql.raw(' '),
+        )} else 2147483647 end`;
+        const parsedCursor = cursor ? decodeGroupedCursor(cursor) : null;
+        if (parsedCursor) {
+          conditions.push(
+            or(
+              gt(groupOrder, parsedCursor.groupRank),
+              and(
+                eq(groupOrder, parsedCursor.groupRank),
+                gt(bookmarks.position, parsedCursor.position),
+              ),
+              and(
+                eq(groupOrder, parsedCursor.groupRank),
+                eq(bookmarks.position, parsedCursor.position),
+                gt(bookmarks.id, parsedCursor.id),
+              ),
+            )!,
+          );
+        }
+        const query = db
+          .select()
+          .from(bookmarks)
+          .where(and(...conditions))
+          .orderBy(groupOrder, bookmarks.position, bookmarks.id);
+
+        if (limit === undefined) {
+          return c.json(await query);
+        }
+
+        const result = await query.limit(limit + 1);
+        const hasMore = result.length > limit;
+        const data = hasMore ? result.slice(0, limit) : result;
+        const lastItem = data[data.length - 1];
+        const nextCursor =
+          hasMore && lastItem
+            ? encodeGroupedCursor(
+                folderRanks.get(lastItem.folderPath) ?? 2147483647,
+                lastItem.position,
+                lastItem.id,
+              )
+            : null;
+
+        return c.json({ data, nextCursor });
+      }
 
       // カーソル条件を追加
       if (cursor) {
