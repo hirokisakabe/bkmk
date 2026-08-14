@@ -1,7 +1,6 @@
-import { useState } from 'react';
-
 import { useSearch } from '../hooks/use-search';
 import type { SearchResult } from '../types';
+import { BookmarkCardContent, BookmarkCardSkeleton } from './bookmark-card-content';
 
 export function SearchResults({ query }: { query: string }) {
   const { data: results, isLoading } = useSearch(query);
@@ -9,18 +8,12 @@ export function SearchResults({ query }: { query: string }) {
   return (
     <div>
       {isLoading && (
-        <div className="space-y-4">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="animate-pulse rounded-lg border border-gray-200 p-4">
-              <div className="flex gap-4">
-                <div className="flex-1 space-y-2">
-                  <div className="h-4 w-3/4 rounded bg-gray-200" />
-                  <div className="h-3 w-full rounded bg-gray-200" />
-                  <div className="h-3 w-1/2 rounded bg-gray-200" />
-                </div>
-                <div className="h-20 w-32 shrink-0 rounded bg-gray-200" />
-              </div>
-            </div>
+        <div
+          className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6"
+          data-testid="search-results-grid"
+        >
+          {[...Array(6)].map((_, i) => (
+            <BookmarkCardSkeleton key={i} testId="search-result-loading-skeleton" />
           ))}
         </div>
       )}
@@ -32,7 +25,10 @@ export function SearchResults({ query }: { query: string }) {
       )}
 
       {!isLoading && results && results.length > 0 && (
-        <div className="space-y-3">
+        <div
+          className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6"
+          data-testid="search-results-grid"
+        >
           {results.map((result) => (
             <SearchResultCard key={result.id} result={result} />
           ))}
@@ -43,61 +39,37 @@ export function SearchResults({ query }: { query: string }) {
 }
 
 function SearchResultCard({ result }: { result: SearchResult }) {
-  const [imageError, setImageError] = useState(false);
-  const displayTitle = result.title || result.url;
-  const folderLabel = result.folder ? result.folder.path : 'ルート';
+  const folderLabel = result.folder?.path ?? '未分類';
 
   return (
     <a
       href={result.url}
       target="_blank"
       rel="noopener noreferrer"
-      className="block rounded-lg border border-gray-200 p-4 transition-colors hover:border-gray-300 hover:bg-gray-50"
+      className="flex h-full flex-col overflow-hidden rounded-lg border border-gray-200 bg-white transition-colors hover:border-gray-300 hover:bg-gray-50"
+      data-testid={`search-result-card-${result.id}`}
     >
-      <div className="flex gap-4">
-        <div className="min-w-0 flex-1">
-          <div className="mb-1 flex items-center gap-2">
-            {result.faviconUrl && (
-              <img
-                src={result.faviconUrl}
-                alt=""
-                className="h-4 w-4 shrink-0"
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                }}
-              />
-            )}
-            <h3 className="truncate font-medium text-gray-900">{displayTitle}</h3>
-          </div>
-
-          {result.description && (
-            <p className="mb-1 line-clamp-2 text-sm text-gray-500">{result.description}</p>
-          )}
-
-          <p className="truncate text-xs text-gray-400">{result.url}</p>
-
-          <p className="mt-1 text-xs text-blue-500">
+      <BookmarkCardContent
+        bookmark={result}
+        metadata={
+          <p className="mt-2 flex min-w-0 items-center gap-1 text-xs text-blue-500">
             <FolderIcon />
-            <span className="ml-1">{folderLabel}</span>
+            <span className="truncate">{folderLabel}</span>
           </p>
-        </div>
-
-        {result.imageUrl && !imageError && (
-          <img
-            src={result.imageUrl}
-            alt=""
-            className="h-20 w-32 shrink-0 rounded object-cover"
-            onError={() => setImageError(true)}
-          />
-        )}
-      </div>
+        }
+      />
     </a>
   );
 }
 
 function FolderIcon() {
   return (
-    <svg className="inline-block h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+    <svg
+      className="h-3 w-3 shrink-0"
+      viewBox="0 0 20 20"
+      fill="currentColor"
+      aria-hidden="true"
+    >
       <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
     </svg>
   );
