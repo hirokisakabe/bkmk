@@ -4,8 +4,14 @@ export const collisionDetection: CollisionDetection = (args) => {
   const activeType = args.active.data.current?.type;
 
   if (activeType === 'bookmark') {
+    const activeBookmark = args.active.data.current?.bookmark as
+      | { folderPath: string | null }
+      | undefined;
     const bookmarkContainers = args.droppableContainers.filter(
-      (container) => container.data.current?.type === 'bookmark',
+      (container) =>
+        container.data.current?.type === 'bookmark' &&
+        (!activeBookmark ||
+          container.data.current.bookmark?.folderPath === activeBookmark.folderPath),
     );
     const folderContainers = args.droppableContainers.filter((container) => {
       if (

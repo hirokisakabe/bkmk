@@ -2,6 +2,7 @@ import { useDraggable } from '@dnd-kit/core';
 import { SortableContext, useSortable, rectSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import * as ContextMenu from '@radix-ui/react-context-menu';
+import { useIsMutating } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState, type RefCallback } from 'react';
 
 import { useBookmarks, useBookmarksPaginated } from '../hooks/use-bookmarks';
@@ -12,10 +13,12 @@ import {
 } from '../hooks/use-create-bookmark';
 import { useDeleteBookmark } from '../hooks/use-delete-bookmark';
 import { useAllFolders } from '../hooks/use-folders';
+import { BOOKMARK_REORDER_MUTATION_KEY } from '../hooks/use-reorder-bookmark';
 import { UNCATEGORIZED_VIEW, type BookmarkView } from '../lib/constants';
+import { folderPathsDepthFirst, groupBookmarks } from '../lib/bookmark-groups';
 import { resolveCanReorderBookmarks, resolveCanSortBookmarkList } from '../lib/dnd-reorder';
 import { useSettings } from '../lib/settings-store';
-import type { Bookmark } from '../types';
+import type { Bookmark, Folder } from '../types';
 import { AddBookmarkForm } from './add-bookmark-form';
 import { BookmarkCardContent, BookmarkCardSkeleton } from './bookmark-card-content';
 import { MoveBookmarkDialog } from './folder-dialogs';
@@ -57,6 +60,8 @@ export function BookmarkList({
       folderPath={apiFolderPath}
       deep={deep}
       addBookmarkFolderPath={addBookmarkFolderPath}
+      allFolders={allFolders}
+      isAllBookmarks={isAllBookmarks}
     />
   );
 }
@@ -150,10 +155,14 @@ function PaginatedBookmarkList({
   folderPath,
   deep,
   addBookmarkFolderPath,
+  allFolders,
+  isAllBookmarks,
 }: {
   folderPath: string | null;
   deep: boolean;
   addBookmarkFolderPath: string | null;
+  allFolders: Folder[];
+  isAllBookmarks: boolean;
 }) {
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useBookmarksPaginated(
     folderPath,
@@ -162,6 +171,7 @@ function PaginatedBookmarkList({
   const bookmarks = useMemo(() => data?.pages.flatMap((page) => page.data) ?? [], [data]);
   const { data: creations = [] } = useBookmarkCreations(bookmarks);
   const deleteBookmark = useDeleteBookmark();
+  const isReordering = useIsMutating({ mutationKey: BOOKMARK_REORDER_MUTATION_KEY }) > 0;
 
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -171,7 +181,7 @@ function PaginatedBookmarkList({
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage && !isReordering) {
           fetchNextPage();
         }
       },
@@ -180,7 +190,7 @@ function PaginatedBookmarkList({
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+  }, [hasNextPage, isFetchingNextPage, isReordering, fetchNextPage]);
 
   const visibleCreations = creations.filter(
     (creation) =>
@@ -188,6 +198,36 @@ function PaginatedBookmarkList({
       (creation.status !== 'success' ||
         !bookmarks.some((bookmark) => bookmark.id === creation.bookmark.id)),
   );
+  const groups = useMemo(() => {
+    const bookmarkGroups = groupBookmarks(bookmarks, allFolders, folderPath, isAllBookmarks);
+    const groupsByPath = new Map(bookmarkGroups.map((group) => [group.folderPath, group]));
+    const treePaths = isAllBookmarks
+      ? [null, ...folderPathsDepthFirst(allFolders, null)]
+      : [folderPath, ...folderPathsDepthFirst(allFolders, folderPath)];
+    const orderedPaths = [...treePaths];
+    for (const group of bookmarkGroups) {
+      if (!orderedPaths.includes(group.folderPath)) orderedPaths.push(group.folderPath);
+    }
+    for (const creation of visibleCreations) {
+      if (!orderedPaths.includes(creation.folderPath)) orderedPaths.push(creation.folderPath);
+    }
+
+    return orderedPaths.flatMap((groupPath) => {
+      const group = groupsByPath.get(groupPath);
+      const groupCreations = visibleCreations.filter(
+        (creation) => creation.folderPath === groupPath,
+      );
+      if (!group && groupCreations.length === 0) return [];
+      return [
+        {
+          folderPath: groupPath,
+          label: groupPath ?? '未分類',
+          bookmarks: group?.bookmarks ?? [],
+          creations: groupCreations,
+        },
+      ];
+    });
+  }, [allFolders, bookmarks, folderPath, isAllBookmarks, visibleCreations]);
 
   return (
     <div>
@@ -195,23 +235,27 @@ function PaginatedBookmarkList({
 
       {!isLoading && bookmarks.length === 0 && visibleCreations.length === 0 && <EmptyState />}
 
-      {(isLoading || bookmarks.length > 0 || visibleCreations.length > 0) && (
+      {isLoading && (
         <div
           className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6"
           data-testid="bookmark-grid"
         >
           <BookmarkCreationCards creations={visibleCreations} />
-          {isLoading ? (
-            <LoadingSkeleton />
-          ) : (
-            bookmarks.map((bookmark) => (
-              <DraggableBookmarkCard
-                key={bookmark.id}
-                bookmark={bookmark}
-                onDelete={() => deleteBookmark.mutate({ id: bookmark.id })}
-              />
-            ))
-          )}
+          <LoadingSkeleton />
+        </div>
+      )}
+
+      {!isLoading && (
+        <div className="space-y-8" data-testid="bookmark-groups">
+          {groups.map((group) => (
+            <BookmarkGroupSection
+              key={group.folderPath ?? 'uncategorized'}
+              label={group.label}
+              bookmarks={group.bookmarks}
+              creations={group.creations}
+              onDelete={(id) => deleteBookmark.mutate({ id })}
+            />
+          ))}
         </div>
       )}
 
@@ -225,6 +269,61 @@ function PaginatedBookmarkList({
         </div>
       )}
     </div>
+  );
+}
+
+function BookmarkGroupSection({
+  label,
+  bookmarks,
+  creations,
+  onDelete,
+}: {
+  label: string;
+  bookmarks: Bookmark[];
+  creations: BookmarkCreation[];
+  onDelete: (id: string) => void;
+}) {
+  const canReorder = resolveCanSortBookmarkList(bookmarks);
+  const grid = (
+    <div
+      className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6"
+      data-testid="bookmark-grid"
+    >
+      <BookmarkCreationCards creations={creations} />
+      {bookmarks.map((bookmark) =>
+        canReorder ? (
+          <SortableBookmarkCard
+            key={bookmark.id}
+            bookmark={bookmark}
+            onDelete={() => onDelete(bookmark.id)}
+          />
+        ) : (
+          <DraggableBookmarkCard
+            key={bookmark.id}
+            bookmark={bookmark}
+            onDelete={() => onDelete(bookmark.id)}
+          />
+        ),
+      )}
+    </div>
+  );
+
+  return (
+    <section data-testid={`bookmark-group-${label}`}>
+      <h2 className="mb-3 border-b border-gray-200 pb-2 text-sm font-semibold text-gray-700">
+        {label}
+      </h2>
+      {canReorder ? (
+        <SortableContext
+          items={bookmarks.map((bookmark) => bookmark.id)}
+          strategy={rectSortingStrategy}
+        >
+          {grid}
+        </SortableContext>
+      ) : (
+        grid
+      )}
+    </section>
   );
 }
 

@@ -183,10 +183,11 @@ describe('bookmark creation card', () => {
     await user.click(screen.getByRole('button', { name: '追加' }));
 
     const pendingCard = await screen.findByTestId('bookmark-creation-pending');
-    const bookmarkGrid = screen.getByTestId('bookmark-grid');
+    const bookmarkGrid = pendingCard.parentElement;
+    if (!bookmarkGrid) throw new Error('bookmark grid が見つかりませんでした');
+    expect(bookmarkGrid).toHaveAttribute('data-testid', 'bookmark-grid');
     expect(within(pendingCard).getByText('情報を取得中')).toBeInTheDocument();
     expect(within(pendingCard).getByText(url)).toBeInTheDocument();
-    expect(pendingCard.parentElement).toBe(bookmarkGrid);
     expect(
       screen
         .getByTestId(`bookmark-card-${mockBookmarks[0].id}`)

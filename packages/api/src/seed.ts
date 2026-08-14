@@ -59,6 +59,13 @@ async function insertSampleData(userId: string): Promise<void> {
     await tx.insert(bookmarks).values([
       {
         userId,
+        url: 'https://example.com/',
+        title: 'Example',
+        folderPath: null,
+        position: 0,
+      },
+      {
+        userId,
         url: 'https://www.typescriptlang.org/',
         title: 'TypeScript',
         folderPath: '/tech/typescript',

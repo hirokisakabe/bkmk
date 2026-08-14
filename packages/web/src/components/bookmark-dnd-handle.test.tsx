@@ -21,15 +21,21 @@ describe('bookmark DnD handle', () => {
     expect(draggableNode).not.toHaveAttribute('aria-describedby');
   });
 
-  it('すべて表示では各カードにフォルダ移動専用handleを表示する', async () => {
+  it('すべて表示ではgroup内件数に応じた用途のhandleを表示する', async () => {
     renderWithProviders({ initialUrl: '/' });
 
-    expect(await screen.findAllByRole('button', { name: 'フォルダ移動' })).toHaveLength(
-      mockBookmarks.length,
+    expect(await screen.findAllByRole('button', { name: '並び替え・フォルダ移動' })).toHaveLength(
+      2,
     );
-    expect(
-      screen.queryByRole('button', { name: '並び替え・フォルダ移動' }),
-    ).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'フォルダ移動' })).toHaveLength(1);
+    expect(screen.getByTestId(`bookmark-drag-handle-${mockBookmarks[2].id}`)).toHaveAttribute(
+      'aria-label',
+      'フォルダ移動',
+    );
+    expect(screen.getByTestId(`bookmark-drag-handle-${mockBookmarks[0].id}`)).toHaveAttribute(
+      'aria-label',
+      '並び替え・フォルダ移動',
+    );
   });
 
   it('2件以上の並び替え可能なフォルダでは用途を示す共用handleを表示する', async () => {

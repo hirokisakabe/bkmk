@@ -1,10 +1,13 @@
-import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { HttpResponse, http } from 'msw';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { getOptionalSession } from '../lib/auth-guard';
 import { mockBookmarks } from '../test/handlers';
 import { renderWithProviders } from '../test/render';
+import { server } from '../test/server';
+import type { Bookmark, Folder } from '../types';
 
 describe('IndexPage', () => {
   afterEach(() => {
@@ -66,6 +69,72 @@ describe('IndexPage', () => {
 
     expect(screen.getByText(mockBookmarks[1].title!)).toBeInTheDocument();
     expect(screen.getByText(mockBookmarks[2].title!)).toBeInTheDocument();
+  });
+
+  it('「すべて」では未分類、folder tree 順の full path group として表示する', async () => {
+    const folders: Folder[] = [
+      {
+        id: 'personal',
+        userId: 'test-user',
+        name: 'personal',
+        path: '/personal',
+        parentPath: null,
+        position: 0,
+        deletedAt: null,
+        createdAt: '2024-01-01T00:00:00.000Z',
+      },
+      {
+        id: 'work',
+        userId: 'test-user',
+        name: 'work',
+        path: '/work',
+        parentPath: null,
+        position: 1,
+        deletedAt: null,
+        createdAt: '2024-01-01T00:00:00.000Z',
+      },
+      {
+        id: 'project',
+        userId: 'test-user',
+        name: 'project',
+        path: '/work/project',
+        parentPath: '/work',
+        position: 0,
+        deletedAt: null,
+        createdAt: '2024-01-01T00:00:00.000Z',
+      },
+    ];
+    const groupedBookmarks: Bookmark[] = [
+      ...mockBookmarks,
+      { ...mockBookmarks[2], id: 'personal-bookmark', folderPath: '/personal', position: 0 },
+      { ...mockBookmarks[2], id: 'project-bookmark', folderPath: '/work/project', position: 0 },
+    ];
+    server.use(
+      http.get('/api/folders', () => HttpResponse.json(folders)),
+      http.get('/api/bookmarks', ({ request }) =>
+        new URL(request.url).searchParams.has('limit')
+          ? HttpResponse.json({ data: groupedBookmarks, nextCursor: null })
+          : HttpResponse.json(groupedBookmarks),
+      ),
+    );
+    renderWithProviders({ initialUrl: '/' });
+
+    const groups = await screen.findByTestId('bookmark-groups');
+    const headings = within(groups).getAllByRole('heading', { level: 2 });
+    expect(headings.map((heading) => heading.textContent)).toEqual([
+      '未分類',
+      '/personal',
+      '/work',
+      '/work/project',
+    ]);
+    expect(within(screen.getByTestId('bookmark-group-未分類')).getAllByRole('link')).toHaveLength(
+      2,
+    );
+    expect(within(screen.getByTestId('bookmark-group-/work')).getAllByRole('link')).toHaveLength(1);
+    expect(
+      within(screen.getByTestId('bookmark-group-/work/project')).getAllByRole('link'),
+    ).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: /折りたた/ })).not.toBeInTheDocument();
   });
 
   it('ブックマークのURLが表示される', async () => {

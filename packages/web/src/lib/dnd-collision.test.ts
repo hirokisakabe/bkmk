@@ -31,15 +31,25 @@ const createArgs = ({
   containers = [],
   rects = [],
   pointerCoordinates,
+  activeFolderPath,
 }: {
   activeType?: string;
   collisionRect?: ReturnType<typeof makeRect>;
   containers?: ReturnType<typeof makeContainer>[];
   rects?: [string, ReturnType<typeof makeRect>][];
   pointerCoordinates?: { x: number; y: number };
+  activeFolderPath?: string | null;
 } = {}) =>
   ({
-    active: { id: 'active', data: { current: { type: activeType } } },
+    active: {
+      id: 'active',
+      data: {
+        current: {
+          type: activeType,
+          ...(activeFolderPath !== undefined ? { bookmark: { folderPath: activeFolderPath } } : {}),
+        },
+      },
+    },
     collisionRect,
     droppableContainers: containers,
     droppableRects: new Map(rects),
@@ -185,6 +195,25 @@ describe('collisionDetection', () => {
     expect(result).toBe(collisions);
     expect(dndKit.closestCenter).toHaveBeenCalledTimes(1);
     expect(dndKit.closestCenter.mock.calls[0][0].droppableContainers).toEqual([bookmark]);
+  });
+
+  it('bookmark同士の衝突候補をactiveと同じfolderPathだけに限定する', () => {
+    const sameGroup = makeContainer('bookmark-same', 'bookmark', {
+      bookmark: { folderPath: '/work' },
+    });
+    const otherGroup = makeContainer('bookmark-other', 'bookmark', {
+      bookmark: { folderPath: '/other' },
+    });
+    dndKit.closestCenter.mockReturnValue([{ id: 'bookmark-same' }]);
+
+    collisionDetection(
+      createArgs({
+        activeFolderPath: '/work',
+        containers: [sameGroup, otherGroup],
+      }),
+    );
+
+    expect(dndKit.closestCenter.mock.calls[0][0].droppableContainers).toEqual([sameGroup]);
   });
 
   it('bookmark候補がなくカード中心もフォルダ外なら空配列を返す', () => {
