@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { client } from '../lib/api-client';
-import type { Bookmark } from '../types';
+import { removeBookmarkFromQueryData, type BookmarkQueryData } from '../lib/bookmark-query-data';
 
 export function useDeleteBookmark() {
   const queryClient = useQueryClient();
@@ -10,7 +10,7 @@ export function useDeleteBookmark() {
     void,
     Error,
     { id: string },
-    { previousQueries: [queryKey: readonly unknown[], data: Bookmark[] | undefined][] }
+    { previousQueries: [queryKey: readonly unknown[], data: BookmarkQueryData | undefined][] }
   >({
     mutationFn: async ({ id }) => {
       const res = await client.api.bookmarks[':id'].$delete({
@@ -26,14 +26,13 @@ export function useDeleteBookmark() {
     },
     onMutate: async ({ id }) => {
       await queryClient.cancelQueries({ queryKey: ['bookmarks'] });
-      const previousQueries = queryClient.getQueriesData<Bookmark[]>({
+      const previousQueries = queryClient.getQueriesData<BookmarkQueryData>({
         queryKey: ['bookmarks'],
       });
 
-      queryClient.setQueriesData<Bookmark[]>({ queryKey: ['bookmarks'] }, (old) => {
-        if (!old || !Array.isArray(old)) return old;
-        return old.filter((b) => b.id !== id);
-      });
+      queryClient.setQueriesData<BookmarkQueryData>({ queryKey: ['bookmarks'] }, (old) =>
+        removeBookmarkFromQueryData(old, id),
+      );
 
       return { previousQueries };
     },

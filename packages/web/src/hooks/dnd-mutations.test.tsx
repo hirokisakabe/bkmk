@@ -221,6 +221,17 @@ describe('DnD mutation hooks', () => {
       sourceAfterMoved,
       targetExisting,
     ]);
+    const paginatedKey = ['bookmarks', 'paginated', { folder: null, deep: true }];
+    queryClient.setQueryData(paginatedKey, {
+      pages: [
+        {
+          data: [makeBookmark('before', 0, '/source'), moved],
+          nextCursor: 'page-2',
+        },
+        { data: [sourceAfterMoved, targetExisting], nextCursor: null },
+      ],
+      pageParams: ['', 'page-2'],
+    });
 
     const { result } = renderHook(() => useMoveBookmark(), { wrapper: Wrapper });
     const mutation = act(() => result.current.mutateAsync({ id: 'a', folderPath: '/target' }));
@@ -256,6 +267,12 @@ describe('DnD mutation hooks', () => {
       folderPath: '/target',
       position: 1,
     });
+    expect(
+      queryClient
+        .getQueryData<{ pages: Array<{ data: Bookmark[] }> }>(paginatedKey)
+        ?.pages.flatMap((page) => page.data)
+        .map((bookmark) => `${bookmark.id}:${bookmark.folderPath}:${bookmark.position}`),
+    ).toEqual(['a:/target:0', 'before:/source:0', 'c:/source:1', 'b:/target:1']);
 
     resolvePatch();
     await mutation;
