@@ -1,6 +1,12 @@
 import { createRoute, useRouter } from '@tanstack/react-router';
 import { type FormEvent, useState } from 'react';
 
+import {
+  AuthShell,
+  authInputClassName,
+  authPrimaryButtonClassName,
+  authTextButtonClassName,
+} from '../components/auth-shell';
 import { authClient } from '../lib/auth-client';
 import { requireGuest } from '../lib/auth-guard';
 import { rootRoute } from './__root';
@@ -26,26 +32,47 @@ function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
+    setNotice('');
     setLoading(true);
 
     try {
       if (mode === 'login') {
-        const result = await authClient.signIn.email({ email, password });
+        const result = await authClient.signIn.email({
+          email,
+          password,
+          callbackURL: `${window.location.origin}/verify-email`,
+        });
         if (result.error) {
-          setError(result.error.message ?? 'ログインに失敗しました');
+          if (result.error.code === 'EMAIL_NOT_VERIFIED') {
+            setNotice(
+              'メールアドレスの確認が必要です。確認メールを再送しました。届いたリンクを開いてから、もう一度ログインしてください。',
+            );
+          } else {
+            setError('メールアドレスまたはパスワードを確認してください');
+          }
           return;
         }
       } else {
-        const result = await authClient.signUp.email({ email, password, name: email });
+        const result = await authClient.signUp.email({
+          email,
+          password,
+          name: email,
+          callbackURL: `${window.location.origin}/verify-email`,
+        });
         if (result.error) {
-          setError(result.error.message ?? 'アカウント作成に失敗しました');
+          setError('アカウント作成に失敗しました。入力内容を確認してください');
           return;
         }
+        setNotice(
+          `${email} に確認メールを送りました。メール内のリンクを開いてからログインしてください。`,
+        );
+        return;
       }
       await router.navigate({ to: '/', search: {} });
     } catch {
@@ -56,78 +83,107 @@ function LoginPage() {
   };
 
   return (
-    <div className="flex h-screen items-center justify-center bg-gray-50">
-      <div className="w-80">
-        <h1 className="mb-6 text-2xl font-bold">bkmk</h1>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-              メールアドレス
-            </label>
-            <input
-              id="email"
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 block w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
-              placeholder="mail@example.com"
-            />
+    <AuthShell eyebrow={mode === 'login' ? 'Welcome back' : 'Create account'} title="bkmk">
+      {notice ? (
+        <div role="status" className="space-y-5">
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+            <p className="font-semibold text-blue-950">確認メールをご確認ください</p>
+            <p className="mt-1 text-sm leading-6 text-blue-900">{notice}</p>
           </div>
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-              パスワード
-            </label>
-            <input
-              id="password"
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 block w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
-            />
-          </div>
-          {error && <p className="text-sm text-red-600">{error}</p>}
           <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            type="button"
+            onClick={() => {
+              setNotice('');
+              void router.navigate({ to: '/login', search: {} });
+            }}
+            className={authPrimaryButtonClassName}
           >
-            {loading ? '処理中...' : mode === 'login' ? 'ログイン' : 'アカウント作成'}
+            ログイン画面へ戻る
           </button>
-        </form>
-        <p className="mt-4 text-center text-sm text-gray-500">
-          {mode === 'login' ? (
-            <>
-              アカウントをお持ちでない方は
+        </div>
+      ) : (
+        <>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-slate-700">
+                メールアドレス
+              </label>
+              <input
+                id="email"
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className={authInputClassName}
+                placeholder="mail@example.com"
+              />
+            </div>
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-slate-700">
+                パスワード
+              </label>
+              <input
+                id="password"
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className={authInputClassName}
+              />
+            </div>
+            {error && (
+              <p role="alert" className="text-sm leading-5 text-red-700">
+                {error}
+              </p>
+            )}
+            <button type="submit" disabled={loading} className={authPrimaryButtonClassName}>
+              {loading ? '処理中...' : mode === 'login' ? 'ログイン' : 'アカウント作成'}
+            </button>
+          </form>
+          {mode === 'login' && (
+            <p className="mt-4 text-center text-sm">
               <button
                 type="button"
-                onClick={() => {
-                  setError('');
-                  void router.navigate({ to: '/login', search: { mode: 'signup' } });
-                }}
-                className="text-blue-600 hover:underline"
+                onClick={() => void router.navigate({ to: '/forgot-password' })}
+                className={authTextButtonClassName}
               >
-                こちら
+                パスワードを忘れた方
               </button>
-            </>
-          ) : (
-            <>
-              アカウントをお持ちの方は
-              <button
-                type="button"
-                onClick={() => {
-                  setError('');
-                  void router.navigate({ to: '/login', search: {} });
-                }}
-                className="text-blue-600 hover:underline"
-              >
-                こちら
-              </button>
-            </>
+            </p>
           )}
-        </p>
-      </div>
-    </div>
+          <p className="mt-5 border-t border-slate-200 pt-5 text-center text-sm text-slate-600">
+            {mode === 'login' ? (
+              <>
+                アカウントをお持ちでない方は
+                <button
+                  type="button"
+                  onClick={() => {
+                    setError('');
+                    void router.navigate({ to: '/login', search: { mode: 'signup' } });
+                  }}
+                  className={authTextButtonClassName}
+                >
+                  こちら
+                </button>
+              </>
+            ) : (
+              <>
+                アカウントをお持ちの方は
+                <button
+                  type="button"
+                  onClick={() => {
+                    setError('');
+                    void router.navigate({ to: '/login', search: {} });
+                  }}
+                  className={authTextButtonClassName}
+                >
+                  こちら
+                </button>
+              </>
+            )}
+          </p>
+        </>
+      )}
+    </AuthShell>
   );
 }

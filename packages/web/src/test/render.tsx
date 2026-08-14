@@ -2,13 +2,24 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/react-router';
 import { render } from '@testing-library/react';
 
+import { forgotPasswordRoute } from '../routes/forgot-password';
 import { indexRoute } from '../routes/index';
 import { loginRoute } from '../routes/login';
+import { resetPasswordRoute } from '../routes/reset-password';
 import { settingsRoute } from '../routes/settings';
 import { trashRoute } from '../routes/trash';
+import { verifyEmailRoute } from '../routes/verify-email';
 import { rootRoute } from '../routes/__root';
 
-const routeTree = rootRoute.addChildren([indexRoute, loginRoute, settingsRoute, trashRoute]);
+const routeTree = rootRoute.addChildren([
+  indexRoute,
+  loginRoute,
+  forgotPasswordRoute,
+  resetPasswordRoute,
+  verifyEmailRoute,
+  settingsRoute,
+  trashRoute,
+]);
 
 interface RenderOptions {
   initialState?: Record<string, unknown>;

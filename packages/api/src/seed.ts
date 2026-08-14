@@ -1,12 +1,15 @@
 import { eq } from 'drizzle-orm';
 
-import { auth } from './auth.js';
+import { createAuth } from './auth.js';
 import { db } from './db/index.js';
 import { bookmarks, folders, user } from './db/schema.js';
 
 const TEST_EMAIL = 'test@example.com';
 const TEST_PASSWORD = 'password1234';
 const TEST_NAME = 'Test User';
+
+// seed はローカルデータ作成処理であり、外部へ確認メールを送信しない。
+const seedAuth = createAuth({ emailSender: async () => undefined });
 
 function assertLocalDatabase(): void {
   const raw = process.env.DATABASE_URL;
@@ -27,9 +30,11 @@ function assertLocalDatabase(): void {
 async function recreateTestUser(): Promise<string> {
   await db.delete(user).where(eq(user.email, TEST_EMAIL));
 
-  await auth.api.signUpEmail({
+  await seedAuth.api.signUpEmail({
     body: { email: TEST_EMAIL, password: TEST_PASSWORD, name: TEST_NAME },
   });
+
+  await db.update(user).set({ emailVerified: true }).where(eq(user.email, TEST_EMAIL));
 
   const rows = await db
     .select({ id: user.id })
