@@ -5,12 +5,14 @@ import { describe, expect, it, vi } from 'vitest';
 import { renderWithProviders } from '../test/render';
 
 const authMocks = vi.hoisted(() => ({
+  sendVerificationEmail: vi.fn(),
   signInEmail: vi.fn(),
   signUpEmail: vi.fn(),
 }));
 
 vi.mock('../lib/auth-client', () => ({
   authClient: {
+    sendVerificationEmail: authMocks.sendVerificationEmail,
     signIn: { email: authMocks.signInEmail },
     signUp: { email: authMocks.signUpEmail },
   },
@@ -79,6 +81,7 @@ describe('LoginPage', () => {
       },
       error: null,
     });
+    authMocks.sendVerificationEmail.mockResolvedValue({ data: { status: true }, error: null });
     renderWithProviders({ initialUrl: '/login?mode=signup' });
     const user = userEvent.setup();
 
@@ -87,7 +90,13 @@ describe('LoginPage', () => {
     await user.click(screen.getByRole('button', { name: 'アカウント作成' }));
 
     expect(await screen.findByText('確認メールをご確認ください')).toBeInTheDocument();
-    expect(screen.getByText(/new@example.com に確認メールを送りました/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/new@example.com のアカウント作成を受け付けました/),
+    ).toBeInTheDocument();
+    expect(authMocks.sendVerificationEmail).toHaveBeenCalledWith({
+      email: 'new@example.com',
+      callbackURL: 'http://localhost:3000/verify-email',
+    });
   });
 
   it('未確認ログイン時に再送と次の操作を案内する', async () => {
@@ -95,6 +104,7 @@ describe('LoginPage', () => {
       data: null,
       error: { code: 'EMAIL_NOT_VERIFIED', message: 'Email not verified' },
     });
+    authMocks.sendVerificationEmail.mockResolvedValue({ data: { status: true }, error: null });
     renderWithProviders({ initialUrl: '/login' });
     const user = userEvent.setup();
 
@@ -104,5 +114,43 @@ describe('LoginPage', () => {
 
     expect(await screen.findByText(/確認メールを再送しました/)).toBeInTheDocument();
     expect(screen.getByText(/リンクを開いてから、もう一度ログイン/)).toBeInTheDocument();
+  });
+
+  it('未確認ログイン時の配送失敗で成功を断定せず再試行を案内する', async () => {
+    authMocks.signInEmail.mockResolvedValue({
+      data: null,
+      error: { code: 'EMAIL_NOT_VERIFIED', message: 'Email not verified' },
+    });
+    authMocks.sendVerificationEmail.mockResolvedValue({
+      data: null,
+      error: { code: 'INTERNAL_SERVER_ERROR', message: 'Internal server error' },
+    });
+    renderWithProviders({ initialUrl: '/login' });
+    const user = userEvent.setup();
+
+    await user.type(await screen.findByLabelText('メールアドレス'), 'waiting@example.com');
+    await user.type(screen.getByLabelText('パスワード'), 'password1234');
+    await user.click(screen.getByRole('button', { name: 'ログイン' }));
+
+    expect(await screen.findByText('確認メールを送信できませんでした')).toBeInTheDocument();
+    expect(screen.queryByText(/確認メールを再送しました/)).not.toBeInTheDocument();
+    expect(screen.getByText(/時間をおいてもう一度ログイン/)).toBeInTheDocument();
+  });
+
+  it('新規登録時の配送失敗で成功を断定しない', async () => {
+    authMocks.signUpEmail.mockResolvedValue({
+      data: { token: null, user: { id: 'new-user', email: 'new@example.com' } },
+      error: null,
+    });
+    authMocks.sendVerificationEmail.mockRejectedValue(new Error('network failure'));
+    renderWithProviders({ initialUrl: '/login?mode=signup' });
+    const user = userEvent.setup();
+
+    await user.type(await screen.findByLabelText('メールアドレス'), 'new@example.com');
+    await user.type(screen.getByLabelText('パスワード'), 'password1234');
+    await user.click(screen.getByRole('button', { name: 'アカウント作成' }));
+
+    expect(await screen.findByText('確認メールを送信できませんでした')).toBeInTheDocument();
+    expect(screen.queryByText(/確認メールを送りました/)).not.toBeInTheDocument();
   });
 });

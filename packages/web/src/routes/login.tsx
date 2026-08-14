@@ -15,6 +15,12 @@ interface LoginSearch {
   mode?: 'signup';
 }
 
+interface VerificationNotice {
+  message: string;
+  title: string;
+  tone: 'info' | 'warning';
+}
+
 export const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/login',
@@ -32,8 +38,20 @@ function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
+  const [notice, setNotice] = useState<VerificationNotice | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const requestVerificationEmail = async (): Promise<boolean> => {
+    try {
+      const result = await authClient.sendVerificationEmail({
+        email,
+        callbackURL: `${window.location.origin}/verify-email`,
+      });
+      return !result.error;
+    } catch {
+      return false;
+    }
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -50,8 +68,21 @@ function LoginPage() {
         });
         if (result.error) {
           if (result.error.code === 'EMAIL_NOT_VERIFIED') {
+            const delivered = await requestVerificationEmail();
             setNotice(
-              'メールアドレスの確認が必要です。確認メールを再送しました。届いたリンクを開いてから、もう一度ログインしてください。',
+              delivered
+                ? {
+                    title: '確認メールをご確認ください',
+                    tone: 'info',
+                    message:
+                      'メールアドレスの確認が必要です。確認メールを再送しました。届いたリンクを開いてから、もう一度ログインしてください。',
+                  }
+                : {
+                    title: '確認メールを送信できませんでした',
+                    tone: 'warning',
+                    message:
+                      'メールアドレスの確認が必要です。時間をおいてもう一度ログインし、確認メールの再送をお試しください。',
+                  },
             );
           } else {
             setError('メールアドレスまたはパスワードを確認してください');
@@ -69,8 +100,20 @@ function LoginPage() {
           setError('アカウント作成に失敗しました。入力内容を確認してください');
           return;
         }
+        const delivered = await requestVerificationEmail();
         setNotice(
-          `${email} に確認メールを送りました。メール内のリンクを開いてからログインしてください。`,
+          delivered
+            ? {
+                title: '確認メールをご確認ください',
+                tone: 'info',
+                message: `${email} のアカウント作成を受け付けました。確認メールが届いた場合は、メール内のリンクを開いてからログインしてください。`,
+              }
+            : {
+                title: '確認メールを送信できませんでした',
+                tone: 'warning',
+                message:
+                  'アカウント作成の手続きを受け付けましたが、確認メールの送信を完了できませんでした。ログイン画面に戻り、時間をおいて再送をお試しください。',
+              },
         );
         return;
       }
@@ -86,14 +129,20 @@ function LoginPage() {
     <AuthShell eyebrow={mode === 'login' ? 'Welcome back' : 'Create account'} title="bkmk">
       {notice ? (
         <div role="status" className="space-y-5">
-          <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-            <p className="font-semibold text-blue-950">確認メールをご確認ください</p>
-            <p className="mt-1 text-sm leading-6 text-blue-900">{notice}</p>
+          <div
+            className={`rounded-xl border p-4 ${
+              notice.tone === 'warning'
+                ? 'border-amber-200 bg-amber-50 text-amber-950'
+                : 'border-blue-200 bg-blue-50 text-blue-950'
+            }`}
+          >
+            <p className="font-semibold">{notice.title}</p>
+            <p className="mt-1 text-sm leading-6">{notice.message}</p>
           </div>
           <button
             type="button"
             onClick={() => {
-              setNotice('');
+              setNotice(null);
               void router.navigate({ to: '/login', search: {} });
             }}
             className={authPrimaryButtonClassName}

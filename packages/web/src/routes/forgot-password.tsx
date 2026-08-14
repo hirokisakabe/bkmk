@@ -20,26 +20,20 @@ function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setLoading(true);
-    setError('');
 
     try {
-      const result = await authClient.requestPasswordReset({
+      await authClient.requestPasswordReset({
         email,
         redirectTo: `${window.location.origin}/reset-password`,
       });
-      if (result.error) {
-        setError('送信要求を完了できませんでした。時間をおいてもう一度お試しください');
-        return;
-      }
-      setSent(true);
     } catch {
-      setError('送信要求を完了できませんでした。時間をおいてもう一度お試しください');
+      // アカウントの登録有無や配送結果をレスポンス差から推測させない。
     } finally {
+      setSent(true);
       setLoading(false);
     }
   };
@@ -49,11 +43,10 @@ function ForgotPasswordPage() {
       {sent ? (
         <div role="status" className="space-y-5">
           <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm leading-6 text-blue-950">
-            入力されたメールアドレスに該当するアカウントがある場合、再設定メールを送りました。
-            メール内のリンクを開いてください。
+            安全のため、アカウントの登録状況やメールの配送結果は表示しません。再設定メールが届いた場合は、メール内のリンクを開いてください。
           </div>
           <p className="text-sm leading-6 text-slate-600">
-            メールが届かない場合は迷惑メールフォルダをご確認ください。
+            メールが届かない場合は迷惑メールフォルダを確認し、時間をおいてもう一度お試しください。
           </p>
         </div>
       ) : (
@@ -75,11 +68,6 @@ function ForgotPasswordPage() {
               autoComplete="email"
             />
           </div>
-          {error && (
-            <p role="alert" className="text-sm leading-5 text-red-700">
-              {error}
-            </p>
-          )}
           <button type="submit" disabled={loading} className={authPrimaryButtonClassName}>
             {loading ? '送信中...' : '再設定メールを送る'}
           </button>
