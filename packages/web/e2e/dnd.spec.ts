@@ -305,6 +305,55 @@ test('ポインタが外側でもカード中心が入ったフォルダをハ�
   await expect(page.locator('h3', { hasText: 'Alpha' })).toBeHidden();
 });
 
+test('pointerがsidebarへ入るとoverlayが縮小し、sidebar外へ戻ると復帰する', async ({ page }) => {
+  await setupMocks(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/?folder=/folder-a');
+  await expect(page.locator('h3', { hasText: 'Alpha' })).toBeVisible();
+
+  const patchRequest = page.waitForRequest(
+    (req) =>
+      req.method() === 'PATCH' && /\/api\/bookmarks\/[^/]+$/.test(new URL(req.url()).pathname),
+  );
+  const dragHandle = page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[0].id}`);
+  const targetFolder = page.getByTestId(`folder-drop-target-${FOLDERS[1].id}`);
+  const sidebar = page.locator('aside');
+  const handleBox = await dragHandle.boundingBox();
+  const targetBox = await targetFolder.boundingBox();
+  const sidebarBox = await sidebar.boundingBox();
+  if (!handleBox || !targetBox || !sidebarBox) {
+    throw new Error('boundingBox が取得できませんでした');
+  }
+
+  const fx = handleBox.x + handleBox.width / 2;
+  const fy = handleBox.y + handleBox.height / 2;
+  const sidebarX = sidebarBox.x + sidebarBox.width - 8;
+  const sidebarY = sidebarBox.y + sidebarBox.height / 2;
+  const targetX = targetBox.x + targetBox.width / 2;
+  const targetY = targetBox.y + targetBox.height / 2;
+
+  await page.mouse.move(fx, fy);
+  await page.mouse.down();
+  await page.mouse.move(fx + 8, fy, { steps: 4 });
+  const overlayCard = page.getByTestId('bookmark-drag-overlay-card');
+  await expect(overlayCard).toHaveCSS('scale', '1');
+
+  await page.mouse.move(sidebarX, sidebarY, { steps: 10 });
+  await expect(overlayCard).toHaveCSS('scale', '0.55');
+
+  await page.mouse.move(fx, fy, { steps: 10 });
+  await expect(overlayCard).toHaveCSS('scale', '1');
+
+  await page.mouse.move(targetX, targetY, { steps: 10 });
+  await expect(targetFolder).toHaveClass(/ring/);
+  await expect(overlayCard).toHaveClass(/scale-\[0\.55\]/);
+  await page.mouse.up();
+
+  const req = await patchRequest;
+  const body = (await req.postDataJSON()) as { folderPath: string | null };
+  expect(body.folderPath).toBe('/folder-b');
+});
+
 test('ポインタとカード中心が外側でもカードが重なるフォルダへ移動できる', async ({ page }) => {
   await setupMocks(page);
   await page.setViewportSize({ width: 1280, height: 900 });
