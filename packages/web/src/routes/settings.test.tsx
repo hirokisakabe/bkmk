@@ -20,6 +20,15 @@ describe('SettingsPage', () => {
     });
 
     expect(screen.getByText('サブフォルダを含む')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'データのエクスポート' })).toBeInTheDocument();
+  });
+
+  it('CSV エクスポート API を通常のファイルダウンロードとして開く', async () => {
+    renderWithProviders({ initialUrl: '/settings' });
+    const link = await screen.findByRole('link', { name: 'CSV をダウンロード' });
+
+    expect(link).toHaveAttribute('href', '/api/export/bookmarks');
+    expect(link).toHaveAttribute('download');
   });
 
   it('サブフォルダを含むトグルを切り替えできる', async () => {

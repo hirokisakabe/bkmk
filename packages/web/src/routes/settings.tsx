@@ -77,6 +77,24 @@ function SettingsPage() {
 
         <div className="mt-6 rounded-lg border border-gray-200 bg-white">
           <div className="border-b border-gray-200 px-4 py-3">
+            <h3 className="font-medium text-gray-900">データのエクスポート</h3>
+          </div>
+          <div className="px-4 py-4">
+            <p className="mb-3 text-sm text-gray-500">
+              すべてのブックマークを CSV ファイルでダウンロードします。
+            </p>
+            <a
+              href="/api/export/bookmarks"
+              download
+              className="inline-block rounded-md bg-gray-900 px-4 py-2 text-sm text-white hover:bg-gray-700"
+            >
+              CSV をダウンロード
+            </a>
+          </div>
+        </div>
+
+        <div className="mt-6 rounded-lg border border-gray-200 bg-white">
+          <div className="border-b border-gray-200 px-4 py-3">
             <h3 className="font-medium text-gray-900">アカウント</h3>
           </div>
           <div className="px-4 py-4">
