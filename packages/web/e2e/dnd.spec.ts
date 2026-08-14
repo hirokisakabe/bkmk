@@ -482,9 +482,14 @@ test('1件だけのフォルダでもhandleから別フォルダへ移動でき�
   await expect(page.locator('h3', { hasText: 'Only' })).toBeHidden();
 });
 
-test('mobileでもカード全体ではなくhandleからdragを開始する', async ({ page }) => {
+test('mobileのtouch操作でもカード全体ではなくhandleからdragを開始する', async ({
+  page,
+  context,
+}) => {
   await setupMocks(page);
   await page.goto('/');
+  const cdp = await context.newCDPSession(page);
+  await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 1 });
 
   const card = page.getByTestId(`bookmark-card-${BOOKMARKS[0].id}`);
   const draggableNode = card.locator('..').locator('..');
@@ -493,15 +498,35 @@ test('mobileでもカード全体ではなくhandleからdragを開始する', a
   await expect(moveHandle).toHaveAttribute('aria-label', 'フォルダ移動');
   await expect(draggableNode).not.toHaveAttribute('aria-describedby', /.+/);
 
+  const cardBox = await card.boundingBox();
+  if (!cardBox) throw new Error('boundingBox が取得できませんでした');
+  const cardX = cardBox.x + cardBox.width / 2;
+  const cardY = cardBox.y + cardBox.height / 2;
+  await cdp.send('Input.dispatchTouchEvent', {
+    type: 'touchStart',
+    touchPoints: [{ x: cardX, y: cardY, id: 1 }],
+  });
+  await cdp.send('Input.dispatchTouchEvent', {
+    type: 'touchMove',
+    touchPoints: [{ x: cardX + 8, y: cardY - 40, id: 1 }],
+  });
+  await expect(page.getByTestId('bookmark-drag-overlay-card')).toHaveCount(0);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+
   const handleBox = await moveHandle.boundingBox();
   if (!handleBox) throw new Error('boundingBox が取得できませんでした');
   const x = handleBox.x + handleBox.width / 2;
   const y = handleBox.y + handleBox.height / 2;
-  await page.mouse.move(x, y);
-  await page.mouse.down();
-  await page.mouse.move(x + 8, y, { steps: 4 });
+  await cdp.send('Input.dispatchTouchEvent', {
+    type: 'touchStart',
+    touchPoints: [{ x, y, id: 2 }],
+  });
+  await cdp.send('Input.dispatchTouchEvent', {
+    type: 'touchMove',
+    touchPoints: [{ x: x + 8, y, id: 2 }],
+  });
   await expect(page.getByTestId('bookmark-drag-overlay-card')).toBeVisible();
-  await page.mouse.up();
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
 });
 
 test('末端フォルダでincludeSubfolders=trueでもdrag handleが表示されDnDソートができる', async ({
