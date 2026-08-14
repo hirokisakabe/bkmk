@@ -19,8 +19,8 @@ drag 中の feedback 方針を明文化する。DnD の実装やテストを変�
 | bookmark の folder 移動                                           | 対象              | bookmark card 本体は不可視 (`opacity-0`) にし、`DragOverlay` で position: fixed の最前面にサムネイルを表示する。pointer が sidebar に入るとサムネイル内部を 55% に縮小し、folder tree 側の drop target を ring / background で highlight する。bookmark list 側では reorder preview として扱わない | bookmark の `folderPath` を drop 先 folder に変更し、移動先 folder の先頭へ入れる |
 | folder の同一階層内ソート                                         | 対象              | folder row を半透明にし、同じ `parentPath` の `SortableContext` 内で周囲の row を押し出して drop 後の順序を preview する                                                                                                                                                                           | 同じ `parentPath` 内の `position` を更新する                                      |
 | folder の階層移動                                                 | 対象外            | DnD feedback は出さない。階層移動は context menu の「移動」ダイアログで扱う                                                                                                                                                                                                                        | DnD では変更しない                                                                |
-| `すべて` 表示での bookmark ソート                                 | 対象外            | ソート用 drag handle は表示しない。bookmark の folder 移動 DnD を許可する場合も、feedback は folder tree の drop target highlight に寄せる                                                                                                                                                         | flat list の global order は変更しない                                            |
-| deep 表示かつサブフォルダあり folder での bookmark ソート         | 対象外            | ソート用 drag handle は表示しない。bookmark の folder 移動 DnD を許可する場合も、feedback は folder tree の drop target highlight に寄せる                                                                                                                                                         | 複数 folder をまたぐ flat list の順序は変更しない                                 |
+| `すべて` 表示での bookmark ソート                                 | 対象外            | folder 移動専用 handle は表示するが、bookmark 同士の reorder preview は出さない。feedback は folder tree の drop target highlight に寄せる                                                                                                                                                         | flat list の global order は変更しない                                            |
+| deep 表示かつサブフォルダあり folder での bookmark ソート         | 対象外            | folder 移動専用 handle は表示するが、bookmark 同士の reorder preview は出さない。feedback は folder tree の drop target highlight に寄せる                                                                                                                                                         | 複数 folder をまたぐ flat list の順序は変更しない                                 |
 | deep 表示かつ末端フォルダ（サブフォルダなし）での bookmark ソート | 対象              | bookmark card 本体は不可視 (`opacity-0`) にし、`DragOverlay` で position: fixed の最前面にサムネイルを表示する。同一 `SortableContext` 内で周囲の card を押し出して drop 後の順序を preview する                                                                                                   | 同じ `folderPath` 内の `position` を更新する                                      |
 
 ## bookmark ソート
@@ -32,6 +32,8 @@ bookmark のソートは、以下の条件をすべて満たす場合に DnD 対
 
 この条件は `resolveCanReorderBookmarks({ isAllBookmarks, deep, hasSubfolders })` に対応し、
 `!isAllBookmarks && !(deep && hasSubfolders)` で評価する。
+さらに実際の同一フォルダ内ソートは bookmark が2件以上ある場合だけ有効にする。1件だけの場合も
+folder 移動は必要なため、カード全体ではなく folder 移動専用 handle から DnD を開始できるようにする。
 
 同一フォルダ内ソートでは、active bookmark と over bookmark の `folderPath` が同じ場合だけ
 `position` 更新を実行する。異なる `folderPath` の bookmark 同士を over しても、ソートとしては
@@ -81,10 +83,9 @@ bookmark の folder drop 用 droppable は各 folder row だけに別 ID で登�
 row-only target のみを候補にし、展開中の親 wrapper と child row の矩形が重なることを避ける。folder
 の衝突判定では逆に sortable wrapper のみを候補にし、同一階層ソートの preview と drop を維持する。
 
-`canReorder = false` の表示でも、bookmark の folder 移動 DnD を許可してよい。ただし、この状態で
-ソート用の grip handle を表示すると並び替え可能に見えるため、ソート用 drag handle は表示しない。
-folder 移動 DnD の affordance が必要な場合は、card 全体を draggable にする、またはソート用とは別の
-移動用 handle を用意する。
+`canReorder = false` の表示でも、bookmark の folder 移動 DnD を許可する。folder 移動専用 handle を
+常に表示し、DnD listeners / attributes は handle だけに渡す。card 全体は draggable surface にしない。
+これにより件数や表示モードが変わっても、folder 移動の開始位置を右上の handle に統一する。
 
 ## folder ソート
 
@@ -131,14 +132,15 @@ order として扱う。つまり表示を folder ごとの group に寄せ、�
 
 ## drag handle / move handle
 
-ソート可能な表示では、bookmark / folder ともに grip handle を表示し、handle から DnD を開始する。
-handle の `aria-label` と `data-testid` は、ユーザーの affordance と E2E locator の両方に使う。
+bookmark は件数や表示モードに関係なく右上に grip handle を表示し、DnD listeners / attributes は
+handle だけに渡す。card 全体はリンク選択、context menu、削除・ダイアログ操作の surface として保ち、
+draggable にはしない。desktop と mobile のどちらも同じ handle から drag を開始する。
 
-`canReorder = false` の bookmark 表示では、ソート用 grip handle を表示しない。bookmark の folder 移動を
-DnD で許可する場合も、ソート用 handle を流用しない。必要なら以下のどちらかに分ける。
-
-- card 全体を folder 移動用の draggable surface にする。
-- ソート用 grip handle とは別に、folder 移動用 handle を用意する。
+同一フォルダ内ソートが可能な2件以上の一覧では、handle をソートと folder 移動の共用にし、
+`aria-label="並び替え・フォルダ移動"` とする。1件だけのフォルダ、`すべて`、サブフォルダを含む deep
+表示などソート不可の一覧では folder 移動専用とし、`aria-label="フォルダ移動"` とする。見た目は
+共通に保ちつつ、aria-label で用途を判別できるようにする。folder も従来どおりソート handle から
+DnD を開始する。
 
 folder tree の folder row は、現時点では folder ソート handle と bookmark drop target を同じ row 内に持つ。
 bookmark を drag している間は folder row / `未分類` row の hover feedback を優先し、folder ソート中は
@@ -166,7 +168,8 @@ DnD のテストは、以下の層でこの policy を守る。
   invalidation を検証する。bookmark move は移動元 / 移動先 / `すべて` query の整合性を確認する。
 - API route tests: `position` 更新が別ユーザー、別 folder / parentPath、削除済みデータを巻き込まないことを確認する。
 - `packages/web/e2e/dnd.spec.ts`: 実ブラウザで代表操作を確認する。DnD 後は API request だけでなく、
-  DOM 上の表示順や移動後の表示状態に加え、sidebar 内での overlay 縮小と sidebar 外での復帰も確認する。
+  DOM 上の表示順や移動後の表示状態、1件 / ソート可能 / ソート不可での handle の用途、mobile での
+  handle 起点、sidebar 内での overlay 縮小と sidebar 外での復帰も確認する。
 - `packages/web/src/lib/dnd-collision.test.ts`: pointer、bookmark card 中心、card との重なりの優先順位で
   単一の folder target を選ぶこと、card が folder と重ならなければ bookmark card 同士の中心距離で
   判定すること、bookmark / folder のソート判定には folder drop 条件を広げないことを確認する。

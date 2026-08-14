@@ -20,11 +20,19 @@ test('同一階層のフォルダをDnDソートすると並び替えAPIが呼�
   await page.getByTestId(`folder-drop-target-${FOLDERS[1].id}`).waitFor();
 
   // Folder A (pos=0) → Folder B (pos=1) へドラッグ（同一階層ソート）
-  await dragTo(
-    page,
-    page.getByTestId(`folder-drag-handle-${FOLDERS[0].id}`),
-    page.getByTestId(`folder-drag-handle-${FOLDERS[1].id}`),
-  );
+  const sourceHandle = page.getByTestId(`folder-drag-handle-${FOLDERS[0].id}`);
+  const targetHandle = page.getByTestId(`folder-drag-handle-${FOLDERS[1].id}`);
+  const sourceBox = await sourceHandle.boundingBox();
+  const targetBox = await targetHandle.boundingBox();
+  if (!sourceBox || !targetBox) throw new Error('boundingBox が取得できませんでした');
+  const sourceX = sourceBox.x + sourceBox.width / 2;
+  const sourceY = sourceBox.y + sourceBox.height / 2;
+  await page.mouse.move(sourceX, sourceY);
+  await page.mouse.down();
+  await page.mouse.move(sourceX + 8, sourceY, { steps: 4 });
+  // sortable preview で target row が動く前に、測定済みの中心へ直接 pointer を置く。
+  await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
+  await page.mouse.up();
 
   const req = await patchRequest;
   const body = (await req.postDataJSON()) as { position: number };
@@ -82,6 +90,10 @@ test('同一フォルダ内でブックマークをDnDソートすると並び�
   await expect(page.locator('h3', { hasText: 'Beta' })).toBeVisible();
 
   await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText(['Alpha', 'Beta']);
+  await expect(page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[0].id}`)).toHaveAttribute(
+    'aria-label',
+    '並び替え・フォルダ移動',
+  );
   await dragTo(
     page,
     page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[0].id}`),
@@ -128,7 +140,7 @@ test('pendingカードは並び替え対象外のまま、表示中も既存カ�
 
   const creationCard = page.getByTestId('bookmark-creation-pending');
   await expect(creationCard).toBeVisible();
-  await expect(creationCard.getByRole('button', { name: '並び替え' })).toHaveCount(0);
+  await expect(creationCard.getByRole('button', { name: /並び替え|フォルダ移動/ })).toHaveCount(0);
   await expect(creationCard.locator('[data-testid^="bookmark-drag-handle-"]')).toHaveCount(0);
   await expect(page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[0].id}`)).toBeVisible();
   await expect(page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[1].id}`)).toBeVisible();
@@ -195,37 +207,37 @@ test('展開した親ではなくchild rowへブックマークをドロップ�
   await setupMocks(page);
   await page.setViewportSize({ width: 1280, height: 900 });
 
-  // Child を選んで親を展開したあと「すべて」へ戻し、card 全体を folder 移動用にする。
-  await page.goto(`/?folder=${encodeURIComponent('/folder-a/child')}`);
+  await page.goto('/?folder=/folder-a');
   const parentFolder = page.getByTestId(`folder-drop-target-${FOLDERS[0].id}`);
   const childFolder = page.getByTestId(`folder-drop-target-${FOLDERS[2].id}`);
+  await parentFolder.locator('button').first().click();
   await expect(childFolder).toBeVisible();
-  await page.getByRole('button', { name: 'すべて', exact: true }).click();
 
   const patchRequest = page.waitForRequest(
     (req) =>
       req.method() === 'PATCH' && /\/api\/bookmarks\/[^/]+$/.test(new URL(req.url()).pathname),
   );
-  const draggedCard = page.getByTestId(`bookmark-card-${BOOKMARKS[0].id}`);
+  const dragHandle = page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[0].id}`);
   const parentBox = await parentFolder.boundingBox();
   const childBox = await childFolder.boundingBox();
-  await expect(draggedCard).toBeVisible();
-  const cardBox = await draggedCard.boundingBox();
-  if (!parentBox || !childBox || !cardBox) {
+  await expect(dragHandle).toBeVisible();
+  const handleBox = await dragHandle.boundingBox();
+  if (!parentBox || !childBox || !handleBox) {
     throw new Error('boundingBox が取得できませんでした');
   }
 
   // Bookmark drop geometry is row-only even though the sortable parent wrapper includes children.
   expect(parentBox.y + parentBox.height).toBeLessThanOrEqual(childBox.y);
 
-  const fx = cardBox.x + cardBox.width / 2;
-  const fy = cardBox.y + cardBox.height / 2;
+  const fx = handleBox.x + handleBox.width / 2;
+  const fy = handleBox.y + handleBox.height / 2;
   const tx = childBox.x + childBox.width / 2;
   const ty = childBox.y + childBox.height / 2;
   await page.mouse.move(fx, fy);
   await page.mouse.down();
   await page.mouse.move(fx + 8, fy, { steps: 4 });
-  await page.mouse.move(tx, ty, { steps: 20 });
+  // 補間経路で親の展開 button を横切ると pointer down 中の toggle と競合するため、child へ直接移動する。
+  await page.mouse.move(tx, ty);
 
   await expect(childFolder).toHaveClass(/ring/);
   await expect(parentFolder).not.toHaveClass(/ring/);
@@ -414,9 +426,7 @@ test('ポインタとカード中心が外側でもカードが重なるフォ�
   await expect(page.locator('h3', { hasText: 'Alpha' })).toBeHidden();
 });
 
-test('すべて表示ではブックマークの並び替えハンドルを表示せずカード本体でフォルダ移動できる', async ({
-  page,
-}) => {
+test('すべて表示ではフォルダ移動handleから移動できる', async ({ page }) => {
   await setupMocks(page);
   await page.setViewportSize({ width: 1280, height: 900 });
 
@@ -427,13 +437,11 @@ test('すべて表示ではブックマークの並び替えハンドルを表�
 
   await page.goto('/');
   await expect(page.locator('h3', { hasText: 'Alpha' })).toBeVisible();
-  await expect(page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[0].id}`)).toHaveCount(0);
+  const moveHandle = page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[0].id}`);
+  await expect(moveHandle).toBeVisible();
+  await expect(moveHandle).toHaveAttribute('aria-label', 'フォルダ移動');
 
-  await dragTo(
-    page,
-    page.getByTestId(`bookmark-card-${BOOKMARKS[0].id}`),
-    page.getByTestId(`folder-drop-target-${FOLDERS[1].id}`),
-  );
+  await dragTo(page, moveHandle, page.getByTestId(`folder-drop-target-${FOLDERS[1].id}`));
 
   const req = await patchRequest;
   const body = (await req.postDataJSON()) as { folderPath: string | null };
@@ -448,6 +456,52 @@ test('すべて表示ではブックマークの並び替えハンドルを表�
     'Delta',
     'Epsilon',
   ]);
+});
+
+test('1件だけのフォルダでもhandleから別フォルダへ移動できる', async ({ page }) => {
+  const onlyBookmark = makeBookmark('only-bookmark', 'Only', '/single-folder', 0);
+  await setupMocks(page, [onlyBookmark]);
+  await page.setViewportSize({ width: 1280, height: 900 });
+
+  const patchRequest = page.waitForRequest(
+    (req) =>
+      req.method() === 'PATCH' && /\/api\/bookmarks\/[^/]+$/.test(new URL(req.url()).pathname),
+  );
+  await page.goto('/?folder=/single-folder');
+  await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText(['Only']);
+
+  const moveHandle = page.getByTestId(`bookmark-drag-handle-${onlyBookmark.id}`);
+  await expect(moveHandle).toBeVisible();
+  await expect(moveHandle).toHaveAttribute('aria-label', 'フォルダ移動');
+  await dragTo(page, moveHandle, page.getByTestId(`folder-drop-target-${FOLDERS[1].id}`));
+
+  const request = await patchRequest;
+  const body = (await request.postDataJSON()) as { folderPath: string | null };
+  expect(request.url()).toContain(`/api/bookmarks/${onlyBookmark.id}`);
+  expect(body.folderPath).toBe('/folder-b');
+  await expect(page.locator('h3', { hasText: 'Only' })).toBeHidden();
+});
+
+test('mobileでもカード全体ではなくhandleからdragを開始する', async ({ page }) => {
+  await setupMocks(page);
+  await page.goto('/');
+
+  const card = page.getByTestId(`bookmark-card-${BOOKMARKS[0].id}`);
+  const draggableNode = card.locator('..').locator('..');
+  const moveHandle = page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[0].id}`);
+  await expect(moveHandle).toBeVisible();
+  await expect(moveHandle).toHaveAttribute('aria-label', 'フォルダ移動');
+  await expect(draggableNode).not.toHaveAttribute('aria-describedby', /.+/);
+
+  const handleBox = await moveHandle.boundingBox();
+  if (!handleBox) throw new Error('boundingBox が取得できませんでした');
+  const x = handleBox.x + handleBox.width / 2;
+  const y = handleBox.y + handleBox.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + 8, y, { steps: 4 });
+  await expect(page.getByTestId('bookmark-drag-overlay-card')).toBeVisible();
+  await page.mouse.up();
 });
 
 test('末端フォルダでincludeSubfolders=trueでもdrag handleが表示されDnDソートができる', async ({
@@ -516,9 +570,7 @@ test('includeSubfolders=true で複数フォルダ混在キャッシュでも同
   await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText(['GapB', 'GapA']);
 });
 
-test('deep表示ではブックマークの並び替えハンドルを表示せずbookmark上のdropはno-opになる', async ({
-  page,
-}) => {
+test('deep表示ではフォルダ移動handleをbookmarkソートに使わない', async ({ page }) => {
   await setupMocks(page);
 
   await page.goto('/settings');
@@ -530,8 +582,11 @@ test('deep表示ではブックマークの並び替えハンドルを表示せ�
     'Gamma',
     'Beta',
   ]);
-  await expect(page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[0].id}`)).toHaveCount(0);
-  await expect(page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[2].id}`)).toHaveCount(0);
+  const alphaHandle = page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[0].id}`);
+  const gammaHandle = page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[2].id}`);
+  const betaHandle = page.getByTestId(`bookmark-drag-handle-${BOOKMARKS[1].id}`);
+  await expect(alphaHandle).toHaveAttribute('aria-label', 'フォルダ移動');
+  await expect(gammaHandle).toHaveAttribute('aria-label', 'フォルダ移動');
 
   const bookmarkPatchRequests: string[] = [];
   page.on('request', (req) => {
@@ -540,16 +595,8 @@ test('deep表示ではブックマークの並び替えハンドルを表示せ�
     }
   });
 
-  await dragTo(
-    page,
-    page.getByTestId(`bookmark-card-${BOOKMARKS[0].id}`),
-    page.getByTestId(`bookmark-card-${BOOKMARKS[2].id}`),
-  );
-  await dragTo(
-    page,
-    page.getByTestId(`bookmark-card-${BOOKMARKS[0].id}`),
-    page.getByTestId(`bookmark-card-${BOOKMARKS[1].id}`),
-  );
+  await dragTo(page, alphaHandle, gammaHandle);
+  await dragTo(page, alphaHandle, betaHandle);
 
   expect(bookmarkPatchRequests).toEqual([]);
   await expect(page.locator('[data-testid^="bookmark-card-"] h3')).toHaveText([
