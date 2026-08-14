@@ -45,6 +45,16 @@ const bookmark: Bookmark = {
 
 describe('フォルダ名の入力検証', () => {
   describe('作成ダイアログ', () => {
+    it('パスワードマネージャーのサジェスト対象から除外する', () => {
+      renderDialog(<CreateFolderDialog open onOpenChange={vi.fn()} parentPath={null} />);
+
+      const input = screen.getByRole('textbox', { name: 'フォルダ名' });
+      expect(input).toHaveAttribute('type', 'text');
+      expect(input).toHaveAttribute('name', 'folder-name');
+      expect(input).toHaveAttribute('autocomplete', 'off');
+      expect(input).toHaveAttribute('data-1p-ignore');
+    });
+
     it('255文字は送信し、256文字は送信前に拒否する', async () => {
       const requests: string[] = [];
       mockCreateFolderRequest(requests);
@@ -152,6 +162,16 @@ describe('フォルダ名の入力検証', () => {
   });
 
   describe('名前変更ダイアログ', () => {
+    it('パスワードマネージャーのサジェスト対象から除外する', () => {
+      renderRenameDialog();
+
+      const input = screen.getByRole('textbox', { name: 'フォルダ名' });
+      expect(input).toHaveAttribute('type', 'text');
+      expect(input).toHaveAttribute('name', 'folder-name');
+      expect(input).toHaveAttribute('autocomplete', 'off');
+      expect(input).toHaveAttribute('data-1p-ignore');
+    });
+
     it('255文字は送信し、256文字は送信前に拒否する', async () => {
       const requests: string[] = [];
       mockRenameFolderRequest(requests);
