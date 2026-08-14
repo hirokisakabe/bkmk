@@ -563,18 +563,34 @@ describe('IndexPage', () => {
   });
 
   it('すべて表示の削除はAPI応答前にカードを消し、確認ダイアログを表示しない', async () => {
+    let deleted = false;
     let resolveDelete!: () => void;
-    const deleteStarted = new Promise<void>((resolve) => {
-      server.use(
-        http.delete('/api/bookmarks/:id', async () => {
-          resolve();
-          await new Promise<void>((resolveRequest) => {
-            resolveDelete = resolveRequest;
-          });
-          return new HttpResponse(null, { status: 204 });
-        }),
-      );
+    const deleteResponse = new Promise<void>((resolve) => {
+      resolveDelete = resolve;
     });
+    let notifyDeleteStarted!: () => void;
+    const deleteStarted = new Promise<void>((resolve) => {
+      notifyDeleteStarted = resolve;
+    });
+    let notifyRefetched!: () => void;
+    const refetched = new Promise<void>((resolve) => {
+      notifyRefetched = resolve;
+    });
+    server.use(
+      http.get('/api/bookmarks', ({ request }) => {
+        const bookmarks = deleted ? mockBookmarks.slice(1) : mockBookmarks;
+        if (deleted) notifyRefetched();
+        return new URL(request.url).searchParams.has('limit')
+          ? HttpResponse.json({ data: bookmarks, nextCursor: null })
+          : HttpResponse.json(bookmarks);
+      }),
+      http.delete('/api/bookmarks/:id', async () => {
+        notifyDeleteStarted();
+        await deleteResponse;
+        deleted = true;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
     const user = userEvent.setup();
     renderWithProviders({ initialUrl: '/' });
 
@@ -586,10 +602,17 @@ describe('IndexPage', () => {
     await user.click(deleteButtons[0]);
     await deleteStarted;
 
-    expect(screen.queryByText(mockBookmarks[0].title!)).not.toBeInTheDocument();
-    expect(screen.queryByText('ブックマークを削除')).not.toBeInTheDocument();
+    try {
+      expect(screen.queryByText(mockBookmarks[0].title!)).not.toBeInTheDocument();
+      expect(screen.queryByText('ブックマークを削除')).not.toBeInTheDocument();
+    } finally {
+      resolveDelete();
+      await refetched;
+    }
 
-    resolveDelete();
+    await waitFor(() => {
+      expect(screen.queryByText(mockBookmarks[0].title!)).not.toBeInTheDocument();
+    });
   });
 });
 
