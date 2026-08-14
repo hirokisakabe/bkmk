@@ -12,6 +12,7 @@ export type EmailSender = (email: TransactionalEmail) => Promise<void>;
 export type EmailDeliveryFailureType =
   | 'configuration_error'
   | 'provider_rejected'
+  | 'provider_timeout'
   | 'provider_unavailable'
   | 'unknown';
 

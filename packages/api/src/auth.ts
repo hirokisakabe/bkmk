@@ -4,6 +4,7 @@ import { bearer } from 'better-auth/plugins';
 
 import { db } from './db/index.js';
 import {
+  EmailDeliveryError,
   type EmailDeliveryFailureType,
   type EmailSender,
   sanitizeEmailDeliveryError,
@@ -29,15 +30,31 @@ interface CreateAuthOptions {
   database?: Parameters<typeof drizzleAdapter>[0];
   emailDeliveryLogger?: EmailDeliveryLogger;
   emailSender?: EmailSender;
+  emailDeliveryTimeoutMs?: number;
   passwordResetResponseDelay?: () => number;
 }
 
+const DEFAULT_EMAIL_DELIVERY_TIMEOUT_MS = 500;
 const defaultPasswordResetResponseDelay = () => 800 + Math.floor(Math.random() * 400);
 
 async function waitForMinimumResponseTime(startedAt: number, minimumMs: number): Promise<void> {
   const remainingMs = minimumMs - (performance.now() - startedAt);
   if (remainingMs > 0) {
     await new Promise((resolve) => setTimeout(resolve, remainingMs));
+  }
+}
+
+async function deliverWithTimeout(deliver: () => Promise<void>, timeoutMs: number): Promise<void> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      deliver(),
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new EmailDeliveryError('provider_timeout')), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
   }
 }
 
@@ -67,6 +84,8 @@ async function deliverAuthEmail(
 export function createAuth(options: CreateAuthOptions = {}) {
   const emailSender = options.emailSender ?? sendTransactionalEmail;
   const emailDeliveryLogger = options.emailDeliveryLogger ?? rootLogger;
+  const emailDeliveryTimeoutMs =
+    options.emailDeliveryTimeoutMs ?? DEFAULT_EMAIL_DELIVERY_TIMEOUT_MS;
   const passwordResetResponseDelay =
     options.passwordResetResponseDelay ?? defaultPasswordResetResponseDelay;
 
@@ -77,6 +96,7 @@ export function createAuth(options: CreateAuthOptions = {}) {
       process.env.BETTER_AUTH_URL ?? '',
       ...(process.env.BETTER_AUTH_TRUSTED_ORIGINS?.split(',').filter(Boolean) ?? []),
     ],
+    disabledPaths: ['/send-verification-email'],
     database: drizzleAdapter(options.database ?? db, {
       provider: 'pg',
     }),
@@ -102,7 +122,11 @@ export function createAuth(options: CreateAuthOptions = {}) {
         await deliverAuthEmail(
           'password_reset',
           request,
-          () => sendPasswordReset(emailSender, { email: user.email, url }),
+          () =>
+            deliverWithTimeout(
+              () => sendPasswordReset(emailSender, { email: user.email, url }),
+              emailDeliveryTimeoutMs,
+            ),
           emailDeliveryLogger,
         );
       },

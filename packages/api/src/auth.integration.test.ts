@@ -88,6 +88,28 @@ describe('email verification and password reset', () => {
     expect(messages[0]?.text).toContain('/auth/verify-email?token=');
   });
 
+  it('匿名の確認メール送信エンドポイントを公開しない', async () => {
+    await signUp('disabled-endpoint@example.com');
+    messages = [];
+
+    const response = await auth.handler(
+      new Request('http://localhost:3000/auth/send-verification-email', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'http://localhost:5173',
+        },
+        body: JSON.stringify({
+          email: 'disabled-endpoint@example.com',
+          callbackURL: 'http://localhost:5173/verify-email',
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(404);
+    expect(messages).toHaveLength(0);
+  });
+
   it('有効な確認リンクで確認済みになり、ログインできる', async () => {
     const message = await signUp('verify-success@example.com');
     const verificationUrl = message.text.split('\n').find((line) => line.startsWith('http'))!;
@@ -312,10 +334,15 @@ describe('email verification and password reset', () => {
 
   it('再設定要求は登録有無にかかわらず最小応答時間を適用する', async () => {
     const { createAuth } = await import('./auth.js');
-    const minimumDelayMs = 30;
+    const minimumDelayMs = 60;
+    const logError = vi.fn();
     const timedAuth = createAuth({
       database,
-      emailSender: async () => undefined,
+      emailDeliveryLogger: { error: logError },
+      emailDeliveryTimeoutMs: 10,
+      emailSender: async () => {
+        await new Promise((resolve) => setTimeout(resolve, minimumDelayMs * 2));
+      },
       passwordResetResponseDelay: () => minimumDelayMs,
     });
 
@@ -343,5 +370,14 @@ describe('email verification and password reset', () => {
     expect(known.body).toEqual(unknown.body);
     expect(known.elapsedMs).toBeGreaterThanOrEqual(minimumDelayMs - 2);
     expect(unknown.elapsedMs).toBeGreaterThanOrEqual(minimumDelayMs - 2);
+    expect(Math.abs(known.elapsedMs - unknown.elapsedMs)).toBeLessThan(30);
+    expect(logError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'auth_email_delivery_failed',
+        failureType: 'provider_timeout',
+        purpose: 'password_reset',
+      }),
+      'Authentication email delivery failed',
+    );
   });
 });
