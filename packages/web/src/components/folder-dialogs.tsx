@@ -44,13 +44,15 @@ export function CreateFolderDialog({
 }) {
   const [name, setName] = useState('');
   const [hasInteracted, setHasInteracted] = useState(false);
+  const [isComposing, setIsComposing] = useState(false);
   const inputId = useId();
   const errorId = `${inputId}-error`;
   const createFolder = useCreateFolder();
   const validationError = getFolderNameErrorMessage(name);
-  const displayedError =
-    (hasInteracted ? validationError : null) ??
-    (createFolder.isError ? createFolder.error.message : null);
+  const displayedError = isComposing
+    ? null
+    : ((hasInteracted ? validationError : null) ??
+      (createFolder.isError ? createFolder.error.message : null));
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -90,6 +92,8 @@ export function CreateFolderDialog({
                 setHasInteracted(true);
                 if (createFolder.isError) createFolder.reset();
               }}
+              onCompositionStart={() => setIsComposing(true)}
+              onCompositionEnd={() => setIsComposing(false)}
               placeholder="フォルダ名"
               aria-invalid={displayedError ? true : undefined}
               aria-describedby={displayedError ? errorId : undefined}
@@ -145,13 +149,15 @@ export function RenameFolderDialog({
 }) {
   const [name, setName] = useState(folder.name);
   const [hasInteracted, setHasInteracted] = useState(false);
+  const [isComposing, setIsComposing] = useState(false);
   const inputId = useId();
   const errorId = `${inputId}-error`;
   const renameFolder = useRenameFolder({ selectedFolder, onSelectFolder });
   const validationError = getFolderNameErrorMessage(name);
-  const displayedError =
-    (hasInteracted ? validationError : null) ??
-    (renameFolder.isError ? renameFolder.error.message : null);
+  const displayedError = isComposing
+    ? null
+    : ((hasInteracted ? validationError : null) ??
+      (renameFolder.isError ? renameFolder.error.message : null));
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -190,6 +196,8 @@ export function RenameFolderDialog({
                 setHasInteracted(true);
                 if (renameFolder.isError) renameFolder.reset();
               }}
+              onCompositionStart={() => setIsComposing(true)}
+              onCompositionEnd={() => setIsComposing(false)}
               placeholder="フォルダ名"
               aria-invalid={displayedError ? true : undefined}
               aria-describedby={displayedError ? errorId : undefined}

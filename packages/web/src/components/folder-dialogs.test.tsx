@@ -104,6 +104,27 @@ describe('フォルダ名の入力検証', () => {
       expect(requests).toHaveLength(0);
     });
 
+    it('IME 変換中は一時的な不許可文字のエラーを表示しない', () => {
+      renderDialog(<CreateFolderDialog open onOpenChange={vi.fn()} parentPath={null} />);
+
+      const input = screen.getByRole('textbox', { name: 'フォルダ名' });
+      fireEvent.compositionStart(input);
+      fireEvent.change(input, { target: { value: 'ｋ' } });
+
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expect(input).not.toHaveAttribute('aria-invalid');
+
+      fireEvent.change(input, { target: { value: 'か' } });
+      fireEvent.compositionEnd(input);
+
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expect(input).not.toHaveAttribute('aria-invalid');
+
+      fireEvent.change(input, { target: { value: 'work/private' } });
+
+      expectLocalError(input, /使用できる文字は、英数字/);
+    });
+
     it('空白・絵文字・日本語を含む許可文字の名前をそのまま送信する', async () => {
       const requests: string[] = [];
       mockCreateFolderRequest(requests);
@@ -219,6 +240,27 @@ describe('フォルダ名の入力検証', () => {
       expectLocalError(input, /使用できる文字は、英数字/);
       fireEvent.submit(input.closest('form')!);
       expect(requests).toHaveLength(0);
+    });
+
+    it('IME 変換中は一時的な不許可文字のエラーを表示しない', () => {
+      renderRenameDialog();
+
+      const input = screen.getByRole('textbox', { name: 'フォルダ名' });
+      fireEvent.compositionStart(input);
+      fireEvent.change(input, { target: { value: 'ｋ' } });
+
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expect(input).not.toHaveAttribute('aria-invalid');
+
+      fireEvent.change(input, { target: { value: 'か' } });
+      fireEvent.compositionEnd(input);
+
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expect(input).not.toHaveAttribute('aria-invalid');
+
+      fireEvent.change(input, { target: { value: 'work/private' } });
+
+      expectLocalError(input, /使用できる文字は、英数字/);
     });
 
     it('空白・絵文字・日本語を含む許可文字の名前をそのまま送信する', async () => {
