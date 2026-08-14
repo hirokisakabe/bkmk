@@ -109,6 +109,8 @@ jobs:
           service: ${{ env.SERVICE_NAME }}
           image: ${{ env.IMAGE }}:${{ github.sha }}
           region: ${{ env.REGION }}
+          secrets_update_strategy: overwrite
+          env_vars_update_strategy: overwrite
           flags: '--allow-unauthenticated --memory=256Mi --cpu=1 --min-instances=0 --max-instances=2 --port=8080'
           secrets: |
             BETTER_AUTH_SECRET=better-auth-secret:latest

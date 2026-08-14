@@ -208,22 +208,34 @@ describe('email verification and password reset', () => {
   });
 
   it('メール送信失敗の詳細を認証レスポンスへ露出しない', async () => {
+    await signUp('delivery-failure@example.com');
     const { createAuth } = await import('./auth.js');
+    let senderCalled = false;
     const failingAuth = createAuth({
       database,
       emailSender: async () => {
+        senderCalled = true;
         throw new Error('re_super-secret-provider-token');
       },
     });
 
-    const result = await failingAuth.api.requestPasswordReset({
-      body: {
-        email: 'missing-failure@example.com',
-        redirectTo: 'http://localhost:5173/reset-password',
-      },
-    });
+    const response = await failingAuth.handler(
+      new Request('http://localhost:3000/auth/request-password-reset', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'http://localhost:5173',
+        },
+        body: JSON.stringify({
+          email: 'delivery-failure@example.com',
+          redirectTo: 'http://localhost:5173/reset-password',
+        }),
+      }),
+    );
+    const responseBody = await response.text();
 
-    expect(JSON.stringify(result)).not.toContain('re_super-secret-provider-token');
-    expect(result.status).toBe(true);
+    expect(senderCalled).toBe(true);
+    expect(response.status).toBe(200);
+    expect(responseBody).not.toContain('re_super-secret-provider-token');
   });
 });
