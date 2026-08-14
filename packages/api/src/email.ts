@@ -16,9 +16,12 @@ export type EmailDeliveryFailureType =
   | 'unknown';
 
 export class EmailDeliveryError extends Error {
-  constructor(readonly failureType: EmailDeliveryFailureType) {
+  readonly failureType: EmailDeliveryFailureType;
+
+  constructor(failureType: EmailDeliveryFailureType) {
     super('Transactional email delivery failed');
     this.name = 'EmailDeliveryError';
+    this.failureType = failureType;
   }
 }
 

@@ -56,7 +56,7 @@ function LoginPage() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
-    setNotice('');
+    setNotice(null);
     setLoading(true);
 
     try {
