@@ -56,6 +56,28 @@ describe('OverflowTooltip', () => {
     await waitFor(() => expect(screen.queryByRole('tooltip')).not.toBeInTheDocument());
   });
 
+  it('viewport 内に配置し、scroll すると閉じる', async () => {
+    render(<TooltipHarness text="画面端にあるとても長いフォルダ名" />);
+    const trigger = screen.getByRole('button', { name: '画面端にあるとても長いフォルダ名' });
+    const text = screen.getByText('画面端にあるとても長いフォルダ名');
+    markAsOverflowing(text);
+    vi.spyOn(text, 'getBoundingClientRect').mockReturnValue(makeRect(0, 100, 80, 20));
+    const tooltipRect = vi
+      .spyOn(HTMLDivElement.prototype, 'getBoundingClientRect')
+      .mockReturnValue(makeRect(-100, window.innerHeight - 40, 300, 80));
+
+    fireEvent.pointerEnter(trigger);
+    const tooltip = await screen.findByRole('tooltip');
+    await waitFor(() => {
+      expect(tooltip).toHaveStyle({ left: '156px', top: '16px' });
+    });
+    expect(tooltip).toHaveClass('max-w-[calc(100vw-2rem)]');
+
+    fireEvent.scroll(window);
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+    tooltipRect.mockRestore();
+  });
+
   it.each(['bookmark', 'folder'])('%s の DnD 中は tooltip を閉じて再表示しない', async (type) => {
     const view = render(<TooltipHarness text="とても長いフォルダ名" />);
     const trigger = screen.getByRole('button', { name: 'とても長いフォルダ名' });
@@ -100,4 +122,18 @@ function setDimensions(element: HTMLElement, scrollWidth: number, clientWidth: n
     clientWidth: { configurable: true, value: clientWidth },
   });
   fireEvent(window, new Event('resize'));
+}
+
+function makeRect(left: number, top: number, width: number, height: number): DOMRect {
+  return {
+    x: left,
+    y: top,
+    left,
+    top,
+    width,
+    height,
+    right: left + width,
+    bottom: top + height,
+    toJSON: () => ({}),
+  };
 }

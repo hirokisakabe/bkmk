@@ -35,9 +35,11 @@ export function OverflowTooltip({
   const tooltipId = useId();
   const [textElement, setTextElement] = useState<HTMLElement | null>(null);
   const [isOverflowing, setIsOverflowing] = useState(false);
-  const [position, setPosition] = useState<{ left: number; top: number; above: boolean } | null>(
-    null,
-  );
+  const [position, setPosition] = useState<{
+    left: number;
+    top: number;
+    triggerTop: number;
+  } | null>(null);
 
   const updateOverflow = useCallback(() => {
     const element = textElement;
@@ -57,7 +59,9 @@ export function OverflowTooltip({
     if (!element) return;
 
     const handleResize = () => updateOverflow();
+    const handleScroll = () => setPosition(null);
     window.addEventListener('resize', handleResize);
+    window.addEventListener('scroll', handleScroll, true);
 
     const observer =
       typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(handleResize);
@@ -65,6 +69,7 @@ export function OverflowTooltip({
 
     return () => {
       window.removeEventListener('resize', handleResize);
+      window.removeEventListener('scroll', handleScroll, true);
       observer?.disconnect();
     };
   }, [text, textElement, updateOverflow]);
@@ -81,13 +86,36 @@ export function OverflowTooltip({
 
     const rect = element.getBoundingClientRect();
     setPosition({
-      left: Math.min(Math.max(rect.left + rect.width / 2, 16), window.innerWidth - 16),
-      top: rect.bottom > window.innerHeight - 96 ? rect.top - 8 : rect.bottom + 8,
-      above: rect.bottom > window.innerHeight - 96,
+      left: rect.left + rect.width / 2,
+      top: rect.bottom + 8,
+      triggerTop: rect.top,
     });
   };
 
   const hide = () => setPosition(null);
+  const setTooltipRef = useCallback((element: HTMLDivElement | null) => {
+    if (!element) return;
+
+    const rect = element.getBoundingClientRect();
+    setPosition((current) => {
+      if (!current) return current;
+
+      const viewportMargin = 16;
+      let left = current.left;
+      if (rect.left < viewportMargin) left += viewportMargin - rect.left;
+      if (rect.right > window.innerWidth - viewportMargin) {
+        left -= rect.right - (window.innerWidth - viewportMargin);
+      }
+
+      const shouldMoveAbove = rect.bottom > window.innerHeight - viewportMargin;
+      const top = shouldMoveAbove
+        ? Math.max(viewportMargin, current.triggerTop - 8 - rect.height)
+        : current.top;
+      if (left === current.left && top === current.top) return current;
+      return { ...current, left, top };
+    });
+  }, []);
+
   const triggerProps: TooltipTriggerProps = {
     'aria-describedby': !active && position ? tooltipId : undefined,
     onBlur: hide,
@@ -107,13 +135,14 @@ export function OverflowTooltip({
         position &&
         createPortal(
           <div
+            ref={setTooltipRef}
             id={tooltipId}
             role="tooltip"
-            className="pointer-events-none fixed z-[100] max-w-xs rounded bg-gray-900 px-2 py-1 text-xs break-words whitespace-normal text-white shadow-lg"
+            className="pointer-events-none fixed z-[100] max-w-[calc(100vw-2rem)] rounded bg-gray-900 px-2 py-1 text-xs break-words whitespace-normal text-white shadow-lg sm:max-w-xs"
             style={{
               left: position.left,
               top: position.top,
-              transform: position.above ? 'translate(-50%, -100%)' : 'translateX(-50%)',
+              transform: 'translateX(-50%)',
             }}
           >
             {text}
