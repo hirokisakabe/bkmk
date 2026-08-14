@@ -41,7 +41,9 @@ app.onError(errorHandler);
 
 // Auth routes
 app.on(['POST', 'GET'], '/auth/*', (c) => {
-  return auth.handler(c.req.raw);
+  const headers = new Headers(c.req.raw.headers);
+  headers.set('X-Request-Id', c.get('requestId'));
+  return auth.handler(new Request(c.req.raw, { headers }));
 });
 
 // Auth middleware for API routes

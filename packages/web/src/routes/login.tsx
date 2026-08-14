@@ -15,6 +15,11 @@ interface LoginSearch {
   mode?: 'signup';
 }
 
+interface VerificationNotice {
+  message: string;
+  title: string;
+}
+
 export const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/login',
@@ -32,13 +37,13 @@ function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
+  const [notice, setNotice] = useState<VerificationNotice | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
-    setNotice('');
+    setNotice(null);
     setLoading(true);
 
     try {
@@ -50,9 +55,11 @@ function LoginPage() {
         });
         if (result.error) {
           if (result.error.code === 'EMAIL_NOT_VERIFIED') {
-            setNotice(
-              'メールアドレスの確認が必要です。確認メールを再送しました。届いたリンクを開いてから、もう一度ログインしてください。',
-            );
+            setNotice({
+              title: 'メールアドレスの確認が必要です',
+              message:
+                '確認メールの送信を試みましたが、配送結果は確認できません。メールが届いた場合はリンクを開いてください。届かない場合は時間をおいて、もう一度ログインをお試しください。',
+            });
           } else {
             setError('メールアドレスまたはパスワードを確認してください');
           }
@@ -69,9 +76,10 @@ function LoginPage() {
           setError('アカウント作成に失敗しました。入力内容を確認してください');
           return;
         }
-        setNotice(
-          `${email} に確認メールを送りました。メール内のリンクを開いてからログインしてください。`,
-        );
+        setNotice({
+          title: 'アカウント作成を受け付けました',
+          message: `${email} に確認メールが届いた場合は、メール内のリンクを開いてからログインしてください。届かない場合は時間をおいて、ログイン画面から再送をお試しください。`,
+        });
         return;
       }
       await router.navigate({ to: '/', search: {} });
@@ -86,14 +94,14 @@ function LoginPage() {
     <AuthShell eyebrow={mode === 'login' ? 'Welcome back' : 'Create account'} title="bkmk">
       {notice ? (
         <div role="status" className="space-y-5">
-          <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-            <p className="font-semibold text-blue-950">確認メールをご確認ください</p>
-            <p className="mt-1 text-sm leading-6 text-blue-900">{notice}</p>
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-blue-950">
+            <p className="font-semibold">{notice.title}</p>
+            <p className="mt-1 text-sm leading-6">{notice.message}</p>
           </div>
           <button
             type="button"
             onClick={() => {
-              setNotice('');
+              setNotice(null);
               void router.navigate({ to: '/login', search: {} });
             }}
             className={authPrimaryButtonClassName}

@@ -28,7 +28,7 @@ test('登録後のメール確認と未確認ログインの再送案内を表�
   await page.getByLabel('メールアドレス').fill('new@example.com');
   await page.getByLabel('パスワード').fill('password1234');
   await page.getByRole('button', { name: 'アカウント作成' }).click();
-  await expect(page.getByText('確認メールをご確認ください')).toBeVisible();
+  await expect(page.getByText('アカウント作成を受け付けました')).toBeVisible();
 
   await page.getByRole('button', { name: 'ログイン画面へ戻る' }).click();
   await page.route(
@@ -42,7 +42,7 @@ test('登録後のメール確認と未確認ログインの再送案内を表�
   await page.getByLabel('メールアドレス').fill('new@example.com');
   await page.getByLabel('パスワード').fill('password1234');
   await page.getByRole('button', { name: 'ログイン' }).click();
-  await expect(page.getByText(/確認メールを再送しました/)).toBeVisible();
+  await expect(page.getByText(/配送結果は確認できません/)).toBeVisible();
 });
 
 test('パスワード再設定要求から新しいパスワードを設定する', async ({ page }) => {
@@ -60,7 +60,9 @@ test('パスワード再設定要求から新しいパスワードを設定す�
   await page.goto('/forgot-password');
   await page.getByLabel('メールアドレス').fill('unknown@example.com');
   await page.getByRole('button', { name: '再設定メールを送る' }).click();
-  await expect(page.getByText(/該当するアカウントがある場合/)).toBeVisible();
+  await expect(
+    page.getByText(/アカウントの登録状況やメールの配送結果は表示しません/),
+  ).toBeVisible();
 
   await page.route(
     (url) => url.pathname.endsWith('/auth/reset-password'),

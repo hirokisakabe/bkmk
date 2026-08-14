@@ -29,9 +29,27 @@ describe('authentication recovery pages', () => {
     await user.click(screen.getByRole('button', { name: '再設定メールを送る' }));
 
     expect(
-      await screen.findByText(/該当するアカウントがある場合、再設定メールを送りました/),
+      await screen.findByText(/アカウントの登録状況やメールの配送結果は表示しません/),
     ).toBeInTheDocument();
     expect(screen.queryByText(/登録されていません/)).not.toBeInTheDocument();
+  });
+
+  it('パスワード再設定の配送失敗でも中立的な案内を表示する', async () => {
+    authMocks.requestPasswordReset.mockResolvedValue({
+      data: null,
+      error: { code: 'INTERNAL_SERVER_ERROR', message: 'Internal server error' },
+    });
+    renderWithProviders({ initialUrl: '/forgot-password' });
+    const user = userEvent.setup();
+
+    await user.type(await screen.findByLabelText('メールアドレス'), 'known@example.com');
+    await user.click(screen.getByRole('button', { name: '再設定メールを送る' }));
+
+    expect(
+      await screen.findByText(/アカウントの登録状況やメールの配送結果は表示しません/),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByText(/再設定メールを送りました/)).not.toBeInTheDocument();
   });
 
   it('有効なトークンで新しいパスワードを設定できる', async () => {

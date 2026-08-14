@@ -66,7 +66,7 @@ describe('LoginPage', () => {
     expect(router.state.location.search).toEqual({});
   });
 
-  it('登録後に確認メールの案内を表示する', async () => {
+  it('登録後に配送成功を断定しない確認メール案内を表示する', async () => {
     authMocks.signUpEmail.mockResolvedValue({
       data: {
         token: null,
@@ -86,11 +86,12 @@ describe('LoginPage', () => {
     await user.type(screen.getByLabelText('パスワード'), 'password1234');
     await user.click(screen.getByRole('button', { name: 'アカウント作成' }));
 
-    expect(await screen.findByText('確認メールをご確認ください')).toBeInTheDocument();
-    expect(screen.getByText(/new@example.com に確認メールを送りました/)).toBeInTheDocument();
+    expect(await screen.findByText('アカウント作成を受け付けました')).toBeInTheDocument();
+    expect(screen.getByText(/確認メールが届いた場合/)).toBeInTheDocument();
+    expect(screen.queryByText(/確認メールを送りました/)).not.toBeInTheDocument();
   });
 
-  it('未確認ログイン時に再送と次の操作を案内する', async () => {
+  it('未確認ログイン時に配送結果を断定せず次の操作を案内する', async () => {
     authMocks.signInEmail.mockResolvedValue({
       data: null,
       error: { code: 'EMAIL_NOT_VERIFIED', message: 'Email not verified' },
@@ -102,7 +103,8 @@ describe('LoginPage', () => {
     await user.type(screen.getByLabelText('パスワード'), 'password1234');
     await user.click(screen.getByRole('button', { name: 'ログイン' }));
 
-    expect(await screen.findByText(/確認メールを再送しました/)).toBeInTheDocument();
-    expect(screen.getByText(/リンクを開いてから、もう一度ログイン/)).toBeInTheDocument();
+    expect(await screen.findByText('メールアドレスの確認が必要です')).toBeInTheDocument();
+    expect(screen.queryByText(/確認メールを再送しました/)).not.toBeInTheDocument();
+    expect(screen.getByText(/時間をおいて、もう一度ログイン/)).toBeInTheDocument();
   });
 });
