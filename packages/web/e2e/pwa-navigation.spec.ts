@@ -47,5 +47,8 @@ test('通常の SPA ルートはオフラインでもナビゲーションフォ
   await context.setOffline(true);
 
   await page.goto('/verify-email');
-  await expect(page.getByRole('heading', { name: 'メールアドレスの確認' })).toBeVisible();
+  await expect(page).toHaveURL(/\/login\?verified=true$/);
+  await expect(
+    page.getByText('メールアドレスを確認しました。ログインしてください。'),
+  ).toBeVisible();
 });
