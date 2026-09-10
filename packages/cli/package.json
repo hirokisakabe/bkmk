@@ -28,6 +28,6 @@
     "@bkmk/api": "workspace:*",
     "tsx": "^4.19.4",
     "@types/node": "^22.15.18",
-    "vitest": "^4.1.4"
+    "vitest": "^4.1.11"
   }
 }
