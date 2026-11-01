@@ -23,7 +23,7 @@
   "dependencies": {
     "@hono/node-server": "^2.0.10",
     "@hono/zod-validator": "^0.7.6",
-    "better-auth": "^1.6.22",
+    "better-auth": "^1.7.7",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.12.34",
     "hono-pino": "^0.10.3",
